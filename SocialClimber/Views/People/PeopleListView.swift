@@ -10,6 +10,7 @@ struct PeopleListView: View {
     @State private var sortOption: SortOption = .name
     @State private var showAddPerson = false
     @State private var showArchived = false
+    @State private var showVoiceCapture = false
 
     enum SortOption: String, CaseIterable, Identifiable {
         case name = "Name"
@@ -51,33 +52,39 @@ struct PeopleListView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if people.isEmpty {
-                    EmptyStateView(
-                        icon: "person.2",
-                        title: "No people yet",
-                        message: "Start by adding someone you want to stay close to.",
-                        actionTitle: "Add Person"
-                    ) { showAddPerson = true }
-                } else {
-                    List {
-                        ForEach(filtered) { person in
-                            NavigationLink {
-                                PersonProfileView(person: person)
-                            } label: {
-                                PersonRowView(person: person)
+            ZStack(alignment: .bottom) {
+                Group {
+                    if people.isEmpty {
+                        EmptyStateView(
+                            icon: "person.2",
+                            title: "No people yet",
+                            message: "Start by adding someone you want to stay close to.",
+                            actionTitle: "Add Person"
+                        ) { showAddPerson = true }
+                    } else {
+                        List {
+                            ForEach(filtered, id: \.persistentModelID) { person in
+                                NavigationLink {
+                                    PersonProfileView(person: person)
+                                } label: {
+                                    PersonRowView(person: person)
+                                }
+                            }
+                        }
+                        .listStyle(.plain)
+                        .searchable(text: $searchText, prompt: "Name, relationship, tag…")
+                        .overlay {
+                            if filtered.isEmpty {
+                                EmptyStateView(icon: "magnifyingglass", title: "No matches", message: "Try a different search or filter.")
                             }
                         }
                     }
-                    .listStyle(.plain)
-                    .searchable(text: $searchText, prompt: "Name, relationship, tag…")
-                    .overlay {
-                        if filtered.isEmpty {
-                            EmptyStateView(icon: "magnifyingglass", title: "No matches", message: "Try a different search or filter.")
-                        }
-                    }
                 }
+                .safeAreaPadding(.bottom, 86)
+
+                voiceNoteBar
             }
+            .background(Color(.systemGroupedBackground))
             .navigationTitle("People")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { filterMenu }
@@ -88,6 +95,41 @@ struct PeopleListView: View {
                 }
             }
             .sheet(isPresented: $showAddPerson) { PersonEditView() }
+            .sheet(isPresented: $showVoiceCapture) { VoiceCaptureView() }
+        }
+    }
+
+    private var voiceNoteBar: some View {
+        VStack(spacing: 0) {
+            Divider()
+            Button {
+                showVoiceCapture = true
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "mic.fill")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .frame(width: 42, height: 42)
+                        .background(Color.accentColor, in: Circle())
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Add voice note")
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                        Text("Record a memory, reminder, or follow-up")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.up")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .background(.regularMaterial)
         }
     }
 

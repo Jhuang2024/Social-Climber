@@ -30,6 +30,7 @@ struct PersonEditView: View {
     @State private var cadenceDays = 30
     @State private var avatarItem: PhotosPickerItem?
     @State private var avatarData: Data?
+    @State private var avatarError: String?
     @State private var newMethodLabel = "Phone"
     @State private var newMethodValue = ""
 
@@ -38,16 +39,42 @@ struct PersonEditView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    HStack {
-                        Spacer()
-                        PhotosPicker(selection: $avatarItem, matching: .images) {
-                            avatarPreview
-                        }
-                        Spacer()
-                    }
-                    .listRowBackground(Color.clear)
+                Section("Profile Photo") {
+                    VStack(spacing: 12) {
+                        avatarPreview
 
+                        PhotosPicker(selection: $avatarItem, matching: .images) {
+                            Label(avatarData == nil ? "Choose from Photos" : "Change Photo", systemImage: "photo.on.rectangle")
+                                .font(.subheadline.weight(.medium))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+
+                        if avatarData != nil {
+                            Button(role: .destructive) {
+                                avatarItem = nil
+                                avatarData = nil
+                                avatarError = nil
+                            } label: {
+                                Label("Remove Photo", systemImage: "trash")
+                                    .font(.subheadline.weight(.medium))
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+
+                        if let avatarError {
+                            Text(avatarError)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                                .multilineTextAlignment(.center)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .listRowBackground(Color.clear)
+                }
+
+                Section {
                     TextField("Name", text: $name)
                     TextField("Nickname", text: $nickname)
                     TextField("Relationship to me (e.g. Berkeley roommate)", text: $relationshipToMe, axis: .vertical)
@@ -128,11 +155,27 @@ struct PersonEditView: View {
             .onAppear(perform: load)
             .onChange(of: avatarItem) {
                 Task {
-                    if let data = try? await avatarItem?.loadTransferable(type: Data.self) {
-                        avatarData = data
-                    }
+                    await loadSelectedAvatar()
                 }
             }
+        }
+    }
+
+    @MainActor
+    private func loadSelectedAvatar() async {
+        avatarError = nil
+        guard let avatarItem else { return }
+
+        do {
+            guard let data = try await avatarItem.loadTransferable(type: Data.self),
+                  let image = UIImage(data: data),
+                  let compressed = image.jpegData(compressionQuality: 0.82) else {
+                avatarError = "That photo couldn't be loaded. Try another image from Photos."
+                return
+            }
+            avatarData = compressed
+        } catch {
+            avatarError = "Photo access failed. You can allow Photos access in iOS Settings and try again."
         }
     }
 
@@ -149,16 +192,13 @@ struct PersonEditView: View {
                     Circle()
                         .fill(Color(.systemFill))
                         .frame(width: 84, height: 84)
-                    Image(systemName: "camera.fill")
+                    Image(systemName: "person.crop.circle.badge.camera")
+                        .font(.title2)
                         .foregroundStyle(.secondary)
                 }
             }
         }
-        .overlay(alignment: .bottomTrailing) {
-            Image(systemName: "plus.circle.fill")
-                .foregroundStyle(Color.accentColor)
-                .background(Color(.systemGroupedBackground), in: Circle())
-        }
+        .accessibilityLabel(avatarData == nil ? "No profile photo selected" : "Selected profile photo")
     }
 
     private func load() {

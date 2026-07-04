@@ -1,8 +1,7 @@
 import Foundation
 import SwiftData
 
-/// Realistic sample data for SwiftUI previews and the explicit debug-only
-/// "Load Demo Data" action in Settings.
+/// Realistic sample data for SwiftUI previews only.
 enum SeedData {
 
     static func seed(context: ModelContext) {

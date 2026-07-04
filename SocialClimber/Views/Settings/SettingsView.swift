@@ -143,20 +143,6 @@ struct SettingsView: View {
                     }
                 }
 
-                #if DEBUG
-                Section("Debug") {
-                    Button {
-                        SeedData.seed(context: context)
-                        message = "Demo data loaded."
-                    } label: {
-                        Label("Load Demo Data", systemImage: "sparkles")
-                    }
-                    Text("Demo data is never loaded on normal app launch.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                #endif
-
                 Section("Privacy") {
                     Label {
                         Text("Social Climber is local-first. Your people, interactions, reminders, gifts, voice notes, contacts, and calendar-derived context live on this iPhone. Contacts import is selected-contact only, calendar access is optional, and LLM calls happen only when you choose a provider and analyze a note.")
