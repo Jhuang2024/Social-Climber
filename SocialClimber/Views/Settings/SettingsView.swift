@@ -29,6 +29,20 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    HStack(spacing: 12) {
+                        BrandLogoView(size: 48)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Social Climber")
+                                .font(.headline.weight(.semibold))
+                            Text("Private relationship memory")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+
                 Section("Check-In Cadence Defaults") {
                     Stepper("Close (5●): every \(cadenceClose)d", value: $cadenceClose, in: 1...60)
                     Stepper("Regular (3●): every \(cadenceRegular)d", value: $cadenceRegular, in: 7...120)

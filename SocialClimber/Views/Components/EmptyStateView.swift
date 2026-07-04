@@ -9,6 +9,8 @@ struct EmptyStateView: View {
 
     var body: some View {
         VStack(spacing: 12) {
+            BrandLogoView(size: 42)
+                .padding(.bottom, 2)
             Image(systemName: icon)
                 .font(.system(size: 42, weight: .light))
                 .foregroundStyle(.secondary)

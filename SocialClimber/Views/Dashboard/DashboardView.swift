@@ -53,6 +53,7 @@ struct DashboardView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
+                    brandHeader
                     if people.isEmpty {
                         emptyDashboard
                     } else {
@@ -100,12 +101,26 @@ struct DashboardView: View {
 
     // MARK: Sections
 
+    private var brandHeader: some View {
+        HStack(spacing: 10) {
+            BrandLogoView(size: 34)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Social Climber")
+                    .font(.headline.weight(.semibold))
+                Text("Local-first relationship memory")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.top, 4)
+        .accessibilityElement(children: .combine)
+    }
+
     private var emptyDashboard: some View {
         VStack(spacing: 18) {
-            Image(systemName: "person.2.wave.2.fill")
-                .font(.system(size: 44, weight: .regular))
-                .foregroundStyle(Color.accentColor)
-                .padding(.top, 16)
+            BrandLogoView(size: 58)
+                .padding(.top, 8)
             VStack(spacing: 6) {
                 Text("Start with one real relationship")
                     .font(.title3.weight(.semibold))
