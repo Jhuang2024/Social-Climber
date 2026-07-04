@@ -13,24 +13,31 @@ struct FormSectionCard<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: 13) {
+            HStack(spacing: 9) {
                 if let icon {
                     Image(systemName: icon)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.accentColor)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 24, height: 24)
+                        .background(Color.accentColor.gradient, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 }
                 Text(title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.footnote.weight(.bold))
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
-                    .kerning(0.4)
+                    .tracking(0.8)
                 Spacer()
             }
             content
         }
-        .padding(14)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.055))
+        }
+        .cardShadow()
     }
 }

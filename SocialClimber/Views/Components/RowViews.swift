@@ -44,8 +44,10 @@ struct ReminderRowView: View {
             Image(systemName: reminder.type.icon)
                 .font(.caption)
                 .foregroundStyle(reminder.type.color)
+                .frame(width: 28, height: 28)
+                .background(reminder.type.color.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 7)
     }
 }
 
@@ -65,7 +67,7 @@ struct GiftIdeaRowView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(gift.title)
-                    .font(.body)
+                    .font(.body.weight(.medium))
                 HStack(spacing: 6) {
                     if showPerson, let person = gift.person {
                         Text("For \(person.firstName)")
@@ -102,7 +104,7 @@ struct GiftIdeaRowView: View {
                     .foregroundStyle(gift.status.color)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 7)
     }
 }
 
@@ -147,7 +149,7 @@ struct TimelineRowView: View {
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
     }
 }
 
@@ -159,10 +161,10 @@ struct PersonRowView: View {
     var body: some View {
         HStack(spacing: 12) {
             PersonAvatarView(person: person, size: 46)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(person.displayName)
-                        .font(.body.weight(.medium))
+                        .font(.body.weight(.semibold))
                     if !person.nickname.isEmpty && person.nickname != person.name {
                         Text("“\(person.nickname)”")
                             .font(.caption)
@@ -184,6 +186,7 @@ struct PersonRowView: View {
                 }
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 9)
+        .contentShape(Rectangle())
     }
 }

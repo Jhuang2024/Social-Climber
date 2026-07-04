@@ -36,6 +36,8 @@ struct GiftIdeaEditSheet: View {
                 TextField("Notes", text: $notes, axis: .vertical)
                     .lineLimit(2...5)
             }
+            .scrollContentBackground(.hidden)
+            .background(SCTheme.pageBackground)
             .navigationTitle("Gift Idea")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -85,6 +87,8 @@ struct ReminderEditSheet: View {
                 TextField("Notes", text: $notes, axis: .vertical)
                     .lineLimit(2...5)
             }
+            .scrollContentBackground(.hidden)
+            .background(SCTheme.pageBackground)
             .navigationTitle("Reminder")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -133,6 +137,8 @@ struct ImportantDateEditSheet: View {
                 TextField("Notes", text: $notes, axis: .vertical)
                     .lineLimit(2...5)
             }
+            .scrollContentBackground(.hidden)
+            .background(SCTheme.pageBackground)
             .navigationTitle("Important Date")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

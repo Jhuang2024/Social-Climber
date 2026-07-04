@@ -13,10 +13,17 @@ struct DotRatingPicker: View {
             Spacer()
             HStack(spacing: 6) {
                 ForEach(1...5, id: \.self) { i in
-                    Circle()
-                        .fill(i <= value ? color : Color(.systemFill))
-                        .frame(width: 18, height: 18)
-                        .onTapGesture { value = i }
+                    Button {
+                        withAnimation(.snappy(duration: 0.16)) { value = i }
+                    } label: {
+                        Circle()
+                            .fill(i <= value ? color : Color(.systemFill))
+                            .frame(width: 18, height: 18)
+                            .overlay {
+                                Circle().strokeBorder(color.opacity(i <= value ? 0 : 0.20))
+                            }
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -103,7 +110,11 @@ struct PersonMultiPicker: View {
                         }
                     }
                 }
+                .listRowSeparator(.hidden)
+                .listRowBackground(SCTheme.cardBackground)
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(SCTheme.pageBackground)
     }
 }

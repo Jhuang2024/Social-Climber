@@ -30,18 +30,23 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section {
-                    HStack(spacing: 12) {
+                    HStack(spacing: 14) {
                         BrandLogoView(size: 48)
                         VStack(alignment: .leading, spacing: 3) {
                             Text("Social Climber")
-                                .font(.headline.weight(.semibold))
-                            Text("Private relationship memory")
+                                .font(.title3.weight(.bold))
+                            Text("Private relationship memory, built local-first.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 6)
                 }
+                .listRowBackground(
+                    RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous)
+                        .fill(.thinMaterial)
+                        .padding(.vertical, 3)
+                )
 
                 Section("Check-In Cadence Defaults") {
                     Stepper("Close (5●): every \(cadenceClose)d", value: $cadenceClose, in: 1...60)
@@ -172,6 +177,8 @@ struct SettingsView: View {
                     LabeledContent("Version", value: "1.0")
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(SCTheme.pageBackground)
             .navigationTitle("Settings")
             .sheet(item: $exportItem) { item in
                 ShareSheet(items: [item.url])

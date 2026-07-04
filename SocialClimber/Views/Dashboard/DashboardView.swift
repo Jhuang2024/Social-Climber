@@ -57,6 +57,7 @@ struct DashboardView: View {
                     if people.isEmpty {
                         emptyDashboard
                     } else {
+                        dashboardPulse
                         quickActions
                         if !dueReminders.isEmpty { remindersCard }
                         if !checkInsDue.isEmpty { checkInsCard }
@@ -68,9 +69,10 @@ struct DashboardView: View {
                     }
                 }
                 .padding(.horizontal)
-                .padding(.bottom, 24)
+                .padding(.top, 4)
+                .padding(.bottom, 28)
             }
-            .background(Color(.systemGroupedBackground))
+            .socialClimberPageBackground()
             .navigationTitle(greeting)
             .sheet(isPresented: $showAddPerson) { PersonEditView() }
             .sheet(isPresented: $showAddInteraction) { AddInteractionView() }
@@ -102,8 +104,8 @@ struct DashboardView: View {
     // MARK: Sections
 
     private var brandHeader: some View {
-        HStack(spacing: 10) {
-            BrandLogoView(size: 34)
+        HStack(spacing: 12) {
+            BrandLogoView(size: 38)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Social Climber")
                     .font(.headline.weight(.semibold))
@@ -113,7 +115,14 @@ struct DashboardView: View {
             }
             Spacer()
         }
-        .padding(.top, 4)
+        .padding(14)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous))
+        .overlay(alignment: .trailing) {
+            Image(systemName: "lock.shield.fill")
+                .font(.subheadline)
+                .foregroundStyle(.green)
+                .padding(.trailing, 14)
+        }
         .accessibilityElement(children: .combine)
     }
 
@@ -138,7 +147,20 @@ struct DashboardView: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.055))
+        }
+        .cardShadow()
+    }
+
+    private var dashboardPulse: some View {
+        HStack(spacing: 10) {
+            PulseMetric(title: "People", value: "\(people.count)", icon: "person.2.fill", color: .blue)
+            PulseMetric(title: "Due", value: "\(dueReminders.count)", icon: "bell.badge.fill", color: .orange)
+            PulseMetric(title: "Quiet", value: "\(quietPeople.count)", icon: "moon.zzz.fill", color: .purple)
+        }
     }
 
     private var quickActions: some View {
@@ -266,15 +288,22 @@ private struct QuickActionButton: View {
         Button(action: action) {
             VStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.title3)
+                    .font(.headline.weight(.semibold))
+                    .frame(width: 34, height: 34)
+                    .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 Text(label)
                     .font(.caption.weight(.medium))
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .padding(.vertical, 11)
+            .background(SCTheme.cardBackground, in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous)
+                    .strokeBorder(color.opacity(0.16))
+            }
             .foregroundStyle(color)
         }
+        .buttonStyle(.plain)
     }
 }
 
@@ -297,7 +326,7 @@ private struct EmptyActionButton: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, minHeight: 48)
-            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous))
             .foregroundStyle(color)
         }
         .buttonStyle(.plain)
@@ -321,7 +350,37 @@ private struct PersonMiniCard: View {
         }
         .frame(width: 84)
         .padding(.vertical, 10)
-        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(SCTheme.elevatedBackground, in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous))
+    }
+}
+
+private struct PulseMetric: View {
+    let title: String
+    let value: String
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(color)
+                .frame(width: 28, height: 28)
+                .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            Text(value)
+                .font(.title3.weight(.bold))
+                .monospacedDigit()
+            Text(title)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(SCTheme.cardBackground, in: RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.05))
+        }
     }
 }
 

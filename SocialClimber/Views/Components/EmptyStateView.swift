@@ -8,26 +8,37 @@ struct EmptyStateView: View {
     var action: (() -> Void)?
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 14) {
             BrandLogoView(size: 42)
                 .padding(.bottom, 2)
             Image(systemName: icon)
-                .font(.system(size: 42, weight: .light))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 34, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 64, height: 64)
+                .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .padding(.bottom, 4)
             Text(title)
-                .font(.headline)
+                .font(.title3.weight(.semibold))
             Text(message)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             if let actionTitle, let action {
-                Button(actionTitle, action: action)
-                    .buttonStyle(.borderedProminent)
+                Button(action: action) {
+                    Label(actionTitle, systemImage: "plus")
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
                     .padding(.top, 8)
             }
         }
-        .padding(32)
+        .padding(28)
         .frame(maxWidth: .infinity)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.055))
+        }
+        .cardShadow()
     }
 }

@@ -65,9 +65,10 @@ struct PersonProfileView: View {
                 timelineCard
             }
             .padding(.horizontal)
-            .padding(.bottom, 24)
+            .padding(.top, 6)
+            .padding(.bottom, 28)
         }
-        .background(Color(.systemGroupedBackground))
+        .socialClimberPageBackground()
         .navigationTitle(person.firstName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -103,9 +104,9 @@ struct PersonProfileView: View {
     // MARK: Header
 
     private var header: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             PersonAvatarView(person: person, size: 92)
-            VStack(spacing: 3) {
+            VStack(spacing: 4) {
                 Text(person.displayName)
                     .font(.title2.weight(.bold))
                 if !person.nickname.isEmpty && person.nickname != person.name {
@@ -127,10 +128,25 @@ struct PersonProfileView: View {
                 Text(person.tags.map { "#\($0)" }.joined(separator: "  "))
                     .font(.caption)
                     .foregroundStyle(.tertiary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 6)
+        .padding(20)
+        .background(
+            LinearGradient(
+                colors: [person.category.color.opacity(0.16), SCTheme.cardBackground],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 24, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.055))
+        }
+        .cardShadow()
     }
 
     private var statsRow: some View {
@@ -155,6 +171,7 @@ struct PersonProfileView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
+            .controlSize(.large)
 
             Button {
                 person.markContacted(type: .message, date: .now)
@@ -163,6 +180,7 @@ struct PersonProfileView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
+            .controlSize(.large)
         }
     }
 
@@ -373,7 +391,7 @@ private struct StatTile: View {
     var body: some View {
         VStack(spacing: 4) {
             Text(value)
-                .font(.caption.weight(.semibold))
+                .font(.caption.weight(.bold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Text(title)
@@ -381,8 +399,12 @@ private struct StatTile: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.vertical, 10)
+        .background(SCTheme.cardBackground, in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.05))
+        }
     }
 }
 

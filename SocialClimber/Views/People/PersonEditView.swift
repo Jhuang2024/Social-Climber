@@ -141,6 +141,8 @@ struct PersonEditView: View {
                         .lineLimit(3...8)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(SCTheme.pageBackground)
             .navigationTitle(person == nil ? "New Person" : "Edit Person")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -190,7 +192,7 @@ struct PersonEditView: View {
             } else {
                 ZStack {
                     Circle()
-                        .fill(Color(.systemFill))
+                        .fill(.thinMaterial)
                         .frame(width: 84, height: 84)
                     Image(systemName: "person.crop.circle.badge.camera")
                         .font(.title2)

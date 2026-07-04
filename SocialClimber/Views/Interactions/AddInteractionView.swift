@@ -25,9 +25,22 @@ struct AddInteractionView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    Label("Capture the useful bits while they are fresh.", systemImage: "bubble.left.and.bubble.right.fill")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+                .listRowBackground(
+                    RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous)
+                        .fill(.thinMaterial)
+                        .padding(.vertical, 3)
+                )
+
                 Section("Who") {
                     if selectedPeople.isEmpty {
-                        Button("Choose people") { showPeoplePicker = true }
+                        Button { showPeoplePicker = true } label: {
+                            Label("Choose people", systemImage: "person.2.badge.plus")
+                        }
                     } else {
                         ForEach(selectedPeople) { person in
                             HStack {
@@ -37,7 +50,9 @@ struct AddInteractionView: View {
                             }
                         }
                         .onDelete { selectedPeople.remove(atOffsets: $0) }
-                        Button("Add / remove people") { showPeoplePicker = true }
+                        Button { showPeoplePicker = true } label: {
+                            Label("Add / remove people", systemImage: "person.2.badge.plus")
+                        }
                     }
                 }
 
@@ -70,6 +85,8 @@ struct AddInteractionView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(SCTheme.pageBackground)
             .navigationTitle("Log Interaction")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

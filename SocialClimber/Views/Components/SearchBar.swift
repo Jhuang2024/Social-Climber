@@ -25,8 +25,12 @@ struct SearchBar: View {
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.vertical, 12)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.06))
+        }
         .onAppear { if autoFocus { focused = true } }
     }
 }

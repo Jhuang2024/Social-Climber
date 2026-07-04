@@ -32,6 +32,8 @@ struct RemindersView: View {
                 } else {
                     ForEach(completed) { reminder in
                         ReminderRowView(reminder: reminder)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(SCTheme.cardBackground)
                     }
                     .onDelete { offsets in
                         delete(offsets.map { completed[$0] })
@@ -39,7 +41,7 @@ struct RemindersView: View {
                 }
             } else {
                 if open.isEmpty {
-                    emptyRow("All caught up 🎉")
+                    emptyRow("All caught up.")
                 } else {
                     section("Overdue", overdue)
                     section("Today", today)
@@ -48,6 +50,8 @@ struct RemindersView: View {
                 }
             }
         }
+        .listStyle(.plain)
+        .socialClimberPageBackground()
         .navigationTitle("Reminders")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -63,6 +67,8 @@ struct RemindersView: View {
             Section(title) {
                 ForEach(items) { reminder in
                     ReminderRowView(reminder: reminder)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(SCTheme.cardBackground)
                 }
                 .onDelete { offsets in
                     delete(offsets.map { items[$0] })

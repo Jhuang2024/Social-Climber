@@ -31,19 +31,22 @@ struct GiftIdeasView: View {
                     }
                 }
                 .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
             }
 
             if filtered.isEmpty {
                 Section {
                     EmptyStateView(icon: "gift", title: "No gift ideas", message: "Gift ideas you add — or that AI extracts from notes — show up here.", actionTitle: "Add Gift Idea") { showAdd = true }
                         .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                 }
             } else {
                 ForEach(grouped, id: \.0) { name, items in
                     Section(name) {
                         ForEach(items) { gift in
                             GiftIdeaRowView(gift: gift, showPerson: false)
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(SCTheme.cardBackground)
                         }
                         .onDelete { offsets in
                             offsets.map { items[$0] }.forEach { context.delete($0) }
@@ -52,6 +55,8 @@ struct GiftIdeasView: View {
                 }
             }
         }
+        .listStyle(.plain)
+        .socialClimberPageBackground()
         .navigationTitle("Gift Ideas")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -70,7 +75,7 @@ struct GiftIdeasView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(
-                    filter == status ? Color.accentColor : Color(.secondarySystemGroupedBackground),
+                    filter == status ? Color.accentColor : SCTheme.cardBackground,
                     in: Capsule()
                 )
                 .foregroundStyle(filter == status ? .white : .primary)

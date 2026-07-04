@@ -67,16 +67,27 @@ struct UpcomingView: View {
                 if entries.isEmpty {
                     EmptyStateView(icon: "calendar", title: "Nothing coming up", message: "Birthdays, important dates, plans, and reminders will show here.")
                         .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                 } else {
                     ForEach(groupedByWeek, id: \.0) { title, items in
                         Section(title) {
                             ForEach(items) { entry in
                                 entryRow(entry)
+                                    .listRowSeparator(.hidden)
+                                    .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+                                    .listRowBackground(
+                                        RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous)
+                                            .fill(SCTheme.cardBackground)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 3)
+                                    )
                             }
                         }
                     }
                 }
             }
+            .listStyle(.plain)
+            .socialClimberPageBackground()
             .navigationTitle("Upcoming")
             .refreshable { await loadCalendar() }
             .task { await loadCalendar() }
@@ -109,9 +120,10 @@ struct UpcomingView: View {
                 let days = entry.date.daysFromNow
                 Text(days == 0 ? "today" : days < 0 ? "\(-days)d ago" : "in \(days)d")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(days <= 7 ? entry.color : .secondary)
             }
         }
+        .padding(.vertical, 8)
         .swipeActions(edge: .trailing) {
             if entry.subtitle.hasPrefix("Calendar"), let person = entry.person {
                 Button {

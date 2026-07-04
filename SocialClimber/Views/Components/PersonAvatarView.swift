@@ -38,5 +38,10 @@ struct PersonAvatarView: View {
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
+        .overlay {
+            Circle()
+                .strokeBorder(Color.white.opacity(0.75), lineWidth: max(1, size * 0.025))
+        }
+        .shadow(color: Color.black.opacity(0.10), radius: size * 0.10, x: 0, y: size * 0.05)
     }
 }

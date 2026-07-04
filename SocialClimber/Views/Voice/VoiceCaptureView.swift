@@ -16,6 +16,15 @@ struct VoiceCaptureView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 16) {
+                VStack(spacing: 4) {
+                    Text("Turn a messy memory into useful context.")
+                        .font(.headline)
+                    Text("Record or type a note, then review what gets added.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .multilineTextAlignment(.center)
+
                 recordButton
 
                 if model.isTranscribing {
@@ -32,7 +41,11 @@ struct VoiceCaptureView: View {
                         .frame(minHeight: 160)
                         .padding(8)
                         .scrollContentBackground(.hidden)
-                        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .background(SCTheme.cardBackground, in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous)
+                                .strokeBorder(Color.primary.opacity(0.06))
+                        }
                         .overlay(alignment: .topLeading) {
                             if model.transcript.isEmpty {
                                 Text("Record, or type what happened — who you saw, what you talked about, anything worth remembering.")
@@ -75,7 +88,7 @@ struct VoiceCaptureView: View {
                 .disabled(model.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isAnalyzing || model.isRecording)
             }
             .padding()
-            .background(Color(.systemGroupedBackground))
+            .background(SCTheme.pageBackground)
             .navigationTitle("Voice Note")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -133,7 +146,7 @@ struct VoiceCaptureView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
-        .padding(.top, 12)
+        .padding(.top, 4)
     }
 
     private var peopleSection: some View {
@@ -163,7 +176,11 @@ struct VoiceCaptureView: View {
                         .foregroundStyle(.tertiary)
                 }
                 .padding(12)
-                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(SCTheme.cardBackground, in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.06))
+                }
             }
             .buttonStyle(.plain)
         }
@@ -246,6 +263,9 @@ struct ExtractionReviewView: View {
                     }
                 }
             }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(SCTheme.pageBackground)
             .navigationTitle("Review")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

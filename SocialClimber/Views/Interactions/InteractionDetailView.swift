@@ -50,9 +50,10 @@ struct InteractionDetailView: View {
                 }
             }
             .padding(.horizontal)
-            .padding(.bottom, 24)
+            .padding(.top, 6)
+            .padding(.bottom, 28)
         }
-        .background(Color(.systemGroupedBackground))
+        .socialClimberPageBackground()
         .navigationTitle(interaction.type.label)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -98,7 +99,13 @@ struct InteractionDetailView: View {
                     .foregroundStyle(.orange)
             }
         }
-        .padding(.top, 8)
+        .frame(maxWidth: .infinity)
+        .padding(20)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.055))
+        }
     }
 
     private func summaryCard(_ summary: ConversationSummary) -> some View {

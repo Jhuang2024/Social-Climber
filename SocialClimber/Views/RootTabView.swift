@@ -17,6 +17,7 @@ struct RootTabView: View {
             SettingsView()
                 .tabItem { Label("Settings", systemImage: "gearshape.fill") }
         }
+        .tint(.primary)
         .task {
             DemoDataCleanupService.removeBundledDemoContactsIfNeeded(context: context)
         }

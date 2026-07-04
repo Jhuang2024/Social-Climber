@@ -24,6 +24,7 @@ struct SearchView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    searchHeader
                     SearchBar(text: $query, placeholder: "People, notes, interests, gifts…")
 
                     if query.trimmingCharacters(in: .whitespaces).count < 2 {
@@ -35,18 +36,34 @@ struct SearchView: View {
                     }
                 }
                 .padding(.horizontal)
-                .padding(.bottom, 24)
+                .padding(.top, 6)
+                .padding(.bottom, 28)
             }
-            .background(Color(.systemGroupedBackground))
+            .socialClimberPageBackground()
             .navigationTitle("Search")
         }
+    }
+
+    private var searchHeader: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Find the thread")
+                .font(.title3.weight(.bold))
+            Text("Search names, context, interests, dates, and the small details that make follow-ups land.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous))
     }
 
     private var suggestionsView: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Try asking")
-                .font(.subheadline.weight(.semibold))
+                .font(.footnote.weight(.bold))
                 .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .tracking(0.8)
             ForEach(suggestions, id: \.self) { suggestion in
                 Button {
                     query = suggestion
@@ -59,7 +76,7 @@ struct SearchView: View {
                         Spacer()
                     }
                     .padding(12)
-                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(SCTheme.cardBackground, in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
@@ -84,6 +101,7 @@ struct SearchView: View {
                                 Text(hit.reason)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
+                                    .lineLimit(2)
                             }
                             Spacer()
                             Image(systemName: "chevron.right")
@@ -128,6 +146,7 @@ struct SearchView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(2)
+                                    .padding(.leading, 44)
                             }
                         }
                     }

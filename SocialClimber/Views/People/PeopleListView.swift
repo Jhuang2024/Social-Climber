@@ -57,10 +57,11 @@ struct PeopleListView: View {
                     if people.isEmpty {
                         EmptyStateView(
                             icon: "person.2",
-                            title: "No people yet",
-                            message: "Start by adding someone you want to stay close to.",
+                            title: "Your circle starts here",
+                            message: "Add the first person worth remembering. Notes, reminders, gifts, and context will build from there.",
                             actionTitle: "Add Person"
                         ) { showAddPerson = true }
+                        .padding(.horizontal)
                     } else {
                         List {
                             ForEach(filtered, id: \.persistentModelID) { person in
@@ -69,13 +70,23 @@ struct PeopleListView: View {
                                 } label: {
                                     PersonRowView(person: person)
                                 }
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+                                .listRowBackground(
+                                    RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous)
+                                        .fill(SCTheme.cardBackground)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 3)
+                                )
                             }
                         }
                         .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
                         .searchable(text: $searchText, prompt: "Name, relationship, tag…")
                         .overlay {
                             if filtered.isEmpty {
-                                EmptyStateView(icon: "magnifyingglass", title: "No matches", message: "Try a different search or filter.")
+                                EmptyStateView(icon: "magnifyingglass", title: "No matches", message: "Try a different search or clear the current filter.")
+                                    .padding(.horizontal)
                             }
                         }
                     }
@@ -84,7 +95,7 @@ struct PeopleListView: View {
 
                 voiceNoteBar
             }
-            .background(Color(.systemGroupedBackground))
+            .background(SCTheme.pageBackground)
             .navigationTitle("People")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { filterMenu }
@@ -110,7 +121,7 @@ struct PeopleListView: View {
                         .font(.headline)
                         .foregroundStyle(.white)
                         .frame(width: 42, height: 42)
-                        .background(Color.accentColor, in: Circle())
+                        .background(Color.accentColor.gradient, in: Circle())
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Add voice note")
                             .font(.headline)
@@ -130,6 +141,10 @@ struct PeopleListView: View {
             }
             .buttonStyle(.plain)
             .background(.regularMaterial)
+            .overlay(alignment: .top) {
+                LinearGradient(colors: [.clear, Color.black.opacity(0.04)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 1)
+            }
         }
     }
 
