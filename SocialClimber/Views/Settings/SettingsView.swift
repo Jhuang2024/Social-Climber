@@ -10,14 +10,20 @@ struct SettingsView: View {
     @AppStorage("notificationsEnabled") private var notificationsEnabled = false
     @AppStorage("calendarEnabled") private var calendarEnabled = false
     @AppStorage("aiProvider") private var aiProvider = AIProvider.mock.rawValue
+    @AppStorage("openRouterModelID") private var openRouterModelID = OpenRouterDefaults.modelID
     @AppStorage("defaultCadenceClose") private var cadenceClose = 7
     @AppStorage("defaultCadenceRegular") private var cadenceRegular = 30
     @AppStorage("defaultCadenceDistant") private var cadenceDistant = 90
 
-    @State private var exportURL: URL?
+    @State private var exportItem: ShareURL?
     @State private var showImporter = false
     @State private var showContactPicker = false
     @State private var confirmClear = false
+    @State private var confirmImport = false
+    @State private var pendingImportData: Data?
+    @State private var pendingImportName = ""
+    @State private var openRouterAPIKey = ""
+    @State private var hasOpenRouterAPIKey = false
     @State private var message: String?
 
     var body: some View {
@@ -77,12 +83,40 @@ struct SettingsView: View {
                 }
 
                 Section("AI") {
-                    Picker("Provider", selection: $aiProvider) {
+                    Picker("AI Provider", selection: $aiProvider) {
                         ForEach(AIProvider.allCases) { provider in
                             Text(provider.label).tag(provider.rawValue)
                         }
                     }
-                    Text("The mock analyzer runs entirely on-device. A real LLM provider can be plugged in later via AIService.")
+                    if aiProvider == AIProvider.openRouter.rawValue {
+                        SecureField(hasOpenRouterAPIKey ? "OpenRouter API key saved" : "OpenRouter API key", text: $openRouterAPIKey)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        Button {
+                            saveOpenRouterKey()
+                        } label: {
+                            Label("Save API Key", systemImage: "key.fill")
+                        }
+                        .disabled(openRouterAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        if hasOpenRouterAPIKey {
+                            Button(role: .destructive) {
+                                clearOpenRouterKey()
+                            } label: {
+                                Label("Remove Saved API Key", systemImage: "trash")
+                            }
+                        }
+                        TextField("Model ID", text: $openRouterModelID)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        Text("Default: \(OpenRouterDefaults.modelID). The API key is stored only in iOS Keychain and is never exported or logged.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Mock uses deterministic local heuristics and never sends notes off this iPhone.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Text("Voice notes and typed notes stay local unless you explicitly analyze them with the selected LLM provider.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -90,7 +124,7 @@ struct SettingsView: View {
                 Section("Data") {
                     Button {
                         do {
-                            exportURL = try ExportImportService.writeExportFile(context: context)
+                            exportItem = ShareURL(url: try ExportImportService.writeExportFile(context: context))
                         } catch {
                             message = "Export failed: \(error.localizedDescription)"
                         }
@@ -109,9 +143,23 @@ struct SettingsView: View {
                     }
                 }
 
+                #if DEBUG
+                Section("Debug") {
+                    Button {
+                        SeedData.seed(context: context)
+                        message = "Demo data loaded."
+                    } label: {
+                        Label("Load Demo Data", systemImage: "sparkles")
+                    }
+                    Text("Demo data is never loaded on normal app launch.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                #endif
+
                 Section("Privacy") {
                     Label {
-                        Text("Everything lives on this iPhone. No account, no cloud, no analytics, no network calls. Deleting the app deletes the data — export a JSON backup first if you want one.")
+                        Text("Social Climber is local-first. Your people, interactions, reminders, gifts, voice notes, contacts, and calendar-derived context live on this iPhone. Contacts import is selected-contact only, calendar access is optional, and LLM calls happen only when you choose a provider and analyze a note.")
                             .font(.caption)
                     } icon: {
                         Image(systemName: "lock.shield.fill")
@@ -125,8 +173,8 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
-            .sheet(item: $exportURL) { url in
-                ShareSheet(items: [url])
+            .sheet(item: $exportItem) { item in
+                ShareSheet(items: [item.url])
             }
             .sheet(isPresented: $showContactPicker) {
                 ContactPickerView { contact in
@@ -138,41 +186,94 @@ struct SettingsView: View {
             .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json]) { result in
                 switch result {
                 case .success(let url):
-                    importFile(url)
+                    prepareImport(url)
                 case .failure(let error):
                     message = "Import failed: \(error.localizedDescription)"
                 }
             }
-            .confirmationDialog("Delete all people, interactions, reminders, and gifts? This cannot be undone.", isPresented: $confirmClear, titleVisibility: .visible) {
+            .confirmationDialog("Delete all data?", isPresented: $confirmClear, titleVisibility: .visible) {
                 Button("Delete Everything", role: .destructive) {
                     SeedData.clearAll(context: context)
-                    UserDefaults.standard.set(true, forKey: "didSeed")
                     message = "All data deleted."
                 }
+            } message: {
+                Text("This permanently removes every person, interaction, reminder, gift, important date, voice note, and AI summary on this iPhone. Export first if you want a backup.")
+            }
+            .confirmationDialog("Import \(pendingImportName)?", isPresented: $confirmImport, titleVisibility: .visible) {
+                Button("Merge Import") {
+                    importPendingFile()
+                }
+                Button("Cancel", role: .cancel) {
+                    pendingImportData = nil
+                    pendingImportName = ""
+                }
+            } message: {
+                Text("Import merges by person name and skips duplicate interactions. It will not silently replace the whole database.")
             }
             .alert("Social Climber", isPresented: .init(get: { message != nil }, set: { if !$0 { message = nil } })) {
                 Button("OK") { message = nil }
             } message: {
                 Text(message ?? "")
             }
+            .onAppear {
+                refreshOpenRouterKeyStatus()
+            }
         }
     }
 
-    private func importFile(_ url: URL) {
+    private func prepareImport(_ url: URL) {
         do {
             let secured = url.startAccessingSecurityScopedResource()
             defer { if secured { url.stopAccessingSecurityScopedResource() } }
-            let data = try Data(contentsOf: url)
-            let count = try ExportImportService.importData(data, context: context)
-            message = "Import complete. \(count) new people added."
+            pendingImportData = try Data(contentsOf: url)
+            pendingImportName = url.lastPathComponent
+            confirmImport = true
         } catch {
             message = "Import failed: \(error.localizedDescription)"
         }
     }
+
+    private func importPendingFile() {
+        guard let pendingImportData else { return }
+        do {
+            let count = try ExportImportService.importData(pendingImportData, context: context)
+            message = "Import complete. \(count) new people added; existing records were merged by name."
+        } catch {
+            message = "Import failed: \(error.localizedDescription)"
+        }
+        self.pendingImportData = nil
+        pendingImportName = ""
+    }
+
+    private func saveOpenRouterKey() {
+        do {
+            try KeychainService.saveOpenRouterAPIKey(openRouterAPIKey)
+            openRouterAPIKey = ""
+            refreshOpenRouterKeyStatus()
+            message = "OpenRouter API key saved."
+        } catch {
+            message = "Could not save API key: \(error.localizedDescription)"
+        }
+    }
+
+    private func clearOpenRouterKey() {
+        do {
+            try KeychainService.saveOpenRouterAPIKey("")
+            refreshOpenRouterKeyStatus()
+            message = "OpenRouter API key removed."
+        } catch {
+            message = "Could not remove API key: \(error.localizedDescription)"
+        }
+    }
+
+    private func refreshOpenRouterKeyStatus() {
+        hasOpenRouterAPIKey = KeychainService.hasOpenRouterAPIKey()
+    }
 }
 
-extension URL: Identifiable {
-    public var id: String { absoluteString }
+struct ShareURL: Identifiable {
+    let url: URL
+    var id: String { url.absoluteString }
 }
 
 struct ShareSheet: UIViewControllerRepresentable {

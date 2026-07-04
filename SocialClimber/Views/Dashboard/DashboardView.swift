@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct DashboardView: View {
+    @Environment(\.modelContext) private var context
     @Query(sort: \Person.name) private var allPeople: [Person]
     @Query(sort: \Interaction.date, order: .reverse) private var interactions: [Interaction]
     @Query private var reminders: [Reminder]
@@ -11,6 +12,8 @@ struct DashboardView: View {
     @State private var showAddPerson = false
     @State private var showAddInteraction = false
     @State private var showVoiceCapture = false
+    @State private var showContactPicker = false
+    @State private var message: String?
 
     private var people: [Person] { allPeople.filter { !$0.isArchived } }
 
@@ -50,16 +53,10 @@ struct DashboardView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
-                    quickActions
-
                     if people.isEmpty {
-                        EmptyStateView(
-                            icon: "person.2",
-                            title: "No people yet",
-                            message: "Add the people you care about and Social Climber will help you keep up with them.",
-                            actionTitle: "Add Person"
-                        ) { showAddPerson = true }
+                        emptyDashboard
                     } else {
+                        quickActions
                         if !dueReminders.isEmpty { remindersCard }
                         if !checkInsDue.isEmpty { checkInsCard }
                         if !upcomingBirthdays.isEmpty { birthdaysCard }
@@ -77,6 +74,18 @@ struct DashboardView: View {
             .sheet(isPresented: $showAddPerson) { PersonEditView() }
             .sheet(isPresented: $showAddInteraction) { AddInteractionView() }
             .sheet(isPresented: $showVoiceCapture) { VoiceCaptureView() }
+            .sheet(isPresented: $showContactPicker) {
+                ContactPickerView { contact in
+                    let person = ContactsImporter.person(from: contact)
+                    context.insert(person)
+                    message = "Imported \(person.displayName)."
+                }
+            }
+            .alert("Social Climber", isPresented: .init(get: { message != nil }, set: { if !$0 { message = nil } })) {
+                Button("OK") { message = nil }
+            } message: {
+                Text(message ?? "")
+            }
         }
     }
 
@@ -91,8 +100,34 @@ struct DashboardView: View {
 
     // MARK: Sections
 
+    private var emptyDashboard: some View {
+        VStack(spacing: 18) {
+            Image(systemName: "person.2.wave.2.fill")
+                .font(.system(size: 44, weight: .regular))
+                .foregroundStyle(Color.accentColor)
+                .padding(.top, 16)
+            VStack(spacing: 6) {
+                Text("Start with one real relationship")
+                    .font(.title3.weight(.semibold))
+                Text("Social Climber is ready when you add a person, log a memory, import one selected contact, or capture a voice note.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                EmptyActionButton(icon: "person.badge.plus", title: "Add person", color: .blue) { showAddPerson = true }
+                EmptyActionButton(icon: "plus.bubble.fill", title: "Add interaction", color: .green) { showAddInteraction = true }
+                EmptyActionButton(icon: "person.crop.circle.badge.plus", title: "Import contact", color: .orange) { showContactPicker = true }
+                EmptyActionButton(icon: "waveform", title: "Voice note", color: .purple) { showVoiceCapture = true }
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
     private var quickActions: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             QuickActionButton(icon: "person.badge.plus", label: "Person", color: .blue) { showAddPerson = true }
             QuickActionButton(icon: "plus.bubble.fill", label: "Interaction", color: .green) { showAddInteraction = true }
             QuickActionButton(icon: "waveform", label: "Voice Note", color: .purple) { showVoiceCapture = true }
@@ -221,10 +256,36 @@ private struct QuickActionButton: View {
                     .font(.caption.weight(.medium))
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(.vertical, 12)
+            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .foregroundStyle(color)
         }
+    }
+}
+
+private struct EmptyActionButton: View {
+    let icon: String
+    let title: String
+    let color: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.subheadline.weight(.semibold))
+                Text(title)
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Spacer(minLength: 0)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .foregroundStyle(color)
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -245,7 +306,7 @@ private struct PersonMiniCard: View {
         }
         .frame(width: 84)
         .padding(.vertical, 10)
-        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 

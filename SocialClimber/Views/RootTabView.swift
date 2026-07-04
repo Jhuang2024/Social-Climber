@@ -2,8 +2,6 @@ import SwiftUI
 import SwiftData
 
 struct RootTabView: View {
-    @Environment(\.modelContext) private var context
-
     var body: some View {
         TabView {
             DashboardView()
@@ -16,9 +14,6 @@ struct RootTabView: View {
                 .tabItem { Label("Upcoming", systemImage: "calendar") }
             SettingsView()
                 .tabItem { Label("Settings", systemImage: "gearshape.fill") }
-        }
-        .task {
-            SeedData.seedIfNeeded(context: context)
         }
     }
 }

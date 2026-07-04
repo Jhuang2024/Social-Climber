@@ -18,6 +18,7 @@ struct AddInteractionView: View {
     @State private var analyzeWithAI = true
     @State private var isSaving = false
     @State private var showPeoplePicker = false
+    @State private var message: String?
 
     @Query(sort: \Person.name) private var allPeople: [Person]
 
@@ -96,6 +97,11 @@ struct AddInteractionView: View {
                         }
                 }
             }
+            .alert("Social Climber", isPresented: .init(get: { message != nil }, set: { if !$0 { message = nil } })) {
+                Button("OK") { message = nil }
+            } message: {
+                Text(message ?? "")
+            }
             .onAppear {
                 if selectedPeople.isEmpty { selectedPeople = preselected }
             }
@@ -107,35 +113,54 @@ struct AddInteractionView: View {
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if analyzeWithAI, !trimmedNote.isEmpty {
-            let extraction = (try? await AIProvider.current.extract(
-                from: trimmedNote,
-                knownPeople: allPeople.map(\.name)
-            )) ?? AIExtraction(summary: trimmedNote)
+            do {
+                let extraction = try await AIProvider.current.extract(
+                    from: trimmedNote,
+                    knownPeople: allPeople.map(\.name)
+                )
 
-            let interaction = ExtractionApplier.apply(
-                extraction,
-                to: selectedPeople,
-                sourceText: trimmedNote,
-                interactionType: type,
-                date: date,
-                context: context
-            )
-            interaction?.location = location
-            interaction?.quality = quality
-            if followUpNeeded { interaction?.followUpNeeded = true }
-            var mergedTopics = interaction?.topics ?? []
-            for topic in topics where !mergedTopics.contains(topic) { mergedTopics.append(topic) }
-            interaction?.topics = mergedTopics
-        } else {
-            let interaction = Interaction(type: type, date: date, location: location, note: trimmedNote, topics: topics, quality: quality, followUpNeeded: followUpNeeded)
-            interaction.people = selectedPeople
-            context.insert(interaction)
-            for person in selectedPeople {
-                person.markContacted(type: type, date: date)
+                let interaction = ExtractionApplier.apply(
+                    extraction,
+                    to: selectedPeople,
+                    sourceText: trimmedNote,
+                    interactionType: type,
+                    date: date,
+                    context: context
+                )
+                interaction?.location = location
+                interaction?.quality = quality
+                if followUpNeeded { interaction?.followUpNeeded = true }
+                var mergedTopics = interaction?.topics ?? []
+                for topic in topics where !mergedTopics.contains(topic) { mergedTopics.append(topic) }
+                interaction?.topics = mergedTopics
+            } catch {
+                savePlainInteraction(note: trimmedNote)
+                saveFollowUpReminderIfNeeded()
+                message = error.localizedDescription
+                isSaving = false
+                return
             }
+        } else {
+            savePlainInteraction(note: trimmedNote)
         }
 
-        if followUpNeeded, let first = selectedPeople.first {
+        saveFollowUpReminderIfNeeded()
+
+        isSaving = false
+        dismiss()
+    }
+
+    private func savePlainInteraction(note: String) {
+        let interaction = Interaction(type: type, date: date, location: location, note: note, topics: topics, quality: quality, followUpNeeded: followUpNeeded)
+        interaction.people = selectedPeople
+        context.insert(interaction)
+        for person in selectedPeople {
+            person.markContacted(type: type, date: date)
+        }
+    }
+
+    private func saveFollowUpReminderIfNeeded() {
+        guard followUpNeeded, let first = selectedPeople.first else { return }
             let reminder = Reminder(
                 title: "Follow up with \(selectedPeople.map(\.firstName).joined(separator: " & "))",
                 dueDate: Calendar.current.date(byAdding: .day, value: 3, to: .now) ?? .now,
@@ -144,10 +169,6 @@ struct AddInteractionView: View {
             )
             context.insert(reminder)
             NotificationService.shared.schedule(reminder: reminder)
-        }
-
-        isSaving = false
-        dismiss()
     }
 }
 

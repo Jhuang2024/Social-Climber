@@ -121,7 +121,15 @@ struct SearchView: View {
                     NavigationLink {
                         InteractionDetailView(interaction: hit.interaction)
                     } label: {
-                        TimelineRowView(interaction: hit.interaction)
+                        VStack(alignment: .leading, spacing: 6) {
+                            TimelineRowView(interaction: hit.interaction)
+                            if !hit.reason.isEmpty || !hit.interaction.note.isEmpty {
+                                Text(contextLine(primary: hit.reason, fallback: hit.interaction.note))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                        }
                     }
                     .buttonStyle(.plain)
                 }
@@ -130,10 +138,24 @@ struct SearchView: View {
         if !results.gifts.isEmpty {
             FormSectionCard("Gift Ideas", icon: "gift") {
                 ForEach(results.gifts) { hit in
-                    GiftIdeaRowView(gift: hit.gift)
+                    VStack(alignment: .leading, spacing: 4) {
+                        GiftIdeaRowView(gift: hit.gift)
+                        if !hit.gift.notes.isEmpty || !hit.gift.occasion.isEmpty {
+                            Text(contextLine(primary: hit.gift.occasion, fallback: hit.gift.notes))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+                    }
                 }
             }
         }
+    }
+
+    private func contextLine(primary: String, fallback: String) -> String {
+        let primary = primary.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !primary.isEmpty { return primary }
+        return fallback.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

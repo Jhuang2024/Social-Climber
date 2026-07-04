@@ -1,21 +1,9 @@
 import Foundation
 import SwiftData
 
-/// Realistic sample data inserted on first launch so the app is usable
-/// immediately. Can be wiped from Settings.
+/// Realistic sample data for SwiftUI previews and the explicit debug-only
+/// "Load Demo Data" action in Settings.
 enum SeedData {
-
-    static func seedIfNeeded(context: ModelContext) {
-        let defaults = UserDefaults.standard
-        guard !defaults.bool(forKey: "didSeed") else { return }
-        let count = (try? context.fetchCount(FetchDescriptor<Person>())) ?? 0
-        guard count == 0 else {
-            defaults.set(true, forKey: "didSeed")
-            return
-        }
-        seed(context: context)
-        defaults.set(true, forKey: "didSeed")
-    }
 
     static func seed(context: ModelContext) {
         let cal = Calendar.current
