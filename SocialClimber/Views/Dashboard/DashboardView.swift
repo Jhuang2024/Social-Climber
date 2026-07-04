@@ -133,7 +133,7 @@ struct DashboardView: View {
             VStack(spacing: 6) {
                 Text("Start with one real relationship")
                     .font(.title3.weight(.semibold))
-                Text("Social Climber is ready when you add a person, log a memory, import one selected contact, or capture a voice note.")
+                Text("Social Climber is ready when you add a person, log a memory, import one selected contact, or record a live conversation.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

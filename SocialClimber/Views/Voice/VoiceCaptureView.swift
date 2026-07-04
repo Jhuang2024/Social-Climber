@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-/// Voice note flow: record or type → transcribe → AI extraction → review → apply.
+/// Voice note flow: record a live conversation or type → transcribe → AI extraction → review → apply.
 struct VoiceCaptureView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -17,9 +17,9 @@ struct VoiceCaptureView: View {
         NavigationStack {
             VStack(spacing: 16) {
                 VStack(spacing: 4) {
-                    Text("Turn a messy memory into useful context.")
+                    Text("Capture the conversation as it happens.")
                         .font(.headline)
-                    Text("Record or type a note, then review what gets added.")
+                    Text("Record it live, or type notes, then review what gets added.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -48,7 +48,7 @@ struct VoiceCaptureView: View {
                         }
                         .overlay(alignment: .topLeading) {
                             if model.transcript.isEmpty {
-                                Text("Record, or type what happened — who you saw, what you talked about, anything worth remembering.")
+                                Text("Record the conversation as you're having it, or type what's being said — who you're with, what you're talking about.")
                                     .font(.subheadline)
                                     .foregroundStyle(.tertiary)
                                     .padding(16)
@@ -142,7 +142,7 @@ struct VoiceCaptureView: View {
                 }
             }
             .buttonStyle(.plain)
-            Text(model.isRecording ? "Recording… tap to stop" : "Tap to record")
+            Text(model.isRecording ? "Recording live… tap to stop" : "Tap to record the conversation live")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
