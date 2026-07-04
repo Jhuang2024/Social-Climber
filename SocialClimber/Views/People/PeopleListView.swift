@@ -123,10 +123,10 @@ struct PeopleListView: View {
                         .frame(width: 42, height: 42)
                         .background(Color.accentColor.gradient, in: Circle())
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Add voice note")
+                        Text("Record a conversation")
                             .font(.headline)
                             .foregroundStyle(.primary)
-                        Text("Record a memory, reminder, or follow-up")
+                        Text("Capture a live conversation, reminder, or follow-up")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
