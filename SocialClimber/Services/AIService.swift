@@ -25,6 +25,74 @@ struct AIExtraction: Codable {
     var personalityNotes: [String] = []
     var confidence: Double = 0.5
 
+    enum CodingKeys: String, CodingKey {
+        case summary
+        case peopleMentioned
+        case topics
+        case interests
+        case giftIdeas
+        case importantDates
+        case reminders
+        case followUpQuestions
+        case personalityNotes
+        case confidence
+        case confidenceScore
+    }
+
+    init(
+        summary: String = "",
+        peopleMentioned: [String] = [],
+        topics: [String] = [],
+        interests: [String] = [],
+        giftIdeas: [String] = [],
+        importantDates: [ExtractedDate] = [],
+        reminders: [ExtractedReminder] = [],
+        followUpQuestions: [String] = [],
+        personalityNotes: [String] = [],
+        confidence: Double = 0.5
+    ) {
+        self.summary = summary
+        self.peopleMentioned = peopleMentioned
+        self.topics = topics
+        self.interests = interests
+        self.giftIdeas = giftIdeas
+        self.importantDates = importantDates
+        self.reminders = reminders
+        self.followUpQuestions = followUpQuestions
+        self.personalityNotes = personalityNotes
+        self.confidence = confidence
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        summary = try container.decodeIfPresent(String.self, forKey: .summary) ?? ""
+        peopleMentioned = try container.decodeIfPresent([String].self, forKey: .peopleMentioned) ?? []
+        topics = try container.decodeIfPresent([String].self, forKey: .topics) ?? []
+        interests = try container.decodeIfPresent([String].self, forKey: .interests) ?? []
+        giftIdeas = try container.decodeIfPresent([String].self, forKey: .giftIdeas) ?? []
+        importantDates = try container.decodeIfPresent([ExtractedDate].self, forKey: .importantDates) ?? []
+        reminders = try container.decodeIfPresent([ExtractedReminder].self, forKey: .reminders) ?? []
+        followUpQuestions = try container.decodeIfPresent([String].self, forKey: .followUpQuestions) ?? []
+        personalityNotes = try container.decodeIfPresent([String].self, forKey: .personalityNotes) ?? []
+        confidence = try container.decodeIfPresent(Double.self, forKey: .confidenceScore)
+            ?? container.decodeIfPresent(Double.self, forKey: .confidence)
+            ?? 0.5
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(summary, forKey: .summary)
+        try container.encode(peopleMentioned, forKey: .peopleMentioned)
+        try container.encode(topics, forKey: .topics)
+        try container.encode(interests, forKey: .interests)
+        try container.encode(giftIdeas, forKey: .giftIdeas)
+        try container.encode(importantDates, forKey: .importantDates)
+        try container.encode(reminders, forKey: .reminders)
+        try container.encode(followUpQuestions, forKey: .followUpQuestions)
+        try container.encode(personalityNotes, forKey: .personalityNotes)
+        try container.encode(confidence, forKey: .confidenceScore)
+    }
+
     var isEmpty: Bool {
         topics.isEmpty && interests.isEmpty && giftIdeas.isEmpty
             && importantDates.isEmpty && reminders.isEmpty
@@ -40,20 +108,20 @@ protocol AIService {
 
 enum AIProvider: String, CaseIterable, Identifiable {
     case mock
-    case llm
+    case openRouter
 
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .mock: "On-Device (Mock)"
-        case .llm: "LLM (Coming Soon)"
+        case .mock: "Mock"
+        case .openRouter: "OpenRouter"
         }
     }
 
     var service: AIService {
         switch self {
         case .mock: MockAIService()
-        case .llm: LLMAIService()
+        case .openRouter: OpenRouterAIService()
         }
     }
 
@@ -63,13 +131,139 @@ enum AIProvider: String, CaseIterable, Identifiable {
     }
 }
 
-/// Stub for a future real LLM backend (local model or API). Not wired up yet;
-/// falls back to the mock so the app keeps working if selected.
-final class LLMAIService: AIService {
-    func extract(from text: String, knownPeople: [String]) async throws -> AIExtraction {
-        // TODO: call a local or remote LLM with a structured-output prompt.
-        try await MockAIService().extract(from: text, knownPeople: knownPeople)
+enum AIServiceError: LocalizedError {
+    case missingOpenRouterAPIKey
+    case invalidResponse
+    case emptyResponse
+
+    var errorDescription: String? {
+        switch self {
+        case .missingOpenRouterAPIKey:
+            "Add your OpenRouter API key in Settings, or switch AI Provider to Mock."
+        case .invalidResponse:
+            "The AI provider returned a response Social Climber could not read."
+        case .emptyResponse:
+            "The AI provider returned an empty response."
+        }
     }
+}
+
+final class OpenRouterAIService: AIService {
+    private let endpoint = URL(string: "https://openrouter.ai/api/v1/chat/completions")!
+    private let decoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }()
+
+    func extract(from text: String, knownPeople: [String]) async throws -> AIExtraction {
+        let apiKey = try KeychainService.openRouterAPIKey()
+        let model = UserDefaults.standard.string(forKey: "openRouterModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let requestBody = OpenRouterRequest(
+            model: model?.isEmpty == false ? model! : OpenRouterDefaults.modelID,
+            messages: [
+                .init(role: "system", content: Self.systemPrompt),
+                .init(role: "user", content: Self.userPrompt(text: text, knownPeople: knownPeople)),
+            ],
+            temperature: 0.2,
+            responseFormat: .init(type: "json_object")
+        )
+
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONEncoder().encode(requestBody)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            return try await MockAIService().extract(from: text, knownPeople: knownPeople)
+        }
+
+        let completion = try decoder.decode(OpenRouterResponse.self, from: data)
+        guard let content = completion.choices.first?.message.content.trimmingCharacters(in: .whitespacesAndNewlines),
+              !content.isEmpty else {
+            throw AIServiceError.emptyResponse
+        }
+
+        return try Self.decodeExtraction(from: content, decoder: decoder)
+    }
+
+    private static let systemPrompt = """
+    You turn relationship notes into strict JSON for a local-first iOS app. Return only JSON. Use ISO-8601 dates when a date is clear. Use null for uncertain dates. Do not invent facts.
+    """
+
+    private static func userPrompt(text: String, knownPeople: [String]) -> String {
+        """
+        Known people: \(knownPeople.joined(separator: ", "))
+
+        Raw note:
+        \(text)
+
+        Return this JSON shape:
+        {
+          "summary": "short useful summary",
+          "peopleMentioned": ["matching known names"],
+          "topics": ["topic labels"],
+          "interests": ["interests to attach to the selected person"],
+          "giftIdeas": ["gift ideas"],
+          "importantDates": [{"title": "Birthday", "date": "2026-07-04T00:00:00Z", "display": "Birthday: July 4"}],
+          "reminders": [{"title": "Follow up about...", "dueDate": "2026-07-07T09:00:00Z"}],
+          "followUpQuestions": ["questions to ask next time"],
+          "personalityNotes": ["stable personality/context notes"],
+          "confidenceScore": 0.0
+        }
+        """
+    }
+
+    private static func decodeExtraction(from content: String, decoder: JSONDecoder) throws -> AIExtraction {
+        if let data = content.data(using: .utf8),
+           let extraction = try? decoder.decode(AIExtraction.self, from: data) {
+            return extraction
+        }
+        guard let start = content.firstIndex(of: "{"),
+              let end = content.lastIndex(of: "}") else {
+            throw AIServiceError.invalidResponse
+        }
+        let json = String(content[start...end])
+        guard let data = json.data(using: .utf8) else { throw AIServiceError.invalidResponse }
+        return try decoder.decode(AIExtraction.self, from: data)
+    }
+
+    private struct OpenRouterRequest: Encodable {
+        let model: String
+        let messages: [Message]
+        let temperature: Double
+        let responseFormat: ResponseFormat
+
+        enum CodingKeys: String, CodingKey {
+            case model
+            case messages
+            case temperature
+            case responseFormat = "response_format"
+        }
+    }
+
+    private struct Message: Codable {
+        let role: String
+        let content: String
+    }
+
+    private struct ResponseFormat: Encodable {
+        let type: String
+    }
+
+    private struct OpenRouterResponse: Decodable {
+        let choices: [Choice]
+    }
+
+    private struct Choice: Decodable {
+        let message: Message
+    }
+}
+
+enum OpenRouterDefaults {
+    static let modelID = "openrouter/free"
 }
 
 // MARK: - Mock implementation

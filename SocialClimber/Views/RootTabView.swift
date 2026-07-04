@@ -18,7 +18,7 @@ struct RootTabView: View {
                 .tabItem { Label("Settings", systemImage: "gearshape.fill") }
         }
         .task {
-            SeedData.seedIfNeeded(context: context)
+            DemoDataCleanupService.removeBundledDemoContactsIfNeeded(context: context)
         }
     }
 }

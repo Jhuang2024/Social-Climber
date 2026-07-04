@@ -22,12 +22,28 @@ struct PersonProfileView: View {
             .map { $0 }
     }
 
+    private var lastTopics: [String] {
+        person.sortedInteractions
+            .flatMap(\.topics)
+            .filter { !$0.isEmpty }
+            .uniqued()
+            .prefix(4)
+            .map { $0 }
+    }
+
+    private var upcomingImportantDates: [ImportantDate] {
+        person.importantDates
+            .filter { ($0.nextOccurrence?.daysFromNow ?? Int.max) >= 0 }
+            .sorted { ($0.nextOccurrence ?? .distantFuture) < ($1.nextOccurrence ?? .distantFuture) }
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
                 header
                 statsRow
                 actionsRow
+                beforeMeetingBrief
 
                 if !person.notes.isEmpty {
                     FormSectionCard("Notes", icon: "note.text") {
@@ -41,14 +57,6 @@ struct PersonProfileView: View {
                 if !person.personalityNotes.isEmpty {
                     FormSectionCard("Personality", icon: "brain.head.profile") {
                         Text(person.personalityNotes).font(.subheadline)
-                    }
-                }
-                if !followUpQuestions.isEmpty {
-                    FormSectionCard("Ask Next Time", icon: "questionmark.bubble") {
-                        ForEach(followUpQuestions, id: \.self) { question in
-                            Label(question, systemImage: "arrow.turn.down.right")
-                                .font(.subheadline)
-                        }
                     }
                 }
                 giftsCard
@@ -122,7 +130,7 @@ struct PersonProfileView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 8)
+        .padding(.top, 6)
     }
 
     private var statsRow: some View {
@@ -159,6 +167,69 @@ struct PersonProfileView: View {
     }
 
     // MARK: Cards
+
+    private var beforeMeetingBrief: some View {
+        FormSectionCard("Before Meeting Brief", icon: "person.text.rectangle") {
+            briefRow("clock.arrow.circlepath", "Last contacted", person.lastContactedAt?.relativeLabel ?? "Never")
+            briefRow("person.2.wave.2", "Last met", person.lastMetAt?.relativeLabel ?? "Never")
+            if !lastTopics.isEmpty {
+                briefRow("text.bubble", "Last topics", lastTopics.joined(separator: ", "))
+            }
+            if !person.openReminders.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    briefLabel("Open follow-ups", icon: "checklist")
+                    ForEach(person.openReminders.prefix(3)) { reminder in
+                        Text(reminder.title)
+                            .font(.subheadline)
+                    }
+                }
+            }
+            if !person.openGiftIdeas.isEmpty {
+                briefRow("gift", "Gift ideas", person.openGiftIdeas.prefix(3).map(\.title).joined(separator: ", "))
+            }
+            if let birthday = person.nextBirthday, birthday.daysFromNow <= 60 {
+                briefRow("birthday.cake", "Upcoming birthday", birthday.formatted(.dateTime.month(.wide).day()))
+            }
+            if !upcomingImportantDates.isEmpty {
+                let labels = upcomingImportantDates.prefix(3).compactMap { date -> String? in
+                    guard let next = date.nextOccurrence else { return nil }
+                    return "\(date.title) \(next.formatted(.dateTime.month(.abbreviated).day()))"
+                }
+                if !labels.isEmpty {
+                    briefRow("calendar", "Important dates", labels.joined(separator: ", "))
+                }
+            }
+            if !followUpQuestions.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    briefLabel("Suggested questions", icon: "questionmark.bubble")
+                    ForEach(followUpQuestions, id: \.self) { question in
+                        Label(question, systemImage: "arrow.turn.down.right")
+                            .font(.subheadline)
+                    }
+                }
+            }
+            if lastTopics.isEmpty && person.openReminders.isEmpty && person.openGiftIdeas.isEmpty && upcomingImportantDates.isEmpty && followUpQuestions.isEmpty {
+                Text("Log an interaction or voice note to build a useful pre-meeting brief.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func briefRow(_ icon: String, _ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            briefLabel(label, icon: icon)
+            Text(value)
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+        }
+    }
+
+    private func briefLabel(_ label: String, icon: String) -> some View {
+        Label(label, systemImage: icon)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+    }
 
     private var keyFactsCard: some View {
         FormSectionCard("Key Facts", icon: "info.circle") {
@@ -310,8 +381,8 @@ private struct StatTile: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.vertical, 8)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 
