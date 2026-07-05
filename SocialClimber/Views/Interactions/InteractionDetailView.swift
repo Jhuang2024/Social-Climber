@@ -75,9 +75,9 @@ struct InteractionDetailView: View {
         VStack(spacing: 8) {
             Image(systemName: interaction.type.icon)
                 .font(.title)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(SCTheme.accent)
                 .frame(width: 64, height: 64)
-                .background(Color.accentColor.opacity(0.12), in: Circle())
+                .background(SCTheme.accent.opacity(0.12), in: Circle())
             Text(interaction.date.formatted(date: .abbreviated, time: .shortened))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)

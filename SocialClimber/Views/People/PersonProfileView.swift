@@ -172,7 +172,7 @@ struct PersonProfileView: View {
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous))
+                    .background(SCTheme.accent, in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous))
             }
             .buttonStyle(.plain)
 

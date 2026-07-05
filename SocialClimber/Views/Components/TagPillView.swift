@@ -2,7 +2,7 @@ import SwiftUI
 
 struct TagPillView: View {
     let text: String
-    var color: Color = .accentColor
+    var color: Color = SCTheme.accent
     var icon: String?
 
     var body: some View {
@@ -65,7 +65,7 @@ struct FlowLayout: Layout {
 
 struct TagCloudView: View {
     let tags: [String]
-    var color: Color = .accentColor
+    var color: Color = SCTheme.accent
 
     var body: some View {
         FlowLayout(spacing: 8) {

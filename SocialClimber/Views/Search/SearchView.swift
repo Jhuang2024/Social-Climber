@@ -70,7 +70,7 @@ struct SearchView: View {
                 } label: {
                     HStack {
                         Image(systemName: "sparkle.magnifyingglass")
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(SCTheme.accent)
                         Text(suggestion)
                             .foregroundStyle(.primary)
                         Spacer()

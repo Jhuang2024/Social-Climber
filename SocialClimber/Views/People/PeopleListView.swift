@@ -139,7 +139,7 @@ struct PeopleListView: View {
             }
             .padding(18)
             .frame(maxWidth: .infinity)
-            .background(Color.accentColor.gradient, in: RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous))
+            .background(SCTheme.accent.gradient, in: RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous))
             .cardShadow()
         }
         .buttonStyle(.plain)

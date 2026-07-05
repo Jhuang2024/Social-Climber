@@ -75,7 +75,7 @@ struct GiftIdeasView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(
-                    filter == status ? Color.accentColor : SCTheme.cardBackground,
+                    filter == status ? SCTheme.accent : SCTheme.cardBackground,
                     in: Capsule()
                 )
                 .foregroundStyle(filter == status ? .white : .primary)

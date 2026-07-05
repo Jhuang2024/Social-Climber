@@ -5,7 +5,7 @@ import SwiftData
 struct DotRatingPicker: View {
     let label: String
     @Binding var value: Int
-    var color: Color = .accentColor
+    var color: Color = SCTheme.accent
 
     var body: some View {
         HStack {
@@ -52,8 +52,8 @@ struct TagListEditor: View {
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
-                        .background(Color.accentColor.opacity(0.12), in: Capsule())
-                        .foregroundStyle(Color.accentColor)
+                        .background(SCTheme.accent.opacity(0.12), in: Capsule())
+                        .foregroundStyle(SCTheme.accent)
                     }
                 }
             }
@@ -106,7 +106,7 @@ struct PersonMultiPicker: View {
                         Spacer()
                         if selected.contains(where: { $0 === person }) {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(Color.accentColor)
+                                .foregroundStyle(SCTheme.accent)
                         }
                     }
                 }

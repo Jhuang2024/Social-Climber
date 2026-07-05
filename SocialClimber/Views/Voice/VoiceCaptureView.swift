@@ -92,7 +92,7 @@ struct VoiceCaptureView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
                     .background(
-                        Color.accentColor.opacity(isAnalyzeDisabled ? 0.4 : 1),
+                        SCTheme.accent.opacity(isAnalyzeDisabled ? 0.4 : 1),
                         in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous)
                     )
                 }
@@ -145,9 +145,9 @@ struct VoiceCaptureView: View {
             } label: {
                 ZStack {
                     Circle()
-                        .fill(model.isRecording ? Color.red : Color.accentColor)
+                        .fill(model.isRecording ? Color.red : SCTheme.accent)
                         .frame(width: 88, height: 88)
-                        .shadow(color: (model.isRecording ? Color.red : Color.accentColor).opacity(0.35), radius: 12, y: 4)
+                        .shadow(color: (model.isRecording ? Color.red : SCTheme.accent).opacity(0.35), radius: 12, y: 4)
                     Image(systemName: model.isRecording ? "stop.fill" : "mic.fill")
                         .font(.system(size: 32))
                         .foregroundStyle(.white)
