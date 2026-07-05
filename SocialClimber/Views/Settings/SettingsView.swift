@@ -9,7 +9,7 @@ struct SettingsView: View {
 
     @AppStorage("notificationsEnabled") private var notificationsEnabled = false
     @AppStorage("locationEnabled") private var locationEnabled = false
-    @AppStorage("googleClientID") private var googleClientID = ""
+    @AppStorage("googleClientID") private var googleClientID = "201027748898-lerfifmsfgdu2uubgph606p2rsa6ic7j.apps.googleusercontent.com"
     @AppStorage("aiProvider") private var aiProvider = AIProvider.mock.rawValue
     @AppStorage("openRouterModelID") private var openRouterModelID = OpenRouterDefaults.modelID
     @AppStorage("defaultCadenceClose") private var cadenceClose = 7

@@ -173,7 +173,27 @@ final class GoogleCalendarService: NSObject {
         let raw = UserDefaults.standard.string(forKey: Self.clientIDDefaultsKey)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !raw.isEmpty else { throw GoogleCalendarError.missingClientID }
-        return raw
+        guard let sanitized = Self.sanitizeClientID(raw) else { throw GoogleCalendarError.invalidClientID }
+        return sanitized
+    }
+
+    /// Google Cloud Console sometimes renders the client ID as a clickable
+    /// link, so pasting it can drag along a `http://` scheme and trailing
+    /// `/` (e.g. `http://1234-abc.apps.googleusercontent.com/`). Left
+    /// as-is, those stray characters end up inside the OAuth redirect
+    /// scheme built from the client ID, which isn't a valid URL scheme —
+    /// `ASWebAuthenticationSession` then throws an uncatchable
+    /// Objective-C exception and crashes the app. Strip it down to the
+    /// bare `<id>.apps.googleusercontent.com` before it's ever used.
+    private static func sanitizeClientID(_ raw: String) -> String? {
+        var value = raw
+        if value.contains("://"), let url = URL(string: value), let host = url.host {
+            value = host
+        }
+        value = value.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
+        let suffix = ".apps.googleusercontent.com"
+        guard value.hasSuffix(suffix), value.count > suffix.count else { return nil }
+        return value
     }
 
     // MARK: Auth session
@@ -295,10 +315,21 @@ final class GoogleCalendarService: NSObject {
 
 extension GoogleCalendarService: ASWebAuthenticationPresentationContextProviding {
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-            .first(where: \.isKeyWindow) ?? ASPresentationAnchor()
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        // A `UIWindow()` with no window scene attached crashes when
+        // ASWebAuthenticationSession tries to present on it, so fall back
+        // as far as "any window in any connected scene" before ever
+        // constructing a scene-less window.
+        if let keyWindow = scenes.flatMap(\.windows).first(where: \.isKeyWindow) {
+            return keyWindow
+        }
+        if let anyWindow = scenes.flatMap(\.windows).first {
+            return anyWindow
+        }
+        if let scene = scenes.first {
+            return UIWindow(windowScene: scene)
+        }
+        return ASPresentationAnchor()
     }
 }
 
@@ -315,7 +346,7 @@ enum GoogleCalendarError: LocalizedError {
         case .missingClientID:
             "Add your Google OAuth Client ID in Settings first."
         case .invalidClientID:
-            "That Google Client ID doesn't look valid."
+            "That doesn't look like a Google Client ID — it should end in \".apps.googleusercontent.com\"."
         case .authCanceled:
             "Sign-in was canceled before it finished."
         case .tokenExchangeFailed:
