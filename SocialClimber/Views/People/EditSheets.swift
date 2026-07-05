@@ -51,6 +51,7 @@ struct GiftIdeaEditSheet: View {
                     .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
+            .keyboardDoneButton()
         }
         .presentationDetents([.medium, .large])
     }
@@ -103,6 +104,7 @@ struct ReminderEditSheet: View {
                     .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
+            .keyboardDoneButton()
         }
         .presentationDetents([.medium, .large])
     }
@@ -152,6 +154,7 @@ struct ImportantDateEditSheet: View {
                     .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
+            .keyboardDoneButton()
         }
         .presentationDetents([.medium, .large])
     }

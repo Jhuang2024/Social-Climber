@@ -225,6 +225,7 @@ struct SettingsView: View {
             .onAppear {
                 refreshOpenRouterKeyStatus()
             }
+            .keyboardDoneButton()
         }
     }
 

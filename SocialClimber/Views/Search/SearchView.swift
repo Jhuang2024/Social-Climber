@@ -41,6 +41,7 @@ struct SearchView: View {
             }
             .socialClimberPageBackground()
             .navigationTitle("Search")
+            .keyboardDoneButton()
         }
     }
 

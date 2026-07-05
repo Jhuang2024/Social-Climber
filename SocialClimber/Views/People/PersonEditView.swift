@@ -154,6 +154,7 @@ struct PersonEditView: View {
                         .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
+            .keyboardDoneButton()
             .onAppear(perform: load)
             .onChange(of: avatarItem) {
                 Task {

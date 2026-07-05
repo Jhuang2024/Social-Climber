@@ -122,6 +122,7 @@ struct AddInteractionView: View {
             .onAppear {
                 if selectedPeople.isEmpty { selectedPeople = preselected }
             }
+            .keyboardDoneButton()
         }
     }
 
