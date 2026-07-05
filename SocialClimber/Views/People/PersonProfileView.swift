@@ -168,9 +168,11 @@ struct PersonProfileView: View {
                 showAddInteraction = true
             } label: {
                 Label("Log Interaction", systemImage: "plus.bubble")
+                    .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
+            .tint(Color.accentColor)
             .controlSize(.large)
 
             Button {

@@ -26,8 +26,10 @@ struct EmptyStateView: View {
             if let actionTitle, let action {
                 Button(action: action) {
                     Label(actionTitle, systemImage: "plus")
+                        .foregroundStyle(.white)
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(Color.accentColor)
                 .controlSize(.large)
                     .padding(.top, 8)
             }

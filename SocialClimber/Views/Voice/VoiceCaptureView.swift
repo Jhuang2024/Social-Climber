@@ -77,13 +77,16 @@ struct VoiceCaptureView: View {
                 } label: {
                     if model.isAnalyzing {
                         ProgressView()
+                            .tint(.white)
                             .frame(maxWidth: .infinity)
                     } else {
                         Label("Analyze & Review", systemImage: "sparkles")
+                            .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
                     }
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(Color.accentColor)
                 .controlSize(.large)
                 .disabled(model.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isAnalyzing || model.isRecording)
             }
