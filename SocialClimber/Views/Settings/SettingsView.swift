@@ -9,6 +9,7 @@ struct SettingsView: View {
 
     @AppStorage("notificationsEnabled") private var notificationsEnabled = false
     @AppStorage("calendarEnabled") private var calendarEnabled = false
+    @AppStorage("locationEnabled") private var locationEnabled = false
     @AppStorage("aiProvider") private var aiProvider = AIProvider.mock.rawValue
     @AppStorage("openRouterModelID") private var openRouterModelID = OpenRouterDefaults.modelID
     @AppStorage("defaultCadenceClose") private var cadenceClose = 7
@@ -97,6 +98,20 @@ struct SettingsView: View {
                         Label("Import a contact…", systemImage: "person.crop.circle.badge.plus")
                     }
                     Text("Contacts are imported one at a time, only when you pick them. No mass import, ever.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle("Location (\"Who's nearby\")", isOn: $locationEnabled)
+                        .onChange(of: locationEnabled) {
+                            if locationEnabled {
+                                Task {
+                                    if await !LocationService.shared.requestAccess() {
+                                        locationEnabled = false
+                                        message = "Location access was denied."
+                                    }
+                                }
+                            }
+                        }
+                    Text("Looks up your current city on-device to show people whose saved location matches. Never tracked in the background, never stored, never sent anywhere.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

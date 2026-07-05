@@ -9,13 +9,27 @@ struct DashboardView: View {
     @Query private var giftIdeas: [GiftIdea]
     @Query private var importantDates: [ImportantDate]
 
+    @AppStorage("locationEnabled") private var locationEnabled = false
+
     @State private var showAddPerson = false
     @State private var showAddInteraction = false
     @State private var showVoiceCapture = false
     @State private var showContactPicker = false
     @State private var message: String?
+    @State private var nearbyCity: String?
+    @State private var isLoadingNearby = false
 
     private var people: [Person] { allPeople.filter { !$0.isArchived } }
+
+    private var nearbyPeople: [Person] {
+        guard let nearbyCity, !nearbyCity.isEmpty else { return [] }
+        return people.filter { person in
+            let location = person.location.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !location.isEmpty else { return false }
+            return location.localizedCaseInsensitiveContains(nearbyCity)
+                || nearbyCity.localizedCaseInsensitiveContains(location)
+        }
+    }
 
     private var checkInsDue: [Person] {
         people.filter { $0.status == .checkInSoon }
@@ -59,6 +73,7 @@ struct DashboardView: View {
                     } else {
                         dashboardPulse
                         quickActions
+                        if locationEnabled && !nearbyPeople.isEmpty { nearbyCard }
                         if !dueReminders.isEmpty { remindersCard }
                         if !checkInsDue.isEmpty { checkInsCard }
                         if !upcomingBirthdays.isEmpty { birthdaysCard }
@@ -78,6 +93,8 @@ struct DashboardView: View {
             }
             .socialClimberPageBackground()
             .navigationTitle(greeting)
+            .navigationDestination(for: Person.self) { PersonProfileView(person: $0) }
+            .task { await refreshNearby() }
             .sheet(isPresented: $showAddPerson) { PersonEditView() }
             .sheet(isPresented: $showAddInteraction) { AddInteractionView() }
             .sheet(isPresented: $showVoiceCapture) { VoiceCaptureView() }
@@ -104,6 +121,13 @@ struct DashboardView: View {
         case ..<17: return "Good Afternoon"
         default: return "Good Evening"
         }
+    }
+
+    private func refreshNearby() async {
+        guard locationEnabled else { nearbyCity = nil; return }
+        isLoadingNearby = true
+        nearbyCity = await LocationService.shared.currentCity()
+        isLoadingNearby = false
     }
 
     // MARK: Sections
@@ -176,6 +200,28 @@ struct DashboardView: View {
         }
     }
 
+    private var nearbyCard: some View {
+        FormSectionCard("In \(nearbyCity ?? "Your City")", icon: "location.fill") {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(nearbyPeople.prefix(8)) { person in
+                        NavigationLink(value: person) {
+                            PersonMiniCard(person: person)
+                        }
+                        .buttonStyle(.pressable)
+                    }
+                }
+            }
+            Button {
+                Task { await refreshNearby() }
+            } label: {
+                Label(isLoadingNearby ? "Refreshing…" : "Refresh location", systemImage: "arrow.clockwise")
+                    .font(.subheadline.weight(.medium))
+            }
+            .disabled(isLoadingNearby)
+        }
+    }
+
     private var remindersCard: some View {
         FormSectionCard("Due Now", icon: "bell.badge.fill") {
             ForEach(dueReminders.prefix(4)) { reminder in
@@ -199,7 +245,6 @@ struct DashboardView: View {
                 }
             }
         }
-        .navigationDestination(for: Person.self) { PersonProfileView(person: $0) }
     }
 
     private var birthdaysCard: some View {

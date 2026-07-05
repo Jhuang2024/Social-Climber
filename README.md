@@ -24,10 +24,11 @@ Free-account builds expire after 7 days — just hit Run again to reinstall (dat
 - **Search** — local search across everything, with natural-ish queries and matched context: *"who likes F1?"*, *"who did I talk to about internships?"*, *"birthdays in November"*.
 - **Upcoming** — merged 60-day feed of birthdays, dates, reminders, and (optional, read-only) Calendar events that mention known people — swipe to track one as a planned hangout.
 - **Contacts** — optional one-at-a-time import via the system picker. No mass import.
+- **Nearby** — optional, on-demand: resolves your current city on-device (CoreLocation + reverse geocoding) and shows a dashboard card of saved people whose `location` field matches. One-shot lookup, no background tracking, nothing stored or transmitted; toggle it on in Settings → Integrations.
 - **Notifications** — local-only: birthdays at 9 AM, reminders on their due date.
 - **Backup** — JSON export via the share sheet; import asks before merging by name and skips duplicate interactions.
 - **Demo data** — available only in SwiftUI previews or the debug-only **Load Demo Data** action in Settings.
-- **Privacy** — local-first by default. Contacts import is selected-contact only, Calendar access is optional, and voice notes stay local unless explicitly analyzed with the selected LLM provider.
+- **Privacy** — local-first by default. Contacts import is selected-contact only, Calendar access is optional, location is opt-in and one-shot, and voice notes stay local unless explicitly analyzed with the selected LLM provider.
 
 ## Layout
 
@@ -36,7 +37,7 @@ SocialClimber/
   Models/        SwiftData models (Person, Interaction, GiftIdea, Reminder,
                  ImportantDate, VoiceNote, ConversationSummary)
   Services/      RelationshipHealth, AIService (+Mock/OpenRouter),
-                 ExtractionApplier, Notification/Calendar/Contacts services,
+                 ExtractionApplier, Notification/Calendar/Contacts/Location services,
                  ExportImport, Search, SeedData, PreviewData
   ViewModels/    VoiceCaptureViewModel
   Views/         One folder per screen + reusable Components
