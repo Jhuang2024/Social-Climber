@@ -3,6 +3,11 @@ import SwiftData
 
 struct RootTabView: View {
     @Environment(\.modelContext) private var context
+    @Query private var reminders: [Reminder]
+
+    private var dueCount: Int {
+        reminders.filter { !$0.completed && $0.dueDate.daysFromNow <= 0 }.count
+    }
 
     var body: some View {
         TabView {
@@ -14,6 +19,7 @@ struct RootTabView: View {
                 .tabItem { Label("Search", systemImage: "magnifyingglass") }
             UpcomingView()
                 .tabItem { Label("Upcoming", systemImage: "calendar") }
+                .badge(dueCount)
             SettingsView()
                 .tabItem { Label("Settings", systemImage: "gearshape.fill") }
         }

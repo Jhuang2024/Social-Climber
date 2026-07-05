@@ -65,6 +65,7 @@ struct InteractionDetailView: View {
         }
         .confirmationDialog("Delete this interaction?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
+                Haptics.warning()
                 context.delete(interaction)
                 dismiss()
             }

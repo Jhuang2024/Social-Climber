@@ -96,7 +96,7 @@ struct VoiceCaptureView: View {
                         in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous)
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 .disabled(isAnalyzeDisabled)
             }
             .padding()
@@ -146,6 +146,12 @@ struct VoiceCaptureView: View {
             } label: {
                 ZStack {
                     Circle()
+                        .stroke(Color.red.opacity(model.isRecording ? 0.35 : 0), lineWidth: 3)
+                        .frame(width: 88, height: 88)
+                        .scaleEffect(model.isRecording ? 1.35 : 1)
+                        .opacity(model.isRecording ? 0 : 1)
+                        .animation(model.isRecording ? .easeOut(duration: 1.1).repeatForever(autoreverses: false) : .default, value: model.isRecording)
+                    Circle()
                         .fill(model.isRecording ? Color.red : SCTheme.accent)
                         .frame(width: 88, height: 88)
                         .shadow(color: (model.isRecording ? Color.red : SCTheme.accent).opacity(0.35), radius: 12, y: 4)
@@ -154,10 +160,14 @@ struct VoiceCaptureView: View {
                         .foregroundStyle(.white)
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
+            .sensoryFeedback(.start, trigger: model.isRecording) { _, isRecording in isRecording }
+            .sensoryFeedback(.stop, trigger: model.isRecording) { _, isRecording in !isRecording }
             Text(model.isRecording ? "Recording live… tap to stop" : "Tap to record the conversation live")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+                .contentTransition(.opacity)
+                .animation(.snappy, value: model.isRecording)
         }
         .padding(.top, 4)
     }
@@ -195,7 +205,7 @@ struct VoiceCaptureView: View {
                         .strokeBorder(Color.primary.opacity(0.06))
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
         }
     }
 

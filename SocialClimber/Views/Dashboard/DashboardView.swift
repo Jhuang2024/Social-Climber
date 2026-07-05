@@ -71,6 +71,10 @@ struct DashboardView: View {
                 .padding(.horizontal)
                 .padding(.top, 4)
                 .padding(.bottom, 28)
+                .animation(.snappy(duration: 0.3), value: people.isEmpty)
+                .animation(.snappy(duration: 0.3), value: dueReminders.count)
+                .animation(.snappy(duration: 0.3), value: checkInsDue.count)
+                .animation(.snappy(duration: 0.3), value: quietPeople.count)
             }
             .socialClimberPageBackground()
             .navigationTitle(greeting)
@@ -81,6 +85,7 @@ struct DashboardView: View {
                 ContactPickerView { contact in
                     let person = ContactsImporter.person(from: contact)
                     context.insert(person)
+                    Haptics.success()
                     message = "Imported \(person.displayName)."
                 }
             }
@@ -189,7 +194,7 @@ struct DashboardView: View {
                         NavigationLink(value: person) {
                             PersonMiniCard(person: person)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pressable)
                     }
                 }
             }
@@ -303,7 +308,7 @@ private struct QuickActionButton: View {
             }
             .foregroundStyle(color)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 }
 
@@ -329,7 +334,7 @@ private struct EmptyActionButton: View {
             .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous))
             .foregroundStyle(color)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 }
 
@@ -370,6 +375,8 @@ private struct PulseMetric: View {
             Text(value)
                 .font(.title3.weight(.bold))
                 .monospacedDigit()
+                .contentTransition(.numericText())
+                .animation(.snappy, value: value)
             Text(title)
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)

@@ -46,6 +46,7 @@ struct GiftIdeaEditSheet: View {
                     Button("Save") {
                         let gift = GiftIdea(title: title, person: person ?? selectedPerson, notes: notes, priceRange: priceRange, occasion: occasion, status: status)
                         context.insert(gift)
+                        Haptics.success()
                         dismiss()
                     }
                     .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -99,6 +100,7 @@ struct ReminderEditSheet: View {
                         let reminder = Reminder(title: title, dueDate: dueDate, type: type, person: person ?? selectedPerson, notes: notes)
                         context.insert(reminder)
                         NotificationService.shared.schedule(reminder: reminder)
+                        Haptics.success()
                         dismiss()
                     }
                     .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -149,6 +151,7 @@ struct ImportantDateEditSheet: View {
                     Button("Save") {
                         let important = ImportantDate(title: title, date: date, repeatsYearly: repeatsYearly, person: person ?? selectedPerson, notes: notes)
                         context.insert(important)
+                        Haptics.success()
                         dismiss()
                     }
                     .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)

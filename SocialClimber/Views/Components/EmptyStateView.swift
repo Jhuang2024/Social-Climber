@@ -32,7 +32,7 @@ struct EmptyStateView: View {
                         .padding(.vertical, 12)
                         .background(SCTheme.accent, in: Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 .padding(.top, 8)
             }
         }

@@ -48,6 +48,7 @@ struct ReminderRowView: View {
                 .background(reminder.type.color.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .padding(.vertical, 7)
+        .sensoryFeedback(.selection, trigger: reminder.completed)
     }
 }
 
@@ -105,6 +106,7 @@ struct GiftIdeaRowView: View {
             }
         }
         .padding(.vertical, 7)
+        .sensoryFeedback(.selection, trigger: gift.status)
     }
 }
 

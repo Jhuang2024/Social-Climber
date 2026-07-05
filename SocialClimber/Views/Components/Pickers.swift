@@ -27,6 +27,7 @@ struct DotRatingPicker: View {
                 }
             }
         }
+        .sensoryFeedback(.selection, trigger: value)
     }
 }
 
@@ -116,5 +117,6 @@ struct PersonMultiPicker: View {
         }
         .scrollContentBackground(.hidden)
         .background(SCTheme.pageBackground)
+        .sensoryFeedback(.selection, trigger: selected.count)
     }
 }

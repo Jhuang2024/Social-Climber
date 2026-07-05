@@ -256,6 +256,7 @@ struct PersonEditView: View {
 
         if person == nil { context.insert(target) }
         NotificationService.shared.scheduleBirthday(for: target)
+        Haptics.success()
         dismiss()
     }
 }

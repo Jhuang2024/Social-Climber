@@ -32,6 +32,7 @@ struct GiftIdeasView: View {
                 }
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                .sensoryFeedback(.selection, trigger: filter)
             }
 
             if filtered.isEmpty {
@@ -56,6 +57,7 @@ struct GiftIdeasView: View {
             }
         }
         .listStyle(.plain)
+        .animation(.snappy(duration: 0.25), value: filtered.map(\.persistentModelID))
         .socialClimberPageBackground()
         .navigationTitle("Gift Ideas")
         .toolbar {
@@ -80,7 +82,7 @@ struct GiftIdeasView: View {
                 )
                 .foregroundStyle(filter == status ? .white : .primary)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 }
 

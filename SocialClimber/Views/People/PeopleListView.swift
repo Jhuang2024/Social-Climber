@@ -83,6 +83,7 @@ struct PeopleListView: View {
                         .listStyle(.plain)
                         .scrollContentBackground(.hidden)
                         .searchable(text: $searchText, prompt: "Name, relationship, tag…")
+                        .animation(.snappy(duration: 0.25), value: filtered.map(\.persistentModelID))
                         .overlay {
                             if filtered.isEmpty {
                                 EmptyStateView(icon: "magnifyingglass", title: "No matches", message: "Try a different search or clear the current filter.")
@@ -142,7 +143,7 @@ struct PeopleListView: View {
             .background(SCTheme.accent.gradient, in: RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous))
             .cardShadow()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .padding(.horizontal)
         .padding(.bottom, 10)
     }
@@ -178,6 +179,9 @@ struct PeopleListView: View {
         } label: {
             Image(systemName: (filterCategory != nil || filterStatus != nil) ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
         }
+        .sensoryFeedback(.selection, trigger: filterCategory)
+        .sensoryFeedback(.selection, trigger: filterStatus)
+        .sensoryFeedback(.selection, trigger: sortOption)
     }
 }
 

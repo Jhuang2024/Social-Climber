@@ -200,6 +200,7 @@ struct SettingsView: View {
             }
             .confirmationDialog("Delete all data?", isPresented: $confirmClear, titleVisibility: .visible) {
                 Button("Delete Everything", role: .destructive) {
+                    Haptics.warning()
                     SeedData.clearAll(context: context)
                     message = "All data deleted."
                 }
@@ -245,6 +246,7 @@ struct SettingsView: View {
         guard let pendingImportData else { return }
         do {
             let count = try ExportImportService.importData(pendingImportData, context: context)
+            Haptics.success()
             message = "Import complete. \(count) new people added; existing records were merged by name."
         } catch {
             message = "Import failed: \(error.localizedDescription)"

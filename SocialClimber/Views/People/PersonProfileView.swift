@@ -95,6 +95,7 @@ struct PersonProfileView: View {
         .sheet(isPresented: $showAddDate) { ImportantDateEditSheet(person: person) }
         .confirmationDialog("Delete \(person.displayName)? This removes all their data.", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
+                Haptics.warning()
                 context.delete(person)
                 dismiss()
             }
@@ -151,15 +152,11 @@ struct PersonProfileView: View {
 
     private var statsRow: some View {
         HStack(spacing: 10) {
-            StatTile(title: "Closeness", value: dots(person.closeness))
-            StatTile(title: "Priority", value: dots(person.priority))
+            DotStatTile(title: "Closeness", value: person.closeness)
+            DotStatTile(title: "Priority", value: person.priority)
             StatTile(title: "Last Contact", value: person.lastContactedAt?.relativeLabel ?? "Never")
             StatTile(title: "Last Met", value: person.lastMetAt?.relativeLabel ?? "Never")
         }
-    }
-
-    private func dots(_ n: Int) -> String {
-        String(repeating: "●", count: n) + String(repeating: "○", count: 5 - n)
     }
 
     private var actionsRow: some View {
@@ -174,7 +171,7 @@ struct PersonProfileView: View {
                     .padding(.vertical, 12)
                     .background(SCTheme.accent, in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
 
             Button {
                 person.markContacted(type: .message, date: .now)
@@ -184,6 +181,7 @@ struct PersonProfileView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.large)
+            .sensoryFeedback(.success, trigger: person.lastContactedAt)
         }
     }
 
@@ -397,6 +395,27 @@ private struct StatTile: View {
                 .font(.caption.weight(.bold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(SCTheme.cardBackground, in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.05))
+        }
+    }
+}
+
+private struct DotStatTile: View {
+    let title: String
+    let value: Int
+
+    var body: some View {
+        VStack(spacing: 6) {
+            DotsRow(value: value, color: SCTheme.accent, size: 6)
             Text(title)
                 .font(.caption2)
                 .foregroundStyle(.secondary)

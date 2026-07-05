@@ -165,6 +165,7 @@ struct AddInteractionView: View {
         saveFollowUpReminderIfNeeded()
 
         isSaving = false
+        Haptics.success()
         dismiss()
     }
 
