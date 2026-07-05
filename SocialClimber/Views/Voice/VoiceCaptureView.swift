@@ -13,6 +13,10 @@ struct VoiceCaptureView: View {
 
     @Query(sort: \Person.name) private var allPeople: [Person]
 
+    private var isAnalyzeDisabled: Bool {
+        model.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isAnalyzing || model.isRecording
+    }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 16) {
@@ -75,20 +79,25 @@ struct VoiceCaptureView: View {
                         if model.extraction != nil { showReview = true }
                     }
                 } label: {
-                    if model.isAnalyzing {
-                        ProgressView()
-                            .tint(.white)
-                            .frame(maxWidth: .infinity)
-                    } else {
-                        Label("Analyze & Review", systemImage: "sparkles")
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
+                    Group {
+                        if model.isAnalyzing {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Label("Analyze & Review", systemImage: "sparkles")
+                                .foregroundStyle(.white)
+                        }
                     }
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(
+                        Color.accentColor.opacity(isAnalyzeDisabled ? 0.4 : 1),
+                        in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous)
+                    )
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color.accentColor)
-                .controlSize(.large)
-                .disabled(model.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isAnalyzing || model.isRecording)
+                .buttonStyle(.plain)
+                .disabled(isAnalyzeDisabled)
             }
             .padding()
             .background(SCTheme.pageBackground)

@@ -168,12 +168,13 @@ struct PersonProfileView: View {
                 showAddInteraction = true
             } label: {
                 Label("Log Interaction", systemImage: "plus.bubble")
+                    .font(.headline)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous))
             }
-            .buttonStyle(.borderedProminent)
-            .tint(Color.accentColor)
-            .controlSize(.large)
+            .buttonStyle(.plain)
 
             Button {
                 person.markContacted(type: .message, date: .now)
