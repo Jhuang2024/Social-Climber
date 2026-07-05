@@ -8,8 +8,8 @@ struct SettingsView: View {
     @Query private var reminders: [Reminder]
 
     @AppStorage("notificationsEnabled") private var notificationsEnabled = false
-    @AppStorage("calendarEnabled") private var calendarEnabled = false
     @AppStorage("locationEnabled") private var locationEnabled = false
+    @AppStorage("googleClientID") private var googleClientID = ""
     @AppStorage("aiProvider") private var aiProvider = AIProvider.mock.rawValue
     @AppStorage("openRouterModelID") private var openRouterModelID = OpenRouterDefaults.modelID
     @AppStorage("defaultCadenceClose") private var cadenceClose = 7
@@ -25,7 +25,10 @@ struct SettingsView: View {
     @State private var pendingImportName = ""
     @State private var openRouterAPIKey = ""
     @State private var hasOpenRouterAPIKey = false
+    @State private var isConnectingGoogleCalendar = false
     @State private var message: String?
+
+    private var googleCalendar: GoogleCalendarService { GoogleCalendarService.shared }
 
     var body: some View {
         NavigationStack {
@@ -81,17 +84,6 @@ struct SettingsView: View {
                 }
 
                 Section("Integrations") {
-                    Toggle("Calendar (read-only)", isOn: $calendarEnabled)
-                        .onChange(of: calendarEnabled) {
-                            if calendarEnabled {
-                                Task {
-                                    if await !CalendarService.shared.requestAccess() {
-                                        calendarEnabled = false
-                                        message = "Calendar access was denied."
-                                    }
-                                }
-                            }
-                        }
                     Button {
                         showContactPicker = true
                     } label: {
@@ -112,6 +104,35 @@ struct SettingsView: View {
                             }
                         }
                     Text("Looks up your current city on-device to show people whose saved location matches. Never tracked in the background, never stored, never sent anywhere.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Google Calendar") {
+                    LabeledContent("Status", value: googleCalendar.isConnected ? "Connected" : "Not connected")
+                    if !googleCalendar.isConnected {
+                        TextField("OAuth Client ID (Google Cloud Console)", text: $googleClientID)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        Button {
+                            connectGoogleCalendar()
+                        } label: {
+                            if isConnectingGoogleCalendar {
+                                ProgressView()
+                            } else {
+                                Label("Connect Google Calendar", systemImage: "calendar.badge.plus")
+                            }
+                        }
+                        .disabled(googleClientID.trimmingCharacters(in: .whitespaces).isEmpty || isConnectingGoogleCalendar)
+                    } else {
+                        Button(role: .destructive) {
+                            googleCalendar.disconnect()
+                            message = "Disconnected from Google Calendar."
+                        } label: {
+                            Label("Disconnect Google Calendar", systemImage: "calendar.badge.minus")
+                        }
+                    }
+                    Text("Read-only. Create a free \"iOS\" OAuth Client ID in Google Cloud Console (enable the Google Calendar API, set the bundle ID to match this app's) and paste it above — no client secret needed. Only a refresh token is stored, in the iOS Keychain; events are fetched on demand and never saved.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -242,6 +263,20 @@ struct SettingsView: View {
                 refreshOpenRouterKeyStatus()
             }
             .keyboardDoneButton()
+        }
+    }
+
+    private func connectGoogleCalendar() {
+        isConnectingGoogleCalendar = true
+        Task {
+            do {
+                try await googleCalendar.connect()
+                Haptics.success()
+                message = "Connected to Google Calendar."
+            } catch {
+                message = error.localizedDescription
+            }
+            isConnectingGoogleCalendar = false
         }
     }
 

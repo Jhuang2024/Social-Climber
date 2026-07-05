@@ -10,8 +10,7 @@ struct UpcomingView: View {
     @Query private var reminders: [Reminder]
     @Environment(\.modelContext) private var context
 
-    @AppStorage("calendarEnabled") private var calendarEnabled = false
-    @State private var calendarEvents: [CalendarService.MatchedEvent] = []
+    @State private var calendarEvents: [GoogleCalendarService.MatchedEvent] = []
 
     private let windowDays = 60
 
@@ -139,13 +138,12 @@ struct UpcomingView: View {
     }
 
     private func loadCalendar() async {
-        guard calendarEnabled else {
+        guard GoogleCalendarService.shared.isConnected else {
             calendarEvents = []
             return
         }
-        guard await CalendarService.shared.requestAccess() else { return }
         let known = people.filter { !$0.isArchived }
-        calendarEvents = CalendarService.shared.upcomingEvents(matching: known, days: windowDays)
+        calendarEvents = await GoogleCalendarService.shared.upcomingEvents(matching: known, days: windowDays)
     }
 }
 

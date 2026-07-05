@@ -254,7 +254,6 @@
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Social Climber can read your calendar to spot upcoming plans with people you know. This is optional and stays on your device.";
 				INFOPLIST_KEY_NSContactsUsageDescription = "Social Climber lets you import selected contacts one at a time. Nothing is uploaded anywhere.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Social Climber checks your current city, on-device only, to show which of your people are nearby. Your location is never stored, tracked, or sent anywhere.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Social Climber records your live conversations so you can remember details later. Audio never leaves your device.";
@@ -286,7 +285,6 @@
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Social Climber can read your calendar to spot upcoming plans with people you know. This is optional and stays on your device.";
 				INFOPLIST_KEY_NSContactsUsageDescription = "Social Climber lets you import selected contacts one at a time. Nothing is uploaded anywhere.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Social Climber checks your current city, on-device only, to show which of your people are nearby. Your location is never stored, tracked, or sent anywhere.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Social Climber records your live conversations so you can remember details later. Audio never leaves your device.";
