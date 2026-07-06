@@ -95,19 +95,10 @@ struct ScoreBreakdownView: View {
                     .padding(.vertical, 8)
 
                     FormSectionCard("Why this score", icon: "list.bullet.rectangle") {
-                        ForEach(score.rankedFactors) { factor in
-                            HStack(spacing: 12) {
-                                Text(factor.signedString)
-                                    .font(.subheadline.weight(.bold))
-                                    .monospacedDigit()
-                                    .foregroundStyle(factor.label == "Baseline" ? .secondary : (factor.isPositive ? .green : .red))
-                                    .frame(width: 44, alignment: .leading)
-                                Text(factor.label)
-                                    .font(.subheadline)
-                                Spacer()
-                            }
-                            .padding(.vertical, 3)
-                            if factor.id != score.rankedFactors.last?.id {
+                        let factors = score.rankedFactors
+                        ForEach(factors) { factor in
+                            factorRow(factor)
+                            if factor.id != factors.last?.id {
                                 Divider()
                             }
                         }
@@ -132,6 +123,25 @@ struct ScoreBreakdownView: View {
                 }
             }
         }
+    }
+
+    private func factorRow(_ factor: ScoreFactor) -> some View {
+        HStack(spacing: 12) {
+            Text(factor.signedString)
+                .font(.subheadline.weight(.bold))
+                .monospacedDigit()
+                .foregroundStyle(factorColor(factor))
+                .frame(width: 44, alignment: .leading)
+            Text(factor.label)
+                .font(.subheadline)
+            Spacer()
+        }
+        .padding(.vertical, 3)
+    }
+
+    private func factorColor(_ factor: ScoreFactor) -> Color {
+        if factor.label == "Baseline" { return .secondary }
+        return factor.isPositive ? .green : .red
     }
 }
 
