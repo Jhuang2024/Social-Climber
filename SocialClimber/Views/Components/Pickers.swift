@@ -31,6 +31,46 @@ struct DotRatingPicker: View {
     }
 }
 
+/// Four-level sentiment selector (bad / neutral / good / great) shown as a
+/// row of tappable chips. Backed by the same 1–5 quality scale as before.
+struct SentimentPicker: View {
+    @Binding var sentiment: Sentiment
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("How did it go?")
+                .font(.subheadline)
+            HStack(spacing: 8) {
+                ForEach(Sentiment.allCases) { option in
+                    Button {
+                        withAnimation(.snappy(duration: 0.16)) { sentiment = option }
+                    } label: {
+                        VStack(spacing: 4) {
+                            Text(option.emoji)
+                                .font(.title3)
+                            Text(option.label)
+                                .font(.caption2.weight(.semibold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(
+                            (sentiment == option ? option.color.opacity(0.20) : Color(.tertiarySystemFill)),
+                            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(sentiment == option ? option.color : .clear, lineWidth: 1.5)
+                        }
+                        .foregroundStyle(sentiment == option ? option.color : .secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .sensoryFeedback(.selection, trigger: sentiment)
+    }
+}
+
 /// Comma-separated editor for string lists (interests, tags, ...).
 struct TagListEditor: View {
     let label: String

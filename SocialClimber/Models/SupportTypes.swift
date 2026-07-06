@@ -98,6 +98,10 @@ enum InteractionType: String, Codable, CaseIterable, Identifiable {
     case message
     case videoCall
     case event
+    case socialMedia
+    case email
+    case favor
+    case intro
     case voiceNote
     case other
 
@@ -107,9 +111,13 @@ enum InteractionType: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .inPerson: "In Person"
         case .call: "Call"
-        case .message: "Message"
+        case .message: "Text"
         case .videoCall: "Video Call"
         case .event: "Event"
+        case .socialMedia: "Social Media"
+        case .email: "Email"
+        case .favor: "Favor"
+        case .intro: "Intro"
         case .voiceNote: "Voice Note"
         case .other: "Other"
         }
@@ -122,8 +130,138 @@ enum InteractionType: String, Codable, CaseIterable, Identifiable {
         case .message: "message.fill"
         case .videoCall: "video.fill"
         case .event: "party.popper.fill"
+        case .socialMedia: "bubble.left.and.text.bubble.right.fill"
+        case .email: "envelope.fill"
+        case .favor: "hands.sparkles.fill"
+        case .intro: "person.line.dotted.person.fill"
         case .voiceNote: "waveform"
         case .other: "ellipsis.circle.fill"
+        }
+    }
+
+    /// Types offered in the manual "Log Interaction" picker (voice notes have
+    /// their own capture flow, so they're excluded here).
+    static var loggable: [InteractionType] {
+        allCases.filter { $0 != .voiceNote }
+    }
+}
+
+/// A four-level sentiment for an interaction. Backed by the existing 1–5
+/// `quality` integer so no data migration is needed and the relationship
+/// score keeps working — sentiment is just a friendlier face on quality.
+enum Sentiment: Int, CaseIterable, Identifiable {
+    case bad = 1
+    case neutral = 2
+    case good = 3
+    case great = 4
+
+    var id: Int { rawValue }
+
+    /// The 1–5 quality value this sentiment maps onto.
+    var quality: Int {
+        switch self {
+        case .bad: 1
+        case .neutral: 3
+        case .good: 4
+        case .great: 5
+        }
+    }
+
+    init(quality: Int) {
+        switch quality {
+        case ..<3: self = .bad
+        case 3: self = .neutral
+        case 4: self = .good
+        default: self = .great
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .bad: "Bad"
+        case .neutral: "Neutral"
+        case .good: "Good"
+        case .great: "Great"
+        }
+    }
+
+    var emoji: String {
+        switch self {
+        case .bad: "😕"
+        case .neutral: "😐"
+        case .good: "🙂"
+        case .great: "🤩"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .bad: "hand.thumbsdown.fill"
+        case .neutral: "minus.circle.fill"
+        case .good: "hand.thumbsup.fill"
+        case .great: "star.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .bad: .red
+        case .neutral: .gray
+        case .good: .green
+        case .great: .yellow
+        }
+    }
+}
+
+/// Where an imported social-media message came from.
+enum MessagePlatform: String, Codable, CaseIterable, Identifiable {
+    case instagram
+    case iMessage
+    case snapchat
+    case whatsApp
+    case weChat
+    case linkedIn
+    case discord
+    case other
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .instagram: "Instagram"
+        case .iMessage: "iMessage"
+        case .snapchat: "Snapchat"
+        case .whatsApp: "WhatsApp"
+        case .weChat: "WeChat"
+        case .linkedIn: "LinkedIn"
+        case .discord: "Discord"
+        case .other: "Other"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .instagram: "camera.fill"
+        case .iMessage: "message.fill"
+        case .snapchat: "bolt.fill"
+        case .whatsApp: "phone.circle.fill"
+        case .weChat: "bubble.left.and.bubble.right.fill"
+        case .linkedIn: "briefcase.fill"
+        case .discord: "gamecontroller.fill"
+        case .other: "ellipsis.bubble.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .instagram: .pink
+        case .iMessage: .green
+        case .snapchat: .yellow
+        case .whatsApp: .green
+        case .weChat: .green
+        case .linkedIn: .blue
+        case .discord: .indigo
+        case .other: .gray
         }
     }
 }

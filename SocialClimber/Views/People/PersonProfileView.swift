@@ -8,10 +8,21 @@ struct PersonProfileView: View {
 
     @State private var showEdit = false
     @State private var showAddInteraction = false
+    @State private var showImport = false
     @State private var showAddGift = false
     @State private var showAddReminder = false
     @State private var showAddDate = false
     @State private var confirmDelete = false
+
+    @Query(sort: \Event.date, order: .reverse) private var allEvents: [Event]
+
+    private var linkedEvents: [Event] {
+        allEvents.filter { $0.attendees.contains(where: { $0.persistentModelID == person.persistentModelID }) }
+    }
+
+    private var suggestions: [Suggestion] {
+        StrategyEngine.suggestions(for: person)
+    }
 
     private var followUpQuestions: [String] {
         person.sortedInteractions
@@ -43,6 +54,8 @@ struct PersonProfileView: View {
                 header
                 statsRow
                 actionsRow
+                RelationshipScoreCard(person: person)
+                if !suggestions.isEmpty { strategyCard }
                 beforeMeetingBrief
 
                 if !person.notes.isEmpty {
@@ -62,6 +75,7 @@ struct PersonProfileView: View {
                 giftsCard
                 datesCard
                 remindersCard
+                if !linkedEvents.isEmpty { eventsCard }
                 timelineCard
             }
             .padding(.horizontal)
@@ -75,6 +89,7 @@ struct PersonProfileView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button { showEdit = true } label: { Label("Edit", systemImage: "pencil") }
+                    Button { showImport = true } label: { Label("Import message", systemImage: "square.and.arrow.down") }
                     Button {
                         person.isArchived.toggle()
                     } label: {
@@ -90,6 +105,7 @@ struct PersonProfileView: View {
         }
         .sheet(isPresented: $showEdit) { PersonEditView(person: person) }
         .sheet(isPresented: $showAddInteraction) { AddInteractionView(preselected: [person]) }
+        .sheet(isPresented: $showImport) { ImportMessageView(preselected: [person]) }
         .sheet(isPresented: $showAddGift) { GiftIdeaEditSheet(person: person) }
         .sheet(isPresented: $showAddReminder) { ReminderEditSheet(person: person) }
         .sheet(isPresented: $showAddDate) { ImportantDateEditSheet(person: person) }
@@ -160,32 +176,69 @@ struct PersonProfileView: View {
     }
 
     private var actionsRow: some View {
-        HStack(spacing: 10) {
+        VStack(spacing: 10) {
             Button {
                 showAddInteraction = true
             } label: {
                 Label("Log Interaction", systemImage: "plus.bubble")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(SCTheme.accent, in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous))
             }
-            .buttonStyle(.pressable)
+            .buttonStyle(.primaryCTA)
 
-            Button {
-                person.markContacted(type: .message, date: .now)
-            } label: {
-                Label("Contacted", systemImage: "checkmark")
-                    .frame(maxWidth: .infinity)
+            HStack(spacing: 10) {
+                Button {
+                    showImport = true
+                } label: {
+                    Label("Import", systemImage: "square.and.arrow.down")
+                }
+                .buttonStyle(.secondaryCTA)
+
+                Button {
+                    person.markContacted(type: .message, date: .now)
+                    Haptics.success()
+                } label: {
+                    Label("Contacted", systemImage: "checkmark")
+                }
+                .buttonStyle(.secondaryCTA(.green))
+                .sensoryFeedback(.success, trigger: person.lastContactedAt)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.large)
-            .sensoryFeedback(.success, trigger: person.lastContactedAt)
         }
     }
 
     // MARK: Cards
+
+    private var strategyCard: some View {
+        FormSectionCard("Strategy", icon: "wand.and.stars") {
+            ForEach(suggestions.prefix(4)) { suggestion in
+                SuggestionRow(suggestion: suggestion, linksToPerson: false)
+            }
+        }
+    }
+
+    private var eventsCard: some View {
+        FormSectionCard("Events", icon: "party.popper") {
+            ForEach(linkedEvents.prefix(6), id: \.persistentModelID) { event in
+                NavigationLink {
+                    EventDetailView(event: event)
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(event.name.isEmpty ? "Untitled event" : event.name)
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(.primary)
+                            Text(event.date.formatted(.dateTime.month(.abbreviated).day().year()))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(event.isUpcoming ? "Upcoming" : "Past")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(event.isUpcoming ? SCTheme.accent : .secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
 
     private var beforeMeetingBrief: some View {
         FormSectionCard("Before Meeting Brief", icon: "person.text.rectangle") {

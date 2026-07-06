@@ -8,6 +8,7 @@ enum PreviewData {
         let schema = Schema([
             Person.self, Interaction.self, GiftIdea.self, Reminder.self,
             ImportantDate.self, VoiceNote.self, ConversationSummary.self,
+            Event.self,
         ])
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try! ModelContainer(for: schema, configurations: [config])
