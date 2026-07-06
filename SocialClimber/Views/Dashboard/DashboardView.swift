@@ -132,7 +132,7 @@ struct DashboardView: View {
             .task { await refreshNearby() }
             .sheet(isPresented: $showAddPerson) { PersonEditView() }
             .sheet(isPresented: $showAddInteraction) { AddInteractionView() }
-            .sheet(isPresented: $showImport) { ImportMessageView() }
+            .sheet(isPresented: $showImport) { AddInteractionView(initialSource: .paste) }
             .sheet(isPresented: $showAddEvent) { EventEditView() }
             .sheet(isPresented: $showVoiceCapture) { VoiceCaptureView() }
             .sheet(isPresented: $showContactPicker) {

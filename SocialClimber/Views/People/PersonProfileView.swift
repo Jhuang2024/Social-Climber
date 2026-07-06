@@ -105,7 +105,7 @@ struct PersonProfileView: View {
         }
         .sheet(isPresented: $showEdit) { PersonEditView(person: person) }
         .sheet(isPresented: $showAddInteraction) { AddInteractionView(preselected: [person]) }
-        .sheet(isPresented: $showImport) { ImportMessageView(preselected: [person]) }
+        .sheet(isPresented: $showImport) { AddInteractionView(preselected: [person], initialSource: .paste) }
         .sheet(isPresented: $showAddGift) { GiftIdeaEditSheet(person: person) }
         .sheet(isPresented: $showAddReminder) { ReminderEditSheet(person: person) }
         .sheet(isPresented: $showAddDate) { ImportantDateEditSheet(person: person) }

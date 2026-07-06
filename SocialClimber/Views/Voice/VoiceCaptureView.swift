@@ -14,7 +14,9 @@ struct VoiceCaptureView: View {
     @Query(sort: \Person.name) private var allPeople: [Person]
 
     private var isAnalyzeDisabled: Bool {
-        model.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isAnalyzing || model.isRecording
+        selectedPeople.isEmpty
+            || model.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || model.isAnalyzing || model.isRecording
     }
 
     var body: some View {
@@ -23,11 +25,13 @@ struct VoiceCaptureView: View {
                 VStack(spacing: 4) {
                     Text("Capture the conversation as it happens.")
                         .font(.headline)
-                    Text("Record it live, or type notes, then review what gets added.")
+                    Text("Choose who you were talking to, then record or type notes.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
                 .multilineTextAlignment(.center)
+
+                peopleSection
 
                 recordButton
 
@@ -61,8 +65,6 @@ struct VoiceCaptureView: View {
                         }
                 }
 
-                peopleSection
-
                 if let error = model.errorMessage {
                     Text(error)
                         .font(.caption)
@@ -75,7 +77,6 @@ struct VoiceCaptureView: View {
                 Button {
                     Task {
                         await model.analyze(knownPeople: allPeople.map(\.name))
-                        autoSelectMentionedPeople()
                         if model.extraction != nil { showReview = true }
                     }
                 } label: {
@@ -115,7 +116,7 @@ struct VoiceCaptureView: View {
             .sheet(isPresented: $showPeoplePicker) {
                 NavigationStack {
                     PersonMultiPicker(selected: $selectedPeople)
-                        .navigationTitle("Who is this about?")
+                        .navigationTitle("Who were you talking to?")
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
                             ToolbarItem(placement: .confirmationAction) {
@@ -174,15 +175,23 @@ struct VoiceCaptureView: View {
 
     private var peopleSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("ABOUT")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+            HStack(spacing: 4) {
+                Text("WHO WERE YOU TALKING TO?")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text("Required")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.orange.opacity(0.14), in: Capsule())
+            }
             Button {
                 showPeoplePicker = true
             } label: {
                 HStack {
                     if selectedPeople.isEmpty {
-                        Text("Choose people (or let AI detect them)")
+                        Text("Choose the person or people you're talking to")
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(selectedPeople.prefix(5)) { person in
@@ -202,20 +211,10 @@ struct VoiceCaptureView: View {
                 .background(SCTheme.cardBackground, in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.06))
+                        .strokeBorder(selectedPeople.isEmpty ? Color.orange.opacity(0.35) : Color.primary.opacity(0.06))
                 }
             }
             .buttonStyle(.pressable)
-        }
-    }
-
-    private func autoSelectMentionedPeople() {
-        guard let extraction = model.extraction else { return }
-        for name in extraction.peopleMentioned {
-            if let person = allPeople.first(where: { $0.name == name }),
-               !selectedPeople.contains(where: { $0 === person }) {
-                selectedPeople.append(person)
-            }
         }
     }
 }
