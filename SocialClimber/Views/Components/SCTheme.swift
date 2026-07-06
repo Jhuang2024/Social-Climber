@@ -111,6 +111,99 @@ enum Haptics {
     }
 }
 
+/// The app's primary call-to-action style: a solid accent fill with white
+/// text, a gentle press animation, and success haptics. Reusable everywhere a
+/// prominent button is needed so they all look and feel identical.
+struct PrimaryButtonStyle: ButtonStyle {
+    var color: Color = SCTheme.accent
+    var fullWidth: Bool = true
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline)
+            .foregroundStyle(.white)
+            .frame(maxWidth: fullWidth ? .infinity : nil)
+            .padding(.vertical, 13)
+            .padding(.horizontal, fullWidth ? 0 : 18)
+            .background(color.gradient, in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous))
+            .opacity(configuration.isPressed ? 0.9 : 1)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.snappy(duration: 0.16), value: configuration.isPressed)
+    }
+}
+
+/// A softer, tinted secondary action.
+struct SecondaryButtonStyle: ButtonStyle {
+    var color: Color = SCTheme.accent
+    var fullWidth: Bool = true
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline)
+            .foregroundStyle(color)
+            .frame(maxWidth: fullWidth ? .infinity : nil)
+            .padding(.vertical, 13)
+            .padding(.horizontal, fullWidth ? 0 : 18)
+            .background(color.opacity(configuration.isPressed ? 0.20 : 0.12), in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous))
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.snappy(duration: 0.16), value: configuration.isPressed)
+    }
+}
+
+extension ButtonStyle where Self == PrimaryButtonStyle {
+    static var primaryCTA: PrimaryButtonStyle { PrimaryButtonStyle() }
+    static func primaryCTA(_ color: Color, fullWidth: Bool = true) -> PrimaryButtonStyle {
+        PrimaryButtonStyle(color: color, fullWidth: fullWidth)
+    }
+}
+
+extension ButtonStyle where Self == SecondaryButtonStyle {
+    static var secondaryCTA: SecondaryButtonStyle { SecondaryButtonStyle() }
+    static func secondaryCTA(_ color: Color, fullWidth: Bool = true) -> SecondaryButtonStyle {
+        SecondaryButtonStyle(color: color, fullWidth: fullWidth)
+    }
+}
+
+/// A small uppercased section header used inside cards and stacked layouts.
+struct SectionHeader: View {
+    let title: String
+    var icon: String?
+    var accent: Color = SCTheme.accent
+
+    var body: some View {
+        HStack(spacing: 9) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 24, height: 24)
+                    .background(accent.gradient, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            }
+            Text(title)
+                .font(.footnote.weight(.bold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .tracking(0.8)
+            Spacer()
+        }
+    }
+}
+
+extension View {
+    /// Wraps any content in the app's standard thin-material card.
+    func scCard(padding: CGFloat = 16) -> some View {
+        self
+            .padding(padding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.055))
+            }
+            .cardShadow()
+    }
+}
+
 /// A row of filled/hollow dots used to visualize a 1-5 rating (closeness,
 /// priority) — replaces the earlier `"●●●○○"` string, which VoiceOver read
 /// as a garble of bullet characters instead of a real value.

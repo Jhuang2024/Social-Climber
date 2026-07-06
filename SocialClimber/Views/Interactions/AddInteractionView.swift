@@ -12,9 +12,12 @@ struct AddInteractionView: View {
     @State private var date = Date.now
     @State private var location = ""
     @State private var note = ""
+    @State private var messageSummary = ""
+    @State private var nextMove = ""
     @State private var topics: [String] = []
-    @State private var quality = 3
+    @State private var sentiment: Sentiment = .neutral
     @State private var followUpNeeded = false
+    @State private var followUpDate = Calendar.current.date(byAdding: .day, value: 3, to: .now) ?? .now
     @State private var analyzeWithAI = true
     @State private var isSaving = false
     @State private var showPeoplePicker = false
@@ -58,7 +61,7 @@ struct AddInteractionView: View {
 
                 Section("What") {
                     Picker("Type", selection: $type) {
-                        ForEach(InteractionType.allCases.filter { $0 != .voiceNote }) { t in
+                        ForEach(InteractionType.loggable) { t in
                             Label(t.label, systemImage: t.icon).tag(t)
                         }
                     }
@@ -69,12 +72,25 @@ struct AddInteractionView: View {
                 Section("Notes") {
                     TextField("What happened? What did you talk about?", text: $note, axis: .vertical)
                         .lineLimit(4...10)
+                    TextField("Message summary (optional)", text: $messageSummary, axis: .vertical)
+                        .lineLimit(1...4)
                     TagListEditor(label: "topic", items: $topics)
                 }
 
                 Section {
-                    DotRatingPicker(label: "Quality", value: $quality, color: .yellow)
-                    Toggle("Needs follow-up", isOn: $followUpNeeded)
+                    SentimentPicker(sentiment: $sentiment)
+                }
+
+                Section("Follow-up") {
+                    Toggle("Needs follow-up", isOn: $followUpNeeded.animation(.snappy))
+                    if followUpNeeded {
+                        DatePicker("Follow up by", selection: $followUpDate, displayedComponents: .date)
+                        TextField("Next move (e.g. send resume, grab coffee)", text: $nextMove, axis: .vertical)
+                            .lineLimit(1...3)
+                    }
+                }
+
+                Section {
                     Toggle(isOn: $analyzeWithAI) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Analyze note")
@@ -126,6 +142,8 @@ struct AddInteractionView: View {
         }
     }
 
+    private var quality: Int { sentiment.quality }
+
     private func save() async {
         isSaving = true
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -147,13 +165,23 @@ struct AddInteractionView: View {
                 )
                 interaction?.location = location
                 interaction?.quality = quality
-                if followUpNeeded { interaction?.followUpNeeded = true }
+                interaction?.messageSummary = messageSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+                interaction?.nextMove = nextMove.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Keep any follow-up the analysis inferred; add the user's if set.
+                if followUpNeeded {
+                    interaction?.followUpNeeded = true
+                    interaction?.followUpDate = followUpDate
+                }
                 var mergedTopics = interaction?.topics ?? []
                 for topic in topics where !mergedTopics.contains(topic) { mergedTopics.append(topic) }
                 interaction?.topics = mergedTopics
+                // Only schedule an extra reminder for the user's explicit toggle;
+                // the analysis already created reminders for anything it found.
+                if followUpNeeded, let interaction {
+                    InteractionSaver.scheduleFollowUpIfNeeded(for: interaction, people: selectedPeople, context: context)
+                }
             } catch {
                 savePlainInteraction(note: trimmedNote)
-                saveFollowUpReminderIfNeeded()
                 message = error.localizedDescription
                 isSaving = false
                 return
@@ -162,32 +190,25 @@ struct AddInteractionView: View {
             savePlainInteraction(note: trimmedNote)
         }
 
-        saveFollowUpReminderIfNeeded()
-
         isSaving = false
         Haptics.success()
         dismiss()
     }
 
     private func savePlainInteraction(note: String) {
-        let interaction = Interaction(type: type, date: date, location: location, note: note, topics: topics, quality: quality, followUpNeeded: followUpNeeded)
-        interaction.people = selectedPeople
-        context.insert(interaction)
-        for person in selectedPeople {
-            person.markContacted(type: type, date: date)
-        }
-    }
-
-    private func saveFollowUpReminderIfNeeded() {
-        guard followUpNeeded, let first = selectedPeople.first else { return }
-            let reminder = Reminder(
-                title: "Follow up with \(selectedPeople.map(\.firstName).joined(separator: " & "))",
-                dueDate: Calendar.current.date(byAdding: .day, value: 3, to: .now) ?? .now,
-                type: .followUp,
-                person: first
-            )
-            context.insert(reminder)
-            NotificationService.shared.schedule(reminder: reminder)
+        let interaction = Interaction(
+            type: type,
+            date: date,
+            location: location,
+            note: note,
+            topics: topics,
+            quality: quality,
+            followUpNeeded: followUpNeeded,
+            followUpDate: followUpNeeded ? followUpDate : nil,
+            nextMove: nextMove.trimmingCharacters(in: .whitespacesAndNewlines),
+            messageSummary: messageSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        InteractionSaver.finalize(interaction, people: selectedPeople, context: context)
     }
 }
 

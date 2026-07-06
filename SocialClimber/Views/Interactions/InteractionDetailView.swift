@@ -33,15 +33,36 @@ struct InteractionDetailView: View {
                     }
                 }
 
+                if !interaction.messageSummary.isEmpty {
+                    FormSectionCard("Summary", icon: "text.quote") {
+                        Text(interaction.messageSummary).font(.subheadline)
+                    }
+                }
+
                 if !interaction.note.isEmpty {
                     FormSectionCard("Note", icon: "note.text") {
                         Text(interaction.note).font(.subheadline)
                     }
                 }
 
+                if !interaction.nextMove.isEmpty {
+                    FormSectionCard("Next Move", icon: "arrow.turn.up.right") {
+                        Text(interaction.nextMove).font(.subheadline)
+                    }
+                }
+
                 if !interaction.topics.isEmpty {
                     FormSectionCard("Topics", icon: "tag") {
                         TagCloudView(tags: interaction.topics)
+                    }
+                }
+
+                if interaction.isImported && !interaction.rawImportText.isEmpty {
+                    FormSectionCard("Imported Text", icon: "doc.on.clipboard") {
+                        Text(interaction.rawImportText)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
                     }
                 }
 
@@ -87,15 +108,20 @@ struct InteractionDetailView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-            HStack(spacing: 3) {
-                ForEach(1...5, id: \.self) { i in
-                    Image(systemName: i <= interaction.quality ? "star.fill" : "star")
-                        .font(.caption)
-                        .foregroundStyle(.yellow)
+            HStack(spacing: 8) {
+                Text("\(interaction.sentiment.emoji) \(interaction.sentiment.label)")
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(interaction.sentiment.color.opacity(0.15), in: Capsule())
+                    .foregroundStyle(interaction.sentiment.color)
+                if let platform = interaction.platform {
+                    TagPillView(text: platform.label, color: platform.color, icon: platform.icon)
                 }
             }
             if interaction.followUpNeeded {
-                Label("Follow-up needed", systemImage: "arrow.uturn.right")
+                let dateText = interaction.followUpDate.map { " by \($0.shortFormat)" } ?? ""
+                Label("Follow-up needed" + dateText, systemImage: "arrow.uturn.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.orange)
             }

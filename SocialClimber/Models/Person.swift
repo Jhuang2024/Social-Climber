@@ -37,6 +37,8 @@ final class Person {
     var importantDates: [ImportantDate] = []
     @Relationship(deleteRule: .nullify, inverse: \Interaction.people)
     var interactions: [Interaction] = []
+    @Relationship(deleteRule: .nullify, inverse: \Event.attendees)
+    var events: [Event] = []
     @Relationship(deleteRule: .nullify, inverse: \VoiceNote.people)
     var voiceNotes: [VoiceNote] = []
 
@@ -93,9 +95,9 @@ final class Person {
             if lastMetAt == nil || date > lastMetAt! { lastMetAt = date }
         case .call, .videoCall:
             if lastCalledAt == nil || date > lastCalledAt! { lastCalledAt = date }
-        case .message:
+        case .message, .socialMedia, .email:
             if lastMessagedAt == nil || date > lastMessagedAt! { lastMessagedAt = date }
-        case .voiceNote, .other:
+        case .favor, .intro, .voiceNote, .other:
             break
         }
         updatedAt = .now
