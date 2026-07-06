@@ -222,25 +222,22 @@ struct DashboardView: View {
     }
 
     private var statsStrip: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                StatCard(title: "People", value: "\(people.count)", icon: "person.2.fill", color: .blue)
-                StatCard(title: "This Week", value: "\(interactionsThisWeek)", icon: "bubble.left.and.bubble.right.fill", color: .green)
-                StatCard(title: "Follow-ups Due", value: "\(followUpsDueCount)", icon: "bell.badge.fill", color: .orange)
-                if let strongest {
-                    NavigationLink(value: strongest) {
-                        StatCard(title: "Strongest", value: strongest.firstName, icon: "flame.fill", color: .pink)
-                    }
-                    .buttonStyle(.pressable)
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+            StatCard(title: "People", value: "\(people.count)", icon: "person.2.fill", color: .blue)
+            StatCard(title: "This Week", value: "\(interactionsThisWeek)", icon: "bubble.left.and.bubble.right.fill", color: .green)
+            StatCard(title: "Follow-ups Due", value: "\(followUpsDueCount)", icon: "bell.badge.fill", color: .orange)
+            if let strongest {
+                NavigationLink(value: strongest) {
+                    StatCard(title: "Strongest", value: strongest.firstName, icon: "flame.fill", color: .pink)
                 }
-                if let coldestHighPriority {
-                    NavigationLink(value: coldestHighPriority) {
-                        StatCard(title: "Coldest Priority", value: coldestHighPriority.firstName, icon: "snowflake", color: .teal)
-                    }
-                    .buttonStyle(.pressable)
-                }
+                .buttonStyle(.pressable)
             }
-            .padding(.horizontal, 2)
+            if let coldestHighPriority {
+                NavigationLink(value: coldestHighPriority) {
+                    StatCard(title: "Coldest Priority", value: coldestHighPriority.firstName, icon: "snowflake", color: .teal)
+                }
+                .buttonStyle(.pressable)
+            }
         }
     }
 
@@ -546,7 +543,7 @@ private struct StatCard: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
-        .frame(width: 120, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .background(SCTheme.cardBackground, in: RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous))
         .overlay {

@@ -6,6 +6,7 @@ import SwiftData
 /// `navigationDestination(for: Person.self)` (the Dashboard's).
 struct StrategyView: View {
     @Query(sort: \Person.name) private var people: [Person]
+    @Query private var interactions: [Interaction]
 
     private var strategy: GlobalStrategy {
         StrategyEngine.global(people: people)
@@ -14,11 +15,17 @@ struct StrategyView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                if strategy.isEmpty {
+                if interactions.isEmpty {
+                    EmptyStateView(
+                        icon: "wand.and.stars",
+                        title: "No strategy yet",
+                        message: "Log your first interaction and Social Climber will start suggesting who to reach out to and what to do next."
+                    )
+                } else if strategy.isEmpty {
                     EmptyStateView(
                         icon: "sparkles",
                         title: "You're all caught up",
-                        message: "No urgent moves right now. Log interactions and add people, and suggestions will appear here."
+                        message: "No urgent moves right now. Keep logging interactions and suggestions will appear here."
                     )
                 } else {
                     if !strategy.nextMoves.isEmpty {
