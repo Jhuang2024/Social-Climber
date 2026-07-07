@@ -37,6 +37,7 @@ final class Person {
     /// Suggestions from the last "Suggest with AI" run. Regenerated only on
     /// explicit refresh, same pattern as `contactMethods` below.
     var cachedGiftSuggestions: [GiftSuggestion] = []
+    var cachedGiftSuggestionsGeneratedAt: Date?
 
     /// The last generated relationship summary (AI-written, or the
     /// deterministic local fallback when AI is unavailable/unconfigured).
@@ -104,6 +105,24 @@ final class Person {
         giftIdeas.filter { $0.status != .given }.sorted { $0.createdAt > $1.createdAt }
     }
 
+    /// Whether anything new (an interaction, a profile edit) has happened
+    /// since a given cached-insight timestamp — so the AI summary and gift
+    /// suggestion caches can flag themselves as "may be outdated" instead of
+    /// silently going stale forever between explicit refreshes.
+    private func hasNewActivity(since generatedAt: Date?) -> Bool {
+        guard let generatedAt else { return false }
+        if let latestInteraction = sortedInteractions.first?.date, latestInteraction > generatedAt { return true }
+        return updatedAt > generatedAt
+    }
+
+    /// True once a new interaction or profile edit has landed since the
+    /// cached AI summary was generated.
+    var aiSummaryIsStale: Bool { hasNewActivity(since: aiSummaryGeneratedAt) }
+
+    /// True once a new interaction or profile edit has landed since gift
+    /// suggestions were last generated.
+    var giftSuggestionsAreStale: Bool { hasNewActivity(since: cachedGiftSuggestionsGeneratedAt) }
+
     /// Update the relevant "last..." fields for an interaction of the given type.
     /// Only ever nudges forward — correct for logging a brand-new
     /// interaction, but can't walk a field backward or drop it if the
@@ -155,5 +174,25 @@ final class Person {
         for item in new where !interests.contains(where: { $0.caseInsensitiveCompare(item) == .orderedSame }) {
             interests.append(item)
         }
+    }
+
+    /// Broad substring search across everything a person could plausibly be
+    /// found by — name, tags, interests, notes, and more — not just their
+    /// name. Shared by the People list's own search bar and the global
+    /// Search tab so a person findable one way is findable the other.
+    func matchesSearch(_ term: String) -> Bool {
+        guard !term.isEmpty else { return true }
+        if name.localizedCaseInsensitiveContains(term)
+            || nickname.localizedCaseInsensitiveContains(term)
+            || relationshipToMe.localizedCaseInsensitiveContains(term)
+            || notes.localizedCaseInsensitiveContains(term)
+            || personalityNotes.localizedCaseInsensitiveContains(term)
+            || schoolOrWork.localizedCaseInsensitiveContains(term)
+            || location.localizedCaseInsensitiveContains(term) {
+            return true
+        }
+        return tags.contains { $0.localizedCaseInsensitiveContains(term) }
+            || interests.contains { $0.localizedCaseInsensitiveContains(term) }
+            || dislikes.contains { $0.localizedCaseInsensitiveContains(term) }
     }
 }

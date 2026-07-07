@@ -208,12 +208,10 @@ struct EventLogView: View {
             quality: sentiment.quality,
             messageSummary: summary
         )
-        interaction.people = people
-        context.insert(interaction)
-        InteractionSaver.applyClosenessImpact(of: interaction, to: people)
-        for person in people {
-            person.markContacted(type: .event, date: event.date)
-        }
+        // `finalize`'s own follow-up scheduling is a no-op here since
+        // `followUpNeeded` is left false — attendees each get their own
+        // reminder below instead of one shared one.
+        InteractionSaver.finalize(interaction, people: people, context: context)
         // A follow-up reminder for each attendee, if requested.
         if followUpNeeded {
             for person in people {

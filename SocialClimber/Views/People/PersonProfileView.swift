@@ -213,7 +213,7 @@ struct PersonProfileView: View {
                 .buttonStyle(.secondaryCTA)
 
                 Button {
-                    person.markContacted(type: .message, date: .now)
+                    logQuickContact()
                     Haptics.success()
                 } label: {
                     Label("Contacted", systemImage: "checkmark")
@@ -272,6 +272,11 @@ struct PersonProfileView: View {
                                 .font(.caption.weight(.medium))
                         }
                     }
+                    if person.aiSummaryIsStale {
+                        Text("New activity since this was generated.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     if let summaryNotice {
                         Text(summaryNotice)
                             .font(.caption)
@@ -292,6 +297,21 @@ struct PersonProfileView: View {
                 }
             }
         }
+    }
+
+    /// "Contacted" is a real logged interaction, not just a date bump — a
+    /// neutral, no-follow-up entry through the same `InteractionSaver`
+    /// pipeline every other interaction uses, so a quick tap still feeds the
+    /// timeline, AI summary staleness, relationship score, and cadence the
+    /// same way a fully-written-up interaction would.
+    private func logQuickContact() {
+        let interaction = Interaction(
+            type: .message,
+            date: .now,
+            quality: 3,
+            messageSummary: "Marked as contacted"
+        )
+        InteractionSaver.finalize(interaction, people: [person], context: context)
     }
 
     private func generateSummary() async {

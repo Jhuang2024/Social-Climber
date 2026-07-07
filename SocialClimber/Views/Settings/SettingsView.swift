@@ -15,9 +15,9 @@ struct SettingsView: View {
     @AppStorage("googleClientID") private var googleClientID = "201027748898-lerfifmsfgdu2uubgph606p2rsa6ic7j.apps.googleusercontent.com"
     @AppStorage("aiProvider") private var aiProvider = AIProvider.mock.rawValue
     @AppStorage("openRouterModelID") private var openRouterModelID = OpenRouterDefaults.modelID
-    @AppStorage("defaultCadenceClose") private var cadenceClose = 7
-    @AppStorage("defaultCadenceRegular") private var cadenceRegular = 30
-    @AppStorage("defaultCadenceDistant") private var cadenceDistant = 90
+    @AppStorage("defaultCadenceClose") private var cadenceClose = 21
+    @AppStorage("defaultCadenceRegular") private var cadenceRegular = 60
+    @AppStorage("defaultCadenceDistant") private var cadenceDistant = 120
 
     @State private var exportItem: ShareURL?
     @State private var showImporter = false
@@ -57,10 +57,10 @@ struct SettingsView: View {
                 )
 
                 Section("Check-In Cadence Defaults") {
-                    Stepper("Close (5●): every \(cadenceClose)d", value: $cadenceClose, in: 1...60)
-                    Stepper("Regular (3●): every \(cadenceRegular)d", value: $cadenceRegular, in: 7...120)
-                    Stepper("Distant (1●): every \(cadenceDistant)d", value: $cadenceDistant, in: 14...365)
-                    Text("Per-person cadence can be set on each profile and overrides these.")
+                    Stepper("Top priority: every \(cadenceClose)d", value: $cadenceClose, in: 7...90, step: 7)
+                    Stepper("Regular priority: every \(cadenceRegular)d", value: $cadenceRegular, in: 14...180, step: 7)
+                    Stepper("Low priority: every \(cadenceDistant)d", value: $cadenceDistant, in: 30...365, step: 15)
+                    Text("Based on priority — how actively you want to invest in a relationship. Very close relationships automatically get extra slack on top of this, and people you already talk to often won't be flagged between those natural check-ins. Per-person cadence on a profile always overrides these.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

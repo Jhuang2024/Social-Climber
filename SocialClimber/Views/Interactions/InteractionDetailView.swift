@@ -80,14 +80,14 @@ struct InteractionDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                HStack(spacing: 16) {
-                    Button { showEdit = true } label: {
-                        Image(systemName: "pencil")
-                    }
+                Menu {
+                    Button { showEdit = true } label: { Label("Edit", systemImage: "pencil") }
                     Button(role: .destructive) { confirmDelete = true } label: {
-                        Image(systemName: "trash")
+                        Label("Delete", systemImage: "trash")
                     }
                     .tint(.red)
+                } label: {
+                    Image(systemName: "ellipsis.circle")
                 }
             }
         }

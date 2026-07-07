@@ -74,8 +74,10 @@ struct DashboardView: View {
     }
 
     private var quietPeople: [Person] {
+        // Same ranking Strategy's "Reconnect" bucket uses, so the two
+        // screens never disagree about who's most urgently going cold.
         people.filter { $0.status == .goingQuiet || $0.status == .dormant }
-            .sorted { RelationshipHealth.score(for: $0) < RelationshipHealth.score(for: $1) }
+            .sorted { RelationshipScore.compute(for: $0).total < RelationshipScore.compute(for: $1).total }
     }
 
     private var upcomingBirthdays: [(Person, Date)] {
@@ -111,8 +113,7 @@ struct DashboardView: View {
                         if !eventsNeedingLog.isEmpty || !upcomingEvents.isEmpty { eventsCard }
                         if locationEnabled && !nearbyPeople.isEmpty { nearbyCard }
                         if !checkInsDue.isEmpty { checkInsCard }
-                        if !upcomingBirthdays.isEmpty { birthdaysCard }
-                        if !upcomingPlans.isEmpty { plansCard }
+                        if !upcomingBirthdays.isEmpty || !upcomingPlans.isEmpty { upcomingCard }
                         if !openGifts.isEmpty { giftsCard }
                         if !quietPeople.isEmpty { quietCard }
                         if !interactions.isEmpty { recentCard }
@@ -365,9 +366,13 @@ struct DashboardView: View {
         }
     }
 
-    private var birthdaysCard: some View {
-        FormSectionCard("Upcoming Birthdays", icon: "birthday.cake.fill") {
-            ForEach(upcomingBirthdays.prefix(5), id: \.0.persistentModelID) { person, date in
+    /// Birthdays and tracked plans both used to get their own card, showing
+    /// largely the same kind of "something's coming up" information as the
+    /// dedicated Upcoming tab. One combined preview here, linking to that
+    /// full merged feed, replaces two overlapping cards with one.
+    private var upcomingCard: some View {
+        FormSectionCard("Upcoming", icon: "calendar.badge.clock") {
+            ForEach(upcomingBirthdays.prefix(3), id: \.0.persistentModelID) { person, date in
                 NavigationLink(value: person) {
                     HStack {
                         PersonAvatarView(person: person, size: 36)
@@ -375,7 +380,7 @@ struct DashboardView: View {
                             Text(person.displayName)
                                 .font(.body.weight(.medium))
                                 .foregroundStyle(.primary)
-                            Text(date.formatted(.dateTime.month(.wide).day()))
+                            Text("Birthday · \(date.formatted(.dateTime.month(.wide).day()))")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -388,13 +393,12 @@ struct DashboardView: View {
                 }
                 .buttonStyle(.plain)
             }
-        }
-    }
-
-    private var plansCard: some View {
-        FormSectionCard("Upcoming Plans", icon: "calendar.badge.clock") {
-            ForEach(upcomingPlans.prefix(4)) { reminder in
+            ForEach(upcomingPlans.prefix(3)) { reminder in
                 ReminderRowView(reminder: reminder)
+            }
+            NavigationLink { UpcomingView() } label: {
+                Label("View all upcoming", systemImage: "arrow.right")
+                    .font(.subheadline.weight(.medium))
             }
         }
     }

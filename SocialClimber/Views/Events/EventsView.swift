@@ -153,6 +153,7 @@ struct EventEditView: View {
             }
             .scrollContentBackground(.hidden)
             .background(SCTheme.pageBackground)
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(event == nil ? "New Event" : "Edit Event")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

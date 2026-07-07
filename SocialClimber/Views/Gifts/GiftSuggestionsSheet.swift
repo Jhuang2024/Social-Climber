@@ -45,6 +45,12 @@ struct GiftSuggestionsSheet: View {
                                     .font(.caption)
                                     .foregroundStyle(.orange)
                             }
+                        } else if person.giftSuggestionsAreStale {
+                            Section {
+                                Label("New activity since these were generated — tap refresh for fresh ideas.", systemImage: "arrow.clockwise")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                         ForEach(suggestions) { suggestion in
                             suggestionRow(suggestion)
@@ -148,6 +154,7 @@ struct GiftSuggestionsSheet: View {
         let outcome = await GiftIdeaEngine.suggestions(for: person)
         suggestions = outcome.suggestions
         person.cachedGiftSuggestions = outcome.suggestions
+        person.cachedGiftSuggestionsGeneratedAt = .now
         degradedNotice = outcome.notice
         isLoading = false
     }

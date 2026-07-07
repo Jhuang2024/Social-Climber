@@ -96,6 +96,11 @@ struct PersonEditView: View {
                     if customCadence {
                         Stepper("Every \(cadenceDays) days", value: $cadenceDays, in: 1...365)
                     }
+                    if person != nil {
+                        Text("Closeness also adjusts on its own as you log interactions — set it here only to correct it.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Section("Details") {
