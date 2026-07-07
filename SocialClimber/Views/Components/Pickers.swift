@@ -100,6 +100,7 @@ struct TagListEditor: View {
             }
             HStack {
                 TextField("Add \(label.lowercased())", text: $newItem)
+                    .submitLabel(.done)
                     .onSubmit(add)
                 Button(action: add) {
                     Image(systemName: "plus.circle.fill")

@@ -40,9 +40,12 @@ struct AddInteractionView: View {
     // Import-mode state.
     @State private var rawText = ""
     @State private var parsed: ParsedMessage?
+    @State private var aiExtraction: AIExtraction?
     @State private var platform: MessagePlatform = .instagram
-    @State private var photoItem: PhotosPickerItem?
+    @State private var photoItems: [PhotosPickerItem] = []
     @State private var isScanning = false
+    @State private var isAnalyzing = false
+    @State private var hasAnalyzed = false
     @State private var newContactName = ""
 
     @Query(sort: \Person.name) private var allPeople: [Person]
@@ -105,8 +108,26 @@ struct AddInteractionView: View {
                 Section(isImportMode ? "Summary" : "Notes") {
                     TextField(isImportMode ? "Notes (optional)" : "What happened? What did you talk about?", text: $note, axis: .vertical)
                         .lineLimit(isImportMode ? 1...4 : 4...10)
-                    TextField(isImportMode ? "Editable summary" : "Message summary (optional)", text: $messageSummary, axis: .vertical)
-                        .lineLimit(isImportMode ? 2...6 : 1...4)
+                    if isImportMode {
+                        if isAnalyzing {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                Text("Generating summary with AI…").foregroundStyle(.secondary)
+                            }
+                        } else if hasAnalyzed {
+                            TextField("Editable summary", text: $messageSummary, axis: .vertical)
+                                .lineLimit(2...6)
+                        } else {
+                            Text(rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                 ? "Paste a message or choose a screenshot above to generate a summary."
+                                 : "Tap \"Detect summary\" above to generate a summary with AI.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        TextField("Message summary (optional)", text: $messageSummary, axis: .vertical)
+                            .lineLimit(1...4)
+                    }
                     if let speakers = parsed?.speakers, !speakers.isEmpty {
                         Text("Detected: \(speakers.joined(separator: ", "))")
                             .font(.caption)
@@ -128,16 +149,26 @@ struct AddInteractionView: View {
                     }
                 }
 
-                if !isImportMode {
-                    Section {
-                        Toggle(isOn: $analyzeWithAI) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Analyze note")
-                                Text("Extract interests, gifts, dates & follow-ups")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
+                Section {
+                    Toggle(isOn: $analyzeWithAI) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(isImportMode ? "Analyze with AI" : "Analyze note")
+                            Text(isImportMode
+                                 ? "Generate a summary and extract topics, gifts, dates & follow-ups"
+                                 : "Extract interests, gifts, dates & follow-ups")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
+                    }
+                    if isImportMode && isAnalyzing {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                            Text("Analyzing…").foregroundStyle(.secondary)
+                        }
+                    }
+                } footer: {
+                    if isImportMode {
+                        Text("Uses the AI provider configured in Settings. Only the extracted/pasted text is sent to it — screenshots themselves are never uploaded.")
                     }
                 }
             }
@@ -146,7 +177,6 @@ struct AddInteractionView: View {
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Log Interaction")
             .navigationBarTitleDisplayMode(.inline)
-            .keyboardDoneToolbar()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -180,8 +210,8 @@ struct AddInteractionView: View {
             .onAppear {
                 if selectedPeople.isEmpty { selectedPeople = preselected }
             }
-            .onChange(of: photoItem) { _, item in
-                if let item { Task { await scan(item) } }
+            .onChange(of: photoItems) { _, items in
+                if !items.isEmpty { Task { await scan(items) } }
             }
             .keyboardDoneButton()
         }
@@ -203,15 +233,20 @@ struct AddInteractionView: View {
                 TextField("Paste the copied chat or message here…", text: $rawText, axis: .vertical)
                     .lineLimit(5...14)
                 Button {
-                    parse()
+                    Task { await analyzeImport(rawText) }
                 } label: {
                     Label("Detect summary", systemImage: "wand.and.stars")
                 }
-                .disabled(rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isAnalyzing)
             case .screenshot:
-                PhotosPicker(selection: $photoItem, matching: .images) {
-                    Label(rawText.isEmpty ? "Choose a screenshot" : "Choose a different screenshot",
+                PhotosPicker(selection: $photoItems, matching: .images) {
+                    Label(rawText.isEmpty ? "Choose screenshots" : "Choose different screenshots",
                           systemImage: "photo.on.rectangle.angled")
+                }
+                if !photoItems.isEmpty {
+                    Text("\(photoItems.count) screenshot\(photoItems.count == 1 ? "" : "s") selected")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 if isScanning {
                     HStack(spacing: 8) {
@@ -257,6 +292,7 @@ struct AddInteractionView: View {
             if isImportMode {
                 HStack {
                     TextField(newContactPrompt, text: $newContactName)
+                        .submitLabel(.done)
                     Button("Create") { createContact() }
                         .disabled(newContactName.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
@@ -283,36 +319,82 @@ struct AddInteractionView: View {
 
     // MARK: Import helpers
 
-    private func parse() {
-        let result = MessageImportParser.parse(rawText)
-        parsed = result
-        if messageSummary.isEmpty { messageSummary = result.summary }
-        if let detected = result.detectedDate { date = detected }
-        if newContactName.isEmpty, let speaker = result.speakers.first,
+    /// Runs local on-device parsing (date/speaker detection) and, when
+    /// enabled, sends the text to the configured AI provider (OpenRouter or
+    /// Mock) to generate a real summary and extract topics/gifts/dates/
+    /// follow-ups — the same extraction pipeline manual note logging uses.
+    private func analyzeImport(_ text: String) async {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        // Hide the (not-yet-generated) summary field again while this run
+        // is in flight, so a re-scan or re-detect doesn't leave stale text
+        // sitting in an editable field.
+        hasAnalyzed = false
+
+        let local = MessageImportParser.parse(text)
+        parsed = local
+        if let detected = local.detectedDate { date = detected }
+        if newContactName.isEmpty, let speaker = local.speakers.first,
            !allPeople.contains(where: { $0.name.localizedCaseInsensitiveContains(speaker) }) {
             newContactName = speaker
         }
-        Haptics.success()
+
+        guard analyzeWithAI else {
+            aiExtraction = nil
+            messageSummary = local.summary
+            hasAnalyzed = true
+            Haptics.success()
+            return
+        }
+
+        isAnalyzing = true
+        defer { isAnalyzing = false }
+        do {
+            let extraction = try await AIProvider.current.extract(from: trimmed, knownPeople: allPeople.map(\.name))
+            aiExtraction = extraction
+            messageSummary = extraction.summary.isEmpty ? local.summary : extraction.summary
+            for topic in extraction.topics where !topics.contains(topic) { topics.append(topic) }
+            hasAnalyzed = true
+            Haptics.success()
+        } catch {
+            aiExtraction = nil
+            messageSummary = local.summary
+            hasAnalyzed = true
+            message = error.localizedDescription
+        }
     }
 
-    private func scan(_ item: PhotosPickerItem) async {
+    private func scan(_ items: [PhotosPickerItem]) async {
         isScanning = true
         message = nil
         defer { isScanning = false }
-        do {
-            guard let data = try await item.loadTransferable(type: Data.self),
-                  let image = UIImage(data: data) else {
-                message = OCRError.noImage.errorDescription
-                return
+
+        var texts: [String] = []
+        var lastImageError: String?
+        for item in items {
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self),
+                      let image = UIImage(data: data) else {
+                    lastImageError = OCRError.noImage.errorDescription
+                    continue
+                }
+                let text = try await OCRService.recognizeText(in: image)
+                texts.append(text)
+            } catch let error as OCRError {
+                lastImageError = error.errorDescription
+            } catch {
+                lastImageError = error.localizedDescription
             }
-            let text = try await OCRService.recognizeText(in: image)
-            rawText = text
-            parse()
-        } catch let error as OCRError {
-            message = error.errorDescription
-        } catch {
-            message = error.localizedDescription
         }
+
+        guard !texts.isEmpty else {
+            message = lastImageError ?? OCRError.noText.errorDescription
+            return
+        }
+
+        rawText = texts.joined(separator: "\n\n---\n\n")
+        await analyzeImport(rawText)
     }
 
     private func createContact() {
@@ -331,7 +413,7 @@ struct AddInteractionView: View {
         isSaving = true
 
         if isImportMode {
-            if parsed == nil { parse() }
+            if parsed == nil { await analyzeImport(rawText) }
             saveImportedInteraction()
             isSaving = false
             Haptics.success()
@@ -354,11 +436,17 @@ struct AddInteractionView: View {
                     sourceText: trimmedNote,
                     interactionType: type,
                     date: date,
+                    quality: quality,
                     context: context
                 )
                 interaction?.location = location
-                interaction?.quality = quality
-                interaction?.messageSummary = messageSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Only override the AI-generated summary if the user actually
+                // typed their own; otherwise keep what ExtractionApplier set
+                // from the AI extraction.
+                let typedSummary = messageSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !typedSummary.isEmpty {
+                    interaction?.messageSummary = typedSummary
+                }
                 interaction?.nextMove = nextMove.trimmingCharacters(in: .whitespacesAndNewlines)
                 // Keep any follow-up the analysis inferred; add the user's if set.
                 if followUpNeeded {
@@ -422,6 +510,25 @@ struct AddInteractionView: View {
         interaction.platform = platform
         interaction.rawImportText = rawText
         InteractionSaver.finalize(interaction, people: selectedPeople, context: context)
+
+        // Apply whatever the AI extraction found (interests, gift ideas,
+        // reminders, important dates, personality notes) without creating a
+        // second interaction — the one above already carries the import's
+        // own fields (platform, raw text, edited summary).
+        if let aiExtraction {
+            ExtractionApplier.apply(
+                aiExtraction,
+                to: selectedPeople,
+                sourceText: rawText,
+                interactionType: .socialMedia,
+                date: date,
+                options: ExtractionApplier.Options(createInteraction: false),
+                context: context
+            )
+            let summary = ConversationSummary(extraction: aiExtraction)
+            summary.interaction = interaction
+            context.insert(summary)
+        }
     }
 }
 

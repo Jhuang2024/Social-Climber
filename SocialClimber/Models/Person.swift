@@ -103,6 +103,20 @@ final class Person {
         updatedAt = .now
     }
 
+    /// Nudges closeness based on how an interaction went: bad interactions
+    /// erode it, neutral ones leave it alone, good/great ones build it.
+    /// Clamped to the 1...5 scale.
+    func applyInteractionQuality(_ quality: Int) {
+        let delta: Int
+        switch quality {
+        case ..<3: delta = -1
+        case 3: delta = 0
+        default: delta = 1
+        }
+        guard delta != 0 else { return }
+        closeness = min(5, max(1, closeness + delta))
+    }
+
     func addInterests(_ new: [String]) {
         for item in new where !interests.contains(where: { $0.caseInsensitiveCompare(item) == .orderedSame }) {
             interests.append(item)

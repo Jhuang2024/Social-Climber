@@ -120,8 +120,10 @@ struct EventEditView: View {
             Form {
                 Section("Event") {
                     TextField("Name (e.g. Dinner party)", text: $name)
+                        .submitLabel(.done)
                     DatePicker("When", selection: $date, displayedComponents: [.date, .hourAndMinute])
                     TextField("Location", text: $location)
+                        .submitLabel(.done)
                 }
                 Section("Details") {
                     TextField("Purpose (e.g. reconnect with old friends)", text: $purpose, axis: .vertical)

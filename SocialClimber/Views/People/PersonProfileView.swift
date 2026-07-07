@@ -10,13 +10,26 @@ struct PersonProfileView: View {
     @State private var showAddInteraction = false
     @State private var showImport = false
     @State private var showAddGift = false
+    @State private var showGiftSuggestions = false
     @State private var showAddReminder = false
     @State private var showAddDate = false
     @State private var confirmDelete = false
 
-    /// Source of truth for whether the Strategy section should exist at all.
-    /// Reads the persisted interaction relationship directly, so it reacts to
-    /// newly logged interactions and does not depend on transient UI state.
+    @Query(sort: \Event.date, order: .reverse) private var allEvents: [Event]
+
+    private var linkedEvents: [Event] {
+        allEvents.filter { $0.attendees.contains(where: { $0.persistentModelID == person.persistentModelID }) }
+    }
+
+    private var suggestions: [Suggestion] {
+        StrategyEngine.suggestions(for: person)
+    }
+
+    /// The Strategy section is tied strictly to whether this specific contact has
+    /// at least one persisted interaction — the same source of truth as the
+    /// timeline. This keeps it hidden (no placeholder advice) for contacts with no
+    /// logged history, even if they were marked "contacted", and makes it appear
+    /// the moment an interaction is logged and stay visible thereafter.
     private var hasLoggedInteractions: Bool {
         !person.interactions.isEmpty
     }
@@ -51,14 +64,9 @@ struct PersonProfileView: View {
                 header
                 statsRow
                 actionsRow
-                // Strategy: only shown once this specific person has at least one
-                // persisted interaction. Visibility is driven purely by the SwiftData
-                // relationship (the same source of truth as the timeline), so it
-                // appears the moment an interaction is logged, survives navigation,
-                // and never shows placeholder advice for a contact with no history.
-                if hasLoggedInteractions {
-                    beforeMeetingBrief
-                }
+                RelationshipScoreCard(person: person)
+                if hasLoggedInteractions { strategyCard }
+                beforeMeetingBrief
 
                 if !person.notes.isEmpty {
                     FormSectionCard("Notes", icon: "note.text") {
@@ -109,6 +117,7 @@ struct PersonProfileView: View {
         .sheet(isPresented: $showAddInteraction) { AddInteractionView(preselected: [person]) }
         .sheet(isPresented: $showImport) { AddInteractionView(preselected: [person], initialSource: .paste) }
         .sheet(isPresented: $showAddGift) { GiftIdeaEditSheet(person: person) }
+        .sheet(isPresented: $showGiftSuggestions) { GiftSuggestionsSheet(person: person) }
         .sheet(isPresented: $showAddReminder) { ReminderEditSheet(person: person) }
         .sheet(isPresented: $showAddDate) { ImportantDateEditSheet(person: person) }
         .confirmationDialog("Delete \(person.displayName)? This removes all their data.", isPresented: $confirmDelete, titleVisibility: .visible) {
@@ -210,8 +219,14 @@ struct PersonProfileView: View {
 
     private var strategyCard: some View {
         FormSectionCard("Strategy", icon: "wand.and.stars") {
-            ForEach(suggestions.prefix(4)) { suggestion in
-                SuggestionRow(suggestion: suggestion, linksToPerson: false)
+            if suggestions.isEmpty {
+                Text("You're all caught up with \(person.firstName). No urgent moves right now.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(suggestions.prefix(4)) { suggestion in
+                    SuggestionRow(suggestion: suggestion, linksToPerson: false)
+                }
             }
         }
     }
@@ -281,6 +296,11 @@ struct PersonProfileView: View {
                             .font(.subheadline)
                     }
                 }
+            }
+            if lastTopics.isEmpty && person.openReminders.isEmpty && person.openGiftIdeas.isEmpty && upcomingImportantDates.isEmpty && followUpQuestions.isEmpty {
+                Text("Log an interaction or voice note to build a useful pre-meeting brief.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -359,9 +379,18 @@ struct PersonProfileView: View {
                     GiftIdeaRowView(gift: gift, showPerson: false)
                 }
             }
-            Button { showAddGift = true } label: {
-                Label("Add gift idea", systemImage: "plus")
-                    .font(.subheadline.weight(.medium))
+            HStack {
+                Button { showAddGift = true } label: {
+                    Label("Add gift idea", systemImage: "plus")
+                        .font(.subheadline.weight(.medium))
+                }
+                if hasLoggedInteractions {
+                    Spacer()
+                    Button { showGiftSuggestions = true } label: {
+                        Label("Suggest with AI", systemImage: "sparkles")
+                            .font(.subheadline.weight(.medium))
+                    }
+                }
             }
         }
     }

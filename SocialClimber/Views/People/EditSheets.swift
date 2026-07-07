@@ -42,7 +42,6 @@ struct GiftIdeaEditSheet: View {
             .scrollContentBackground(.hidden)
             .background(SCTheme.pageBackground)
             .scrollDismissesKeyboard(.interactively)
-            .keyboardDoneToolbar()
             .navigationTitle("Gift Idea")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -98,7 +97,6 @@ struct ReminderEditSheet: View {
             .scrollContentBackground(.hidden)
             .background(SCTheme.pageBackground)
             .scrollDismissesKeyboard(.interactively)
-            .keyboardDoneToolbar()
             .navigationTitle("Reminder")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -153,7 +151,6 @@ struct ImportantDateEditSheet: View {
             .scrollContentBackground(.hidden)
             .background(SCTheme.pageBackground)
             .scrollDismissesKeyboard(.interactively)
-            .keyboardDoneToolbar()
             .navigationTitle("Important Date")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

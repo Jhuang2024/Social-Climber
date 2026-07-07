@@ -6,7 +6,12 @@ import SwiftData
 /// `navigationDestination(for: Person.self)` (the Dashboard's).
 struct StrategyView: View {
     @Query(sort: \Person.name) private var people: [Person]
-    @Query private var interactions: [Interaction]
+
+    /// Only contacts with at least one logged interaction have a basis for a
+    /// strategy — everyone else is excluded before anything is generated.
+    private var eligiblePeople: [Person] {
+        people.filter { !$0.isArchived && !$0.interactions.isEmpty }
+    }
 
     private var strategy: GlobalStrategy {
         StrategyEngine.global(people: people)
@@ -15,11 +20,11 @@ struct StrategyView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                if interactions.isEmpty {
+                if eligiblePeople.isEmpty {
                     EmptyStateView(
                         icon: "wand.and.stars",
                         title: "No strategy yet",
-                        message: "Log your first interaction and Social Climber will start suggesting who to reach out to and what to do next."
+                        message: "Log an interaction with someone to generate suggested next moves."
                     )
                 } else if strategy.isEmpty {
                     EmptyStateView(

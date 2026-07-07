@@ -208,6 +208,7 @@ struct EventLogView: View {
         context.insert(interaction)
         for person in people {
             person.markContacted(type: .event, date: event.date)
+            person.applyInteractionQuality(interaction.quality)
         }
         // A follow-up reminder for each attendee, if requested.
         if followUpNeeded {

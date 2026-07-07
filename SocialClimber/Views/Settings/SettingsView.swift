@@ -114,6 +114,7 @@ struct SettingsView: View {
                         TextField("OAuth Client ID (Google Cloud Console)", text: $googleClientID)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
+                            .submitLabel(.done)
                         Button {
                             connectGoogleCalendar()
                         } label: {
@@ -218,7 +219,6 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .background(SCTheme.pageBackground)
             .scrollDismissesKeyboard(.interactively)
-            .keyboardDoneToolbar()
             .navigationTitle("Settings")
             .sheet(item: $exportItem) { item in
                 ShareSheet(items: [item.url])
