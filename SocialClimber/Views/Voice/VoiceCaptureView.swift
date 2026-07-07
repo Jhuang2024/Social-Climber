@@ -231,11 +231,23 @@ struct ExtractionReviewView: View {
     let audioFileName: String?
     let onApplied: () -> Void
 
-    @State private var options = ExtractionApplier.Options()
+    /// Starts with every suggestion pre-approved; the checklist below lets
+    /// the user reject individual ones before Apply actually writes
+    /// anything.
+    @State private var options: ExtractionApplier.Options
     /// Defaults to now (when this note was recorded/typed), but this is the
     /// conversation's own date — editable so a note about something that
     /// happened days ago doesn't get logged as if it were today.
     @State private var date = Date.now
+
+    init(extraction: AIExtraction, people: [Person], transcript: String, audioFileName: String?, onApplied: @escaping () -> Void) {
+        self.extraction = extraction
+        self.people = people
+        self.transcript = transcript
+        self.audioFileName = audioFileName
+        self.onApplied = onApplied
+        _options = State(initialValue: .allApproved(for: extraction))
+    }
 
     var body: some View {
         NavigationStack {
@@ -272,21 +284,8 @@ struct ExtractionReviewView: View {
                     }
                 }
 
-                if !extraction.interests.isEmpty {
-                    toggleSection("Interests", items: extraction.interests, isOn: $options.addInterests)
-                }
-                if !extraction.giftIdeas.isEmpty {
-                    toggleSection("Gift Ideas", items: extraction.giftIdeas, isOn: $options.addGiftIdeas)
-                }
-                if !extraction.reminders.isEmpty {
-                    toggleSection("Reminders", items: extraction.reminders.map(\.title), isOn: $options.addReminders)
-                }
-                if !extraction.importantDates.isEmpty {
-                    toggleSection("Important Dates", items: extraction.importantDates.map(\.display), isOn: $options.addImportantDates)
-                }
-                if !extraction.personalityNotes.isEmpty {
-                    toggleSection("Personality Notes", items: extraction.personalityNotes, isOn: $options.addPersonalityNotes)
-                }
+                AISuggestionChecklist(extraction: extraction, options: $options)
+
                 if !extraction.followUpQuestions.isEmpty {
                     Section("Ask Next Time") {
                         ForEach(extraction.followUpQuestions, id: \.self) { question in
@@ -309,19 +308,6 @@ struct ExtractionReviewView: View {
                         .fontWeight(.semibold)
                 }
             }
-        }
-    }
-
-    private func toggleSection(_ title: String, items: [String], isOn: Binding<Bool>) -> some View {
-        Section {
-            Toggle("Add to profile", isOn: isOn)
-            ForEach(items, id: \.self) { item in
-                Text("• \(item)")
-                    .font(.subheadline)
-                    .foregroundStyle(isOn.wrappedValue ? .primary : .tertiary)
-            }
-        } header: {
-            Text(title)
         }
     }
 
