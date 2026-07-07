@@ -100,10 +100,51 @@ struct AIExtraction: Codable {
     }
 }
 
+// MARK: - Gift suggestions
+
+/// A single AI-proposed gift idea, grounded in whatever the app already
+/// knows about a person (interests, notes, tags, past interactions).
+struct GiftSuggestion: Codable, Identifiable, Hashable {
+    var title: String
+    var reason: String = ""
+    var priceRange: String = ""
+    var occasion: String = ""
+
+    var id: String { title }
+
+    enum CodingKeys: String, CodingKey {
+        case title, reason, priceRange, occasion
+    }
+
+    init(title: String, reason: String = "", priceRange: String = "", occasion: String = "") {
+        self.title = title
+        self.reason = reason
+        self.priceRange = priceRange
+        self.occasion = occasion
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
+        reason = try container.decodeIfPresent(String.self, forKey: .reason) ?? ""
+        priceRange = try container.decodeIfPresent(String.self, forKey: .priceRange) ?? ""
+        occasion = try container.decodeIfPresent(String.self, forKey: .occasion) ?? ""
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(title, forKey: .title)
+        try container.encode(reason, forKey: .reason)
+        try container.encode(priceRange, forKey: .priceRange)
+        try container.encode(occasion, forKey: .occasion)
+    }
+}
+
 // MARK: - Protocol
 
 protocol AIService {
     func extract(from text: String, knownPeople: [String]) async throws -> AIExtraction
+    func suggestGiftIdeas(personContext: String, existingGiftTitles: [String]) async throws -> [GiftSuggestion]
 }
 
 enum AIProvider: String, CaseIterable, Identifiable {
@@ -228,6 +269,79 @@ final class OpenRouterAIService: AIService {
         let json = String(content[start...end])
         guard let data = json.data(using: .utf8) else { throw AIServiceError.invalidResponse }
         return try decoder.decode(AIExtraction.self, from: data)
+    }
+
+    func suggestGiftIdeas(personContext: String, existingGiftTitles: [String]) async throws -> [GiftSuggestion] {
+        let apiKey = try KeychainService.openRouterAPIKey()
+        let model = UserDefaults.standard.string(forKey: "openRouterModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let requestBody = OpenRouterRequest(
+            model: model?.isEmpty == false ? model! : OpenRouterDefaults.modelID,
+            messages: [
+                .init(role: "system", content: Self.giftSystemPrompt),
+                .init(role: "user", content: Self.giftUserPrompt(personContext: personContext, existingGiftTitles: existingGiftTitles)),
+            ],
+            temperature: 0.5,
+            responseFormat: .init(type: "json_object")
+        )
+
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONEncoder().encode(requestBody)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            return try await MockAIService().suggestGiftIdeas(personContext: personContext, existingGiftTitles: existingGiftTitles)
+        }
+
+        let completion = try decoder.decode(OpenRouterResponse.self, from: data)
+        guard let content = completion.choices.first?.message.content.trimmingCharacters(in: .whitespacesAndNewlines),
+              !content.isEmpty else {
+            throw AIServiceError.emptyResponse
+        }
+
+        return try Self.decodeGiftSuggestions(from: content, decoder: decoder)
+    }
+
+    private static let giftSystemPrompt = """
+    You suggest thoughtful gift ideas for a local-first relationship app. Return only JSON. Ground every idea strictly in the facts given about the person — their interests, notes, tags, past interactions, and events. Do not invent specific personal facts (brands, sizes, exact preferences) that aren't implied by the given context; if the context is thin, suggest a more general idea tied to what is known instead of fabricating detail.
+    """
+
+    private static func giftUserPrompt(personContext: String, existingGiftTitles: [String]) -> String {
+        """
+        Person context:
+        \(personContext)
+
+        Gift ideas already suggested (do not repeat these): \(existingGiftTitles.isEmpty ? "none" : existingGiftTitles.joined(separator: ", "))
+
+        Return this JSON shape:
+        {
+          "giftIdeas": [
+            {"title": "short gift idea", "reason": "why it fits, referencing what's known about them", "priceRange": "$20-40", "occasion": "e.g. Birthday, or empty string if none"}
+          ]
+        }
+
+        Suggest 3 to 5 ideas.
+        """
+    }
+
+    private struct GiftSuggestionsResponse: Decodable {
+        var giftIdeas: [GiftSuggestion]
+    }
+
+    private static func decodeGiftSuggestions(from content: String, decoder: JSONDecoder) throws -> [GiftSuggestion] {
+        if let data = content.data(using: .utf8),
+           let wrapper = try? decoder.decode(GiftSuggestionsResponse.self, from: data) {
+            return wrapper.giftIdeas
+        }
+        guard let start = content.firstIndex(of: "{"),
+              let end = content.lastIndex(of: "}") else {
+            throw AIServiceError.invalidResponse
+        }
+        let json = String(content[start...end])
+        guard let data = json.data(using: .utf8) else { throw AIServiceError.invalidResponse }
+        return try decoder.decode(GiftSuggestionsResponse.self, from: data).giftIdeas
     }
 
     private struct OpenRouterRequest: Encodable {
@@ -415,6 +529,43 @@ final class MockAIService: AIService {
 
     private static func clean(_ sentence: String) -> String {
         sentence.trimmingCharacters(in: .whitespacesAndNewlines).capitalizedFirst
+    }
+
+    /// Deterministic offline fallback: pulls interests straight out of the
+    /// context text Social Climber already built and turns them into
+    /// generic, honest suggestions. No fabricated specifics.
+    func suggestGiftIdeas(personContext: String, existingGiftTitles: [String]) async throws -> [GiftSuggestion] {
+        try? await Task.sleep(for: .milliseconds(400))
+
+        var ideas: [GiftSuggestion] = []
+        if let interestsLine = personContext
+            .components(separatedBy: "\n")
+            .first(where: { $0.hasPrefix("Interests:") }) {
+            let interests = interestsLine
+                .replacingOccurrences(of: "Interests:", with: "")
+                .components(separatedBy: ",")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+
+            for interest in interests.prefix(5) {
+                guard !existingGiftTitles.contains(where: { $0.localizedCaseInsensitiveContains(interest) }) else { continue }
+                ideas.append(GiftSuggestion(
+                    title: "\(interest.capitalizedFirst)-themed gift",
+                    reason: "They're into \(interest.lowercased()), based on what's logged for them.",
+                    priceRange: "$20–50"
+                ))
+            }
+        }
+
+        if ideas.isEmpty {
+            ideas.append(GiftSuggestion(
+                title: "Handwritten card + a small treat",
+                reason: "Not enough is logged yet to get more specific — log interests or interactions for better ideas.",
+                priceRange: "$10–25"
+            ))
+        }
+
+        return Array(ideas.prefix(5))
     }
 }
 

@@ -10,6 +10,7 @@ struct PersonProfileView: View {
     @State private var showAddInteraction = false
     @State private var showImport = false
     @State private var showAddGift = false
+    @State private var showGiftSuggestions = false
     @State private var showAddReminder = false
     @State private var showAddDate = false
     @State private var confirmDelete = false
@@ -116,6 +117,7 @@ struct PersonProfileView: View {
         .sheet(isPresented: $showAddInteraction) { AddInteractionView(preselected: [person]) }
         .sheet(isPresented: $showImport) { AddInteractionView(preselected: [person], initialSource: .paste) }
         .sheet(isPresented: $showAddGift) { GiftIdeaEditSheet(person: person) }
+        .sheet(isPresented: $showGiftSuggestions) { GiftSuggestionsSheet(person: person) }
         .sheet(isPresented: $showAddReminder) { ReminderEditSheet(person: person) }
         .sheet(isPresented: $showAddDate) { ImportantDateEditSheet(person: person) }
         .confirmationDialog("Delete \(person.displayName)? This removes all their data.", isPresented: $confirmDelete, titleVisibility: .visible) {
@@ -377,9 +379,18 @@ struct PersonProfileView: View {
                     GiftIdeaRowView(gift: gift, showPerson: false)
                 }
             }
-            Button { showAddGift = true } label: {
-                Label("Add gift idea", systemImage: "plus")
-                    .font(.subheadline.weight(.medium))
+            HStack {
+                Button { showAddGift = true } label: {
+                    Label("Add gift idea", systemImage: "plus")
+                        .font(.subheadline.weight(.medium))
+                }
+                if hasLoggedInteractions {
+                    Spacer()
+                    Button { showGiftSuggestions = true } label: {
+                        Label("Suggest with AI", systemImage: "sparkles")
+                            .font(.subheadline.weight(.medium))
+                    }
+                }
             }
         }
     }
