@@ -232,6 +232,10 @@ struct ExtractionReviewView: View {
     let onApplied: () -> Void
 
     @State private var options = ExtractionApplier.Options()
+    /// Defaults to now (when this note was recorded/typed), but this is the
+    /// conversation's own date — editable so a note about something that
+    /// happened days ago doesn't get logged as if it were today.
+    @State private var date = Date.now
 
     var body: some View {
         NavigationStack {
@@ -252,6 +256,12 @@ struct ExtractionReviewView: View {
                     }
                 } header: {
                     Text("Summary")
+                }
+
+                Section {
+                    DatePicker("When this happened", selection: $date, displayedComponents: [.date, .hourAndMinute])
+                } footer: {
+                    Text("Logging this later? Set it to when the conversation actually happened, not now.")
                 }
 
                 if people.isEmpty {
@@ -325,6 +335,7 @@ struct ExtractionReviewView: View {
             to: people,
             sourceText: transcript,
             interactionType: .voiceNote,
+            date: date,
             voiceNote: voiceNote,
             options: options,
             context: context

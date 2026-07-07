@@ -41,7 +41,13 @@ enum ExtractionApplier {
                 for extracted in extraction.reminders {
                     let reminder = Reminder(
                         title: extracted.title,
-                        dueDate: extracted.dueDate ?? Calendar.current.date(byAdding: .day, value: 3, to: date) ?? date,
+                        // Anchored to *now*, not the interaction's own date —
+                        // for a past-dated interaction (a screenshot or voice
+                        // note logged well after the fact), "follow up in 3
+                        // days" has to mean 3 days from today, or a reminder
+                        // for a months-old conversation would be born already
+                        // overdue.
+                        dueDate: extracted.dueDate ?? Calendar.current.date(byAdding: .day, value: 3, to: .now) ?? .now,
                         type: .followUp,
                         person: person
                     )

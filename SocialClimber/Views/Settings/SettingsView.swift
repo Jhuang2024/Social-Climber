@@ -108,6 +108,21 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                Section("Import from Messages") {
+                    Label("Uses iOS's Share Sheet, not a screen inside Social Climber", systemImage: "square.and.arrow.up.on.square")
+                        .font(.subheadline.weight(.medium))
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("1. In Messages, touch and hold a message, tap \"More…\", then tap each bubble you want to include.")
+                        Text("2. Tap the share icon in the bottom-left, then choose Social Climber from the row of apps.")
+                        Text("3. Open Social Climber — the conversation is waiting for you to review, attach to a person, and log.")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    Text("Only the messages you select are shared — Social Climber never reads your message history, and nothing leaves your device except when you explicitly analyze a note with an AI provider.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 Section("Google Calendar") {
                     LabeledContent("Status", value: googleCalendar.isConnected ? "Connected" : "Not connected")
                     if !googleCalendar.isConnected {

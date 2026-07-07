@@ -110,6 +110,14 @@ struct AddInteractionView: View {
                         } label: {
                             Label("Use detected date (\(detected.formatted(date: .abbreviated, time: .shortened)))", systemImage: "clock.arrow.circlepath")
                         }
+                    } else if isImportMode, hasAnalyzed {
+                        // No reliable date in the pasted/scanned text — say so
+                        // explicitly instead of silently leaving the picker at
+                        // whatever it defaulted to (now), which would make an
+                        // old screenshot look like it happened today.
+                        Label("No date found in this — confirm the date above is right, it doesn't default to when the conversation happened.", systemImage: "exclamationmark.triangle")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
                     }
                     TextField("Location", text: $location)
                         .submitLabel(.done)
