@@ -9,6 +9,10 @@ final class Reminder {
     var completed: Bool = false
     var notes: String = ""
     var notificationID: String?
+    /// Set once completing this reminder has auto-logged an interaction
+    /// (see `ReminderRowView`), so toggling it complete/incomplete/complete
+    /// again never logs a duplicate.
+    var autoLoggedInteraction: Bool = false
     var createdAt: Date = Date()
 
     var person: Person?

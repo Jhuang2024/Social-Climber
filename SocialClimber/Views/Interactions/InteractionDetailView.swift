@@ -80,13 +80,14 @@ struct InteractionDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                HStack(spacing: 16) {
-                    Button { showEdit = true } label: {
-                        Image(systemName: "pencil")
-                    }
+                Menu {
+                    Button { showEdit = true } label: { Label("Edit", systemImage: "pencil") }
                     Button(role: .destructive) { confirmDelete = true } label: {
-                        Image(systemName: "trash")
+                        Label("Delete", systemImage: "trash")
                     }
+                    .tint(.red)
+                } label: {
+                    Image(systemName: "ellipsis.circle")
                 }
             }
         }
@@ -94,13 +95,23 @@ struct InteractionDetailView: View {
         .confirmationDialog("Delete this interaction?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
                 Haptics.warning()
+                // Capture before deleting — once the interaction is gone,
+                // its `people` relationship is nullified along with it.
+                let people = interaction.people
                 // Undo this interaction's closeness impact before it's gone,
                 // otherwise the person's score would keep a "ghost" nudge
                 // from an interaction that no longer exists.
                 InteractionSaver.reverseClosenessImpact(of: interaction)
                 context.delete(interaction)
+                // The deleted interaction may have been the one holding a
+                // person's "last contacted" date — recompute from what's
+                // left instead of leaving it stale.
+                for person in people {
+                    person.recomputeContactDates()
+                }
                 dismiss()
             }
+            .tint(.red)
         }
     }
 
@@ -139,9 +150,9 @@ struct InteractionDetailView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(20)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: SCTheme.heroCardRadius, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: SCTheme.heroCardRadius, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.055))
         }
     }

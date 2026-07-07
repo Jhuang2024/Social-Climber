@@ -5,6 +5,10 @@ enum SCTheme {
     static let cardRadius: CGFloat = 18
     static let controlRadius: CGFloat = 14
     static let pageSpacing: CGFloat = 16
+    /// The larger radius used by a screen's single hero header card
+    /// (profile/detail headers) — deliberately bigger than `cardRadius` so
+    /// the one "headline" card per screen reads as more prominent.
+    static let heroCardRadius: CGFloat = 24
 
     /// The app's brand color, read directly from the asset catalog by name.
     ///
@@ -164,10 +168,20 @@ extension ButtonStyle where Self == SecondaryButtonStyle {
 }
 
 /// A small uppercased section header used inside cards and stacked layouts.
-struct SectionHeader: View {
+/// An optional trailing view (a badge, a count, an action) can be supplied;
+/// omit it for a plain title-only header.
+struct SectionHeader<Trailing: View>: View {
     let title: String
     var icon: String?
     var accent: Color = SCTheme.accent
+    @ViewBuilder var trailing: () -> Trailing
+
+    init(_ title: String, icon: String? = nil, accent: Color = SCTheme.accent, @ViewBuilder trailing: @escaping () -> Trailing = { EmptyView() }) {
+        self.title = title
+        self.icon = icon
+        self.accent = accent
+        self.trailing = trailing
+    }
 
     var body: some View {
         HStack(spacing: 9) {
@@ -184,6 +198,7 @@ struct SectionHeader: View {
                 .textCase(.uppercase)
                 .tracking(0.8)
             Spacer()
+            trailing()
         }
     }
 }

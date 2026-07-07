@@ -28,7 +28,13 @@ struct RemindersView: View {
 
             if showCompleted {
                 if completed.isEmpty {
-                    emptyRow("Nothing completed yet.")
+                    EmptyStateView(
+                        icon: "checkmark.circle",
+                        title: "Nothing completed yet",
+                        message: "Reminders you check off will show up here."
+                    )
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 } else {
                     ForEach(completed) { reminder in
                         ReminderRowView(reminder: reminder)
@@ -41,7 +47,14 @@ struct RemindersView: View {
                 }
             } else {
                 if open.isEmpty {
-                    emptyRow("All caught up.")
+                    EmptyStateView(
+                        icon: "checkmark.circle.fill",
+                        title: "All caught up",
+                        message: "No open reminders. Add one for a follow-up, birthday nudge, or plan.",
+                        actionTitle: "Add Reminder"
+                    ) { showAdd = true }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 } else {
                     section("Overdue", overdue)
                     section("Today", today)
@@ -75,14 +88,6 @@ struct RemindersView: View {
                 }
             }
         }
-    }
-
-    private func emptyRow(_ text: String) -> some View {
-        Text(text)
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity)
-            .listRowBackground(Color.clear)
     }
 
     private func delete(_ items: [Reminder]) {

@@ -4,17 +4,20 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.scenePhase) private var scenePhase
     @Query private var people: [Person]
     @Query private var reminders: [Reminder]
+    @Query private var importantDates: [ImportantDate]
+    @Query private var events: [Event]
 
     @AppStorage("notificationsEnabled") private var notificationsEnabled = false
     @AppStorage("locationEnabled") private var locationEnabled = false
     @AppStorage("googleClientID") private var googleClientID = "201027748898-lerfifmsfgdu2uubgph606p2rsa6ic7j.apps.googleusercontent.com"
     @AppStorage("aiProvider") private var aiProvider = AIProvider.mock.rawValue
     @AppStorage("openRouterModelID") private var openRouterModelID = OpenRouterDefaults.modelID
-    @AppStorage("defaultCadenceClose") private var cadenceClose = 7
-    @AppStorage("defaultCadenceRegular") private var cadenceRegular = 30
-    @AppStorage("defaultCadenceDistant") private var cadenceDistant = 90
+    @AppStorage("defaultCadenceClose") private var cadenceClose = 21
+    @AppStorage("defaultCadenceRegular") private var cadenceRegular = 60
+    @AppStorage("defaultCadenceDistant") private var cadenceDistant = 120
 
     @State private var exportItem: ShareURL?
     @State private var showImporter = false
@@ -26,6 +29,7 @@ struct SettingsView: View {
     @State private var openRouterAPIKey = ""
     @State private var hasOpenRouterAPIKey = false
     @State private var isConnectingGoogleCalendar = false
+    @State private var notificationsAuthDenied = false
     @State private var message: String?
 
     private var googleCalendar: GoogleCalendarService { GoogleCalendarService.shared }
@@ -53,32 +57,44 @@ struct SettingsView: View {
                 )
 
                 Section("Check-In Cadence Defaults") {
-                    Stepper("Close (5●): every \(cadenceClose)d", value: $cadenceClose, in: 1...60)
-                    Stepper("Regular (3●): every \(cadenceRegular)d", value: $cadenceRegular, in: 7...120)
-                    Stepper("Distant (1●): every \(cadenceDistant)d", value: $cadenceDistant, in: 14...365)
-                    Text("Per-person cadence can be set on each profile and overrides these.")
+                    Stepper("Top priority: every \(cadenceClose)d", value: $cadenceClose, in: 7...90, step: 7)
+                    Stepper("Regular priority: every \(cadenceRegular)d", value: $cadenceRegular, in: 14...180, step: 7)
+                    Stepper("Low priority: every \(cadenceDistant)d", value: $cadenceDistant, in: 30...365, step: 15)
+                    Text("Based on priority — how actively you want to invest in a relationship. Very close relationships automatically get extra slack on top of this, and people you already talk to often won't be flagged between those natural check-ins. Per-person cadence on a profile always overrides these.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
                 Section("Notifications") {
                     Toggle("Local notifications", isOn: $notificationsEnabled)
+                        .tint(.green)
                         .onChange(of: notificationsEnabled) {
                             Task {
                                 if notificationsEnabled {
                                     let granted = await NotificationService.shared.requestAuthorization()
+                                    await refreshNotificationAuthorization()
                                     if !granted {
                                         notificationsEnabled = false
                                         message = "Notifications are disabled in iOS Settings."
                                     } else {
-                                        NotificationService.shared.rescheduleAll(people: people, reminders: reminders)
+                                        NotificationService.shared.rescheduleAll(people: people, reminders: reminders, importantDates: importantDates, events: events)
                                     }
                                 } else {
                                     NotificationService.shared.cancelAll()
                                 }
                             }
                         }
-                    Text("Birthdays at 9 AM, reminders on their due date. Everything fires locally.")
+                    if notificationsAuthDenied {
+                        Button {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        } label: {
+                            Label("Notifications are off in iOS Settings — tap to open", systemImage: "gear")
+                        }
+                        .font(.caption)
+                    }
+                    Text("Birthdays, important dates, and events at 9 AM (events at their scheduled time), reminders on their due date. Everything fires locally — nothing is ever sent off this iPhone.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -93,6 +109,7 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Toggle("Location (\"Who's nearby\")", isOn: $locationEnabled)
+                        .tint(.green)
                         .onChange(of: locationEnabled) {
                             if locationEnabled {
                                 Task {
@@ -104,6 +121,21 @@ struct SettingsView: View {
                             }
                         }
                     Text("Looks up your current city on-device to show people whose saved location matches. Never tracked in the background, never stored, never sent anywhere.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Import from Messages") {
+                    Label("Uses iOS's Share Sheet, not a screen inside Social Climber", systemImage: "square.and.arrow.up.on.square")
+                        .font(.subheadline.weight(.medium))
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("1. In Messages, touch and hold a message, tap \"More…\", then tap each bubble you want to include.")
+                        Text("2. Tap the share icon in the bottom-left, then choose Social Climber from the row of apps.")
+                        Text("3. Open Social Climber — the conversation is waiting for you to review, attach to a person, and log.")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    Text("Only the messages you select are shared — Social Climber never reads your message history, and nothing leaves your device except when you explicitly analyze a note with an AI provider.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -132,6 +164,7 @@ struct SettingsView: View {
                         } label: {
                             Label("Disconnect Google Calendar", systemImage: "calendar.badge.minus")
                         }
+                        .tint(.red)
                     }
                     Text("Read-only. Create a free \"iOS\" OAuth Client ID in Google Cloud Console (enable the Google Calendar API, set the bundle ID to match this app's) and paste it above — no client secret needed. Only a refresh token is stored, in the iOS Keychain; events are fetched on demand and never saved.")
                         .font(.caption)
@@ -161,6 +194,7 @@ struct SettingsView: View {
                             } label: {
                                 Label("Remove Saved API Key", systemImage: "trash")
                             }
+                            .tint(.red)
                         }
                         TextField("Model ID", text: $openRouterModelID)
                             .textInputAutocapitalization(.never)
@@ -199,6 +233,7 @@ struct SettingsView: View {
                     } label: {
                         Label("Clear all data…", systemImage: "trash")
                     }
+                    .tint(.red)
                 }
 
                 Section("Privacy") {
@@ -244,6 +279,7 @@ struct SettingsView: View {
                     SeedData.clearAll(context: context)
                     message = "All data deleted."
                 }
+                .tint(.red)
             } message: {
                 Text("This permanently removes every person, interaction, reminder, gift, important date, voice note, and AI summary on this iPhone. Export first if you want a backup.")
             }
@@ -265,8 +301,25 @@ struct SettingsView: View {
             }
             .onAppear {
                 refreshOpenRouterKeyStatus()
+                Task { await refreshNotificationAuthorization() }
+            }
+            .onChange(of: scenePhase) {
+                if scenePhase == .active {
+                    Task { await refreshNotificationAuthorization() }
+                }
             }
             .keyboardDoneButton()
+        }
+    }
+
+    /// Detects a permission revoked in iOS Settings after the user granted
+    /// it here, so the toggle never claims notifications are on when the OS
+    /// has actually silenced them.
+    private func refreshNotificationAuthorization() async {
+        let status = await NotificationService.shared.authorizationStatus()
+        notificationsAuthDenied = status == .denied
+        if status == .denied {
+            notificationsEnabled = false
         }
     }
 

@@ -5,6 +5,7 @@ import SwiftUI
 struct ReminderRowView: View {
     @Bindable var reminder: Reminder
     var showPerson = true
+    @Environment(\.modelContext) private var context
 
     var body: some View {
         HStack(spacing: 12) {
@@ -13,6 +14,7 @@ struct ReminderRowView: View {
                     reminder.completed.toggle()
                     if reminder.completed {
                         NotificationService.shared.cancel(reminder: reminder)
+                        logInteractionIfNeeded()
                     } else {
                         NotificationService.shared.schedule(reminder: reminder)
                     }
@@ -50,6 +52,28 @@ struct ReminderRowView: View {
         .padding(.vertical, 7)
         .sensoryFeedback(.selection, trigger: reminder.completed)
     }
+
+    /// Completing a "hangout" or "check-in" reminder means the contact it
+    /// was for actually happened — log it as a real interaction so it
+    /// automatically feeds the timeline, closeness, last-contacted date,
+    /// and future cadence, the same as any other logged interaction,
+    /// instead of requiring a second manual entry for the same event.
+    private func logInteractionIfNeeded() {
+        guard !reminder.autoLoggedInteraction,
+              let person = reminder.person,
+              reminder.type == .hangout || reminder.type == .checkIn
+        else { return }
+
+        let interaction = Interaction(
+            type: reminder.type == .hangout ? .inPerson : .other,
+            date: .now,
+            note: reminder.title,
+            quality: 3,
+            messageSummary: reminder.title
+        )
+        InteractionSaver.finalize(interaction, people: [person], context: context)
+        reminder.autoLoggedInteraction = true
+    }
 }
 
 // MARK: - GiftIdeaRowView
@@ -69,22 +93,11 @@ struct GiftIdeaRowView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(gift.title)
                     .font(.body.weight(.medium))
-                HStack(spacing: 6) {
-                    if showPerson, let person = gift.person {
-                        Text("For \(person.firstName)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    if !gift.occasion.isEmpty {
-                        Text(gift.occasion)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    if !gift.priceRange.isEmpty {
-                        Text(gift.priceRange)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                if !giftSubtitle.isEmpty {
+                    Text(giftSubtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
             }
             Spacer()
@@ -107,6 +120,14 @@ struct GiftIdeaRowView: View {
         }
         .padding(.vertical, 7)
         .sensoryFeedback(.selection, trigger: gift.status)
+    }
+
+    private var giftSubtitle: String {
+        var parts: [String] = []
+        if showPerson, let person = gift.person { parts.append("For \(person.firstName)") }
+        if !gift.occasion.isEmpty { parts.append(gift.occasion) }
+        if !gift.priceRange.isEmpty { parts.append(gift.priceRange) }
+        return parts.joined(separator: " · ")
     }
 }
 

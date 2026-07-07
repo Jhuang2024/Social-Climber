@@ -69,7 +69,11 @@ enum MessageImportParser {
         let words = name.split(separator: " ")
         guard words.count <= 3, name.count <= 32 else { return nil }
         guard !name.contains(where: \.isNumber) else { return nil }
-        guard !["http", "https", "www", "note", "info"].contains(name.lowercased()) else { return nil }
+        // "Me"/"Them" are OCRService's own bubble-color sender labels, not a
+        // real contact's name — leave them attached to the line (readable,
+        // useful context for the AI summary) but never suggest them as a
+        // new contact to create.
+        guard !["http", "https", "www", "note", "info", "me", "them"].contains(name.lowercased()) else { return nil }
         guard !rest.hasPrefix("//") else { return nil }
         return (name, rest)
     }
@@ -115,10 +119,37 @@ enum MessageImportParser {
         return text[text.startIndex..<end].trimmingCharacters(in: .whitespaces) + "…"
     }
 
+    /// Words/patterns that mean a detector match actually names a day, as
+    /// opposed to just a bare clock time.
+    private static let dayWords: Set<String> = [
+        "today", "yesterday", "tomorrow",
+        "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+        "january", "february", "march", "april", "may", "june", "july",
+        "august", "september", "october", "november", "december",
+    ]
+
+    /// Finds the first *reliable* date in the text — one that names an
+    /// actual day, not just a clock time.
+    ///
+    /// `NSDataDetector` happily matches a bare time like "3:45 PM" (nearly
+    /// every message timestamp in a chat screenshot) and returns a `Date`
+    /// for it by silently defaulting the day component to *today*. Trusting
+    /// that blindly is exactly the "assume it happened today" mistake this
+    /// exists to avoid — a screenshot from three weeks ago would get logged
+    /// as today just because it shows a time of day. Only a match whose
+    /// matched text actually names a day (a numeric date, a month, a
+    /// weekday, or a relative day word) is trusted.
     private static func firstDate(in text: String) -> Date? {
         guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue) else { return nil }
         let range = NSRange(text.startIndex..., in: text)
-        let match = detector.firstMatch(in: text, range: range)
-        return match?.date
+        for match in detector.matches(in: text, range: range) {
+            guard let date = match.date, let matchRange = Range(match.range, in: text) else { continue }
+            let matchedText = text[matchRange].lowercased()
+            let hasNumericDate = matchedText.range(of: "\\d{1,2}[/.\\-]\\d{1,2}", options: .regularExpression) != nil
+            let hasDayWord = dayWords.contains { matchedText.contains($0) }
+            guard hasNumericDate || hasDayWord else { continue }
+            return date
+        }
+        return nil
     }
 }

@@ -75,6 +75,7 @@ struct InteractionEditView: View {
 
                 Section("Follow-up") {
                     Toggle("Needs follow-up", isOn: $followUpNeeded.animation(.snappy))
+                        .tint(.green)
                     if followUpNeeded {
                         DatePicker("Follow up by", selection: $followUpDate, displayedComponents: .date)
                         TextField("Next move", text: $nextMove, axis: .vertical)
@@ -126,6 +127,15 @@ struct InteractionEditView: View {
         // never touched the picker.
         if sentiment != interaction.sentiment {
             InteractionSaver.updateQuality(of: interaction, to: sentiment.quality)
+        }
+
+        // The date/type just edited above may have moved a person's "last
+        // contacted" fields earlier, later, or off this interaction
+        // entirely — markContacted only ever nudges forward, so recompute
+        // from scratch instead of leaving the People list showing a stale
+        // date.
+        for person in interaction.people {
+            person.recomputeContactDates()
         }
 
         Haptics.success()

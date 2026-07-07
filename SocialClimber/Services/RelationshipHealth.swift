@@ -2,9 +2,19 @@ import Foundation
 
 /// Pure logic for deriving relationship status from a person's data.
 enum RelationshipHealth {
-    /// How often (in days) this person should be contacted, from closeness,
-    /// adjusted by priority, unless the person has an explicit cadence.
-    /// Anchor cadences are user-configurable in Settings.
+    /// How often (in days) this person should be contacted, unless the
+    /// person has an explicit cadence override.
+    ///
+    /// The base tier comes from *priority* — how much you want to actively
+    /// invest in this relationship — not closeness, since a relationship
+    /// you're already close to tends to sustain itself. Closeness only ever
+    /// loosens the cadence from there (a very close relationship should
+    /// rarely need a nudge), it never tightens it. Finally, when there's
+    /// enough real history to see how this person actually communicates,
+    /// the cadence is stretched to comfortably outlast their own natural
+    /// rhythm — someone you already text every few days shouldn't be
+    /// flagged as "due" between those texts. Anchor cadences are
+    /// user-configurable in Settings.
     static func expectedCadenceDays(for person: Person) -> Int {
         if let custom = person.checkInCadenceDays, custom > 0 { return custom }
         let defaults = UserDefaults.standard
@@ -12,19 +22,51 @@ enum RelationshipHealth {
             let value = defaults.integer(forKey: key)
             return value > 0 ? Double(value) : fallback
         }
-        let close = stored("defaultCadenceClose", 7)
-        let regular = stored("defaultCadenceRegular", 30)
-        let distant = stored("defaultCadenceDistant", 90)
-        let base: Double = switch person.closeness {
+        // Deliberately generous — the app should feel like it rarely
+        // interrupts, not like another daily chore.
+        let close = stored("defaultCadenceClose", 21)
+        let regular = stored("defaultCadenceRegular", 60)
+        let distant = stored("defaultCadenceDistant", 120)
+        let base: Double = switch person.priority {
         case 5: close
         case 4: (close + regular) / 2
         case 3: regular
         case 2: (regular + distant) / 2
         default: distant
         }
-        // Higher priority tightens the cadence, lower loosens it.
-        let factor = 1.0 - Double(person.priority - 3) * 0.15
-        return max(3, Int(base * factor))
+
+        // Only loosens (closeness 4-5); closeness 3 and below leaves the
+        // priority-driven base untouched rather than tightening it further.
+        let closenessFactor = 1.0 + Double(max(0, person.closeness - 3)) * 0.35
+        var cadence = base * closenessFactor
+
+        // Someone who naturally communicates often shouldn't "reappear" as
+        // due between their own normal beats — stretch the cadence to
+        // comfortably outlast their real rhythm.
+        if let rhythm = naturalRhythmDays(for: person) {
+            cadence = max(cadence, rhythm * 2.5)
+        }
+
+        return max(10, Int(cadence))
+    }
+
+    /// The typical number of days between this person's recent interactions
+    /// — how often they naturally come up, independent of the configured
+    /// cadence. `nil` when there isn't enough recent history to infer a
+    /// rhythm (fewer than 3 interactions in the last year), so the
+    /// priority/closeness-derived cadence is used as-is.
+    static func naturalRhythmDays(for person: Person, sampleSize: Int = 8) -> Double? {
+        let recentDates = person.interactions
+            .map(\.date)
+            .filter { $0.daysAgo <= 365 }
+            .sorted(by: >)
+            .prefix(sampleSize)
+        guard recentDates.count >= 3 else { return nil }
+        let gaps = zip(recentDates, recentDates.dropFirst())
+            .map { $0.timeIntervalSince($1) / 86400 }
+            .filter { $0 > 0 }
+        guard !gaps.isEmpty else { return nil }
+        return gaps.reduce(0, +) / Double(gaps.count)
     }
 
     static func daysSinceContact(for person: Person) -> Int? {
@@ -65,13 +107,5 @@ enum RelationshipHealth {
             guard let next = date.nextOccurrence else { return false }
             return next.daysFromNow <= window
         }
-    }
-
-    /// 0...1 score used for sorting who most needs attention (lower = worse).
-    static func score(for person: Person) -> Double {
-        guard !person.isArchived else { return 1 }
-        let cadence = Double(expectedCadenceDays(for: person))
-        guard let days = daysSinceContact(for: person) else { return 0.5 }
-        return max(0, 1.0 - Double(days) / (cadence * 4))
     }
 }

@@ -3,6 +3,24 @@ import SwiftData
 
 /// Small add sheets for gifts, reminders, and important dates.
 
+/// The "For / Person" picker shared by every add sheet that lets you
+/// optionally attach the new item to someone — a plain `Picker` including a
+/// "No one specific" option, backed by everyone not archived.
+struct OptionalPersonPicker: View {
+    let label: String
+    let people: [Person]
+    @Binding var selection: Person?
+
+    var body: some View {
+        Picker(label, selection: $selection) {
+            Text("No one specific").tag(Person?.none)
+            ForEach(people.filter { !$0.isArchived }) { p in
+                Text(p.displayName).tag(Person?.some(p))
+            }
+        }
+    }
+}
+
 struct GiftIdeaEditSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -22,12 +40,7 @@ struct GiftIdeaEditSheet: View {
                 TextField("Gift idea", text: $title)
                     .submitLabel(.done)
                 if person == nil {
-                    Picker("For", selection: $selectedPerson) {
-                        Text("No one specific").tag(Person?.none)
-                        ForEach(people.filter { !$0.isArchived }) { p in
-                            Text(p.displayName).tag(Person?.some(p))
-                        }
-                    }
+                    OptionalPersonPicker(label: "For", people: people, selection: $selectedPerson)
                 }
                 TextField("Occasion (e.g. Birthday)", text: $occasion)
                     .submitLabel(.done)
@@ -80,12 +93,7 @@ struct ReminderEditSheet: View {
                 TextField("Reminder", text: $title)
                     .submitLabel(.done)
                 if person == nil {
-                    Picker("Person", selection: $selectedPerson) {
-                        Text("No one specific").tag(Person?.none)
-                        ForEach(people.filter { !$0.isArchived }) { p in
-                            Text(p.displayName).tag(Person?.some(p))
-                        }
-                    }
+                    OptionalPersonPicker(label: "Person", people: people, selection: $selectedPerson)
                 }
                 DatePicker("Due", selection: $dueDate, displayedComponents: .date)
                 Picker("Type", selection: $type) {
@@ -136,15 +144,11 @@ struct ImportantDateEditSheet: View {
                 TextField("Title (e.g. Anniversary, Graduation)", text: $title)
                     .submitLabel(.done)
                 if person == nil {
-                    Picker("Person", selection: $selectedPerson) {
-                        Text("No one specific").tag(Person?.none)
-                        ForEach(people.filter { !$0.isArchived }) { p in
-                            Text(p.displayName).tag(Person?.some(p))
-                        }
-                    }
+                    OptionalPersonPicker(label: "Person", people: people, selection: $selectedPerson)
                 }
                 DatePicker("Date", selection: $date, displayedComponents: .date)
                 Toggle("Repeats yearly", isOn: $repeatsYearly)
+                    .tint(.green)
                 TextField("Notes", text: $notes, axis: .vertical)
                     .lineLimit(2...5)
             }
@@ -159,6 +163,7 @@ struct ImportantDateEditSheet: View {
                     Button("Save") {
                         let important = ImportantDate(title: title, date: date, repeatsYearly: repeatsYearly, person: person ?? selectedPerson, notes: notes)
                         context.insert(important)
+                        NotificationService.shared.schedule(importantDate: important)
                         Haptics.success()
                         dismiss()
                     }

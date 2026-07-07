@@ -41,6 +41,14 @@ struct AddInteractionView: View {
     /// actually visible instead of being torn down by an immediate dismiss.
     @State private var dismissAfterAlert = false
 
+    // Suggestion review — shown between "AI extraction produced something"
+    // and actually writing anything, whenever there's at least one
+    // interest/gift/reminder/date/personality note to approve or reject.
+    @State private var showSuggestionReview = false
+    @State private var reviewExtraction: AIExtraction?
+    @State private var reviewOptions = ExtractionApplier.Options()
+    @State private var pendingAINotice: String?
+
     // Import-mode state.
     @State private var rawText = ""
     @State private var parsed: ParsedMessage?
@@ -54,9 +62,15 @@ struct AddInteractionView: View {
 
     @Query(sort: \Person.name) private var allPeople: [Person]
 
-    init(preselected: [Person] = [], initialSource: InteractionSource = .manual) {
+    /// `initialRawText` pre-fills the paste-import text field — used to hand
+    /// off text the Share Extension queued (e.g. selected Messages bubbles
+    /// shared from outside the app). Forces paste mode so it's immediately
+    /// visible; the user still explicitly taps "Detect summary" themselves,
+    /// same as any other paste import.
+    init(preselected: [Person] = [], initialSource: InteractionSource = .manual, initialRawText: String = "") {
         self.preselected = preselected
-        _source = State(initialValue: initialSource)
+        _source = State(initialValue: initialRawText.isEmpty ? initialSource : .paste)
+        _rawText = State(initialValue: initialRawText)
     }
 
     private var isImportMode: Bool { source != .manual }
@@ -104,6 +118,14 @@ struct AddInteractionView: View {
                         } label: {
                             Label("Use detected date (\(detected.formatted(date: .abbreviated, time: .shortened)))", systemImage: "clock.arrow.circlepath")
                         }
+                    } else if isImportMode, hasAnalyzed {
+                        // No reliable date in the pasted/scanned text — say so
+                        // explicitly instead of silently leaving the picker at
+                        // whatever it defaulted to (now), which would make an
+                        // old screenshot look like it happened today.
+                        Label("No date found in this — confirm the date above is right, it doesn't default to when the conversation happened.", systemImage: "exclamationmark.triangle")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
                     }
                     TextField("Location", text: $location)
                         .submitLabel(.done)
@@ -146,6 +168,7 @@ struct AddInteractionView: View {
 
                 Section("Follow-up") {
                     Toggle("Needs follow-up", isOn: $followUpNeeded.animation(.snappy))
+                        .tint(.green)
                     if followUpNeeded {
                         DatePicker("Follow up by", selection: $followUpDate, displayedComponents: .date)
                         TextField("Next move (e.g. send resume, grab coffee)", text: $nextMove, axis: .vertical)
@@ -164,6 +187,7 @@ struct AddInteractionView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    .tint(.green)
                     if isImportMode && isAnalyzing {
                         HStack(spacing: 8) {
                             ProgressView()
@@ -204,6 +228,13 @@ struct AddInteractionView: View {
                                 Button("Done") { showPeoplePicker = false }
                             }
                         }
+                }
+            }
+            .sheet(isPresented: $showSuggestionReview) {
+                if let reviewExtraction {
+                    SuggestionReviewSheet(extraction: reviewExtraction, options: $reviewOptions) {
+                        confirmReview()
+                    }
                 }
             }
             .alert("Social Climber", isPresented: .init(get: { message != nil }, set: { isPresented in
@@ -430,66 +461,73 @@ struct AddInteractionView: View {
 
         if isImportMode {
             if parsed == nil { await analyzeImport(rawText) }
-            let closenessNotice = saveImportedInteraction()
             isSaving = false
-            Haptics.success()
-            if let closenessNotice {
-                message = closenessNotice
-                dismissAfterAlert = true
+            if let extraction = aiExtraction {
+                if hasSuggestions(extraction) {
+                    beginReview(extraction, notice: nil)
+                } else {
+                    // Nothing to approve/reject, but the AI did produce a
+                    // real summary — still attach it (ConversationSummary)
+                    // instead of silently dropping it the way `approved: nil`
+                    // would.
+                    let closenessNotice = saveImportedInteraction(approved: (extraction, .allApproved(for: extraction)))
+                    finishSave(closenessNotice: closenessNotice)
+                }
             } else {
-                dismiss()
+                finishSave(closenessNotice: saveImportedInteraction(approved: nil))
             }
             return
         }
 
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        var closenessNotice: String?
-        var aiNotice: String?
 
-        if analyzeWithAI, !trimmedNote.isEmpty {
-            // Never throws: falls back to a deterministic local extraction if
-            // the configured AI provider fails, so the save always goes
-            // through with something useful.
-            let outcome = await AIExtractionCoordinator.extract(from: trimmedNote, knownPeople: allPeople.map(\.name))
-            aiNotice = outcome.notice
-
-            let interaction = ExtractionApplier.apply(
-                outcome.extraction,
-                to: selectedPeople,
-                sourceText: trimmedNote,
-                interactionType: type,
-                date: date,
-                quality: quality,
-                context: context
-            )
-            interaction?.location = location
-            // Only override the AI-generated summary if the user actually
-            // typed their own; otherwise keep what ExtractionApplier set
-            // from the AI extraction.
-            let typedSummary = messageSummary.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !typedSummary.isEmpty {
-                interaction?.messageSummary = typedSummary
-            }
-            interaction?.nextMove = nextMove.trimmingCharacters(in: .whitespacesAndNewlines)
-            // Keep any follow-up the analysis inferred; add the user's if set.
-            if followUpNeeded {
-                interaction?.followUpNeeded = true
-                interaction?.followUpDate = followUpDate
-            }
-            var mergedTopics = interaction?.topics ?? []
-            for topic in topics where !mergedTopics.contains(topic) { mergedTopics.append(topic) }
-            interaction?.topics = mergedTopics
-            // Only schedule an extra reminder for the user's explicit toggle;
-            // the analysis already created reminders for anything it found.
-            if followUpNeeded, let interaction {
-                InteractionSaver.scheduleFollowUpIfNeeded(for: interaction, people: selectedPeople, context: context)
-            }
-            closenessNotice = interaction.flatMap(closenessImpactMessage)
-        } else {
-            closenessNotice = savePlainInteraction(note: trimmedNote)
+        guard analyzeWithAI, !trimmedNote.isEmpty else {
+            isSaving = false
+            finishSave(closenessNotice: savePlainInteraction(note: trimmedNote))
+            return
         }
 
+        // Never throws: falls back to a deterministic local extraction if
+        // the configured AI provider fails, so the save always goes through
+        // with something useful.
+        let outcome = await AIExtractionCoordinator.extract(from: trimmedNote, knownPeople: allPeople.map(\.name))
         isSaving = false
+
+        if hasSuggestions(outcome.extraction) {
+            beginReview(outcome.extraction, notice: outcome.notice)
+        } else {
+            let closenessNotice = applyManualExtraction(outcome.extraction, options: .allApproved(for: outcome.extraction))
+            finishSave(aiNotice: outcome.notice, closenessNotice: closenessNotice)
+        }
+    }
+
+    private func hasSuggestions(_ extraction: AIExtraction) -> Bool {
+        !extraction.interests.isEmpty || !extraction.giftIdeas.isEmpty || !extraction.reminders.isEmpty
+            || !extraction.importantDates.isEmpty || !extraction.personalityNotes.isEmpty
+    }
+
+    /// Pauses the save to let the user approve or reject each suggestion —
+    /// everything starts checked, `confirmReview()` finishes the save once
+    /// they tap Save in the review sheet.
+    private func beginReview(_ extraction: AIExtraction, notice: String?) {
+        reviewExtraction = extraction
+        reviewOptions = .allApproved(for: extraction)
+        pendingAINotice = notice
+        showSuggestionReview = true
+    }
+
+    private func confirmReview() {
+        guard let extraction = reviewExtraction else { return }
+        let closenessNotice: String?
+        if isImportMode {
+            closenessNotice = saveImportedInteraction(approved: (extraction, reviewOptions))
+        } else {
+            closenessNotice = applyManualExtraction(extraction, options: reviewOptions)
+        }
+        finishSave(aiNotice: pendingAINotice, closenessNotice: closenessNotice)
+    }
+
+    private func finishSave(aiNotice: String? = nil, closenessNotice: String?) {
         Haptics.success()
         // Show both notices together rather than letting one silently win —
         // an AI degradation notice shouldn't hide that closeness also moved.
@@ -500,6 +538,47 @@ struct AddInteractionView: View {
         } else {
             dismiss()
         }
+    }
+
+    /// Applies an AI extraction to a manually-logged note (not an import) —
+    /// only the items in `options` get written; everything else is
+    /// discarded, same as if the AI had never suggested it.
+    @discardableResult
+    private func applyManualExtraction(_ extraction: AIExtraction, options: ExtractionApplier.Options) -> String? {
+        let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        let interaction = ExtractionApplier.apply(
+            extraction,
+            to: selectedPeople,
+            sourceText: trimmedNote,
+            interactionType: type,
+            date: date,
+            quality: quality,
+            options: options,
+            context: context
+        )
+        interaction?.location = location
+        // Only override the AI-generated summary if the user actually
+        // typed their own; otherwise keep what ExtractionApplier set from
+        // the AI extraction.
+        let typedSummary = messageSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !typedSummary.isEmpty {
+            interaction?.messageSummary = typedSummary
+        }
+        interaction?.nextMove = nextMove.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Keep any follow-up the analysis inferred; add the user's if set.
+        if followUpNeeded {
+            interaction?.followUpNeeded = true
+            interaction?.followUpDate = followUpDate
+        }
+        var mergedTopics = interaction?.topics ?? []
+        for topic in topics where !mergedTopics.contains(topic) { mergedTopics.append(topic) }
+        interaction?.topics = mergedTopics
+        // Only schedule an extra reminder for the user's explicit toggle;
+        // the analysis already created reminders for anything approved.
+        if followUpNeeded, let interaction {
+            InteractionSaver.scheduleFollowUpIfNeeded(for: interaction, people: selectedPeople, context: context)
+        }
+        return interaction.flatMap(closenessImpactMessage)
     }
 
     /// A short, immediate confirmation of how this interaction moved
@@ -536,7 +615,7 @@ struct AddInteractionView: View {
     }
 
     @discardableResult
-    private func saveImportedInteraction() -> String? {
+    private func saveImportedInteraction(approved: (extraction: AIExtraction, options: ExtractionApplier.Options)?) -> String? {
         let finalSummary = messageSummary.trimmingCharacters(in: .whitespacesAndNewlines)
         let interaction = Interaction(
             type: .socialMedia,
@@ -555,21 +634,23 @@ struct AddInteractionView: View {
         interaction.rawImportText = rawText
         InteractionSaver.finalize(interaction, people: selectedPeople, context: context)
 
-        // Apply whatever the AI extraction found (interests, gift ideas,
+        // Apply whichever suggestions were approved (interests, gift ideas,
         // reminders, important dates, personality notes) without creating a
         // second interaction — the one above already carries the import's
         // own fields (platform, raw text, edited summary).
-        if let aiExtraction {
+        if let approved {
+            var options = approved.options
+            options.createInteraction = false
             ExtractionApplier.apply(
-                aiExtraction,
+                approved.extraction,
                 to: selectedPeople,
                 sourceText: rawText,
                 interactionType: .socialMedia,
                 date: date,
-                options: ExtractionApplier.Options(createInteraction: false),
+                options: options,
                 context: context
             )
-            let summary = ConversationSummary(extraction: aiExtraction)
+            let summary = ConversationSummary(extraction: approved.extraction)
             summary.interaction = interaction
             context.insert(summary)
         }

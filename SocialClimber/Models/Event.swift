@@ -14,6 +14,7 @@ final class Event {
     /// Set once the event's interactions have been logged, so the dashboard
     /// can nudge you about events you attended but never logged.
     var loggedAt: Date?
+    var notificationID: String?
     var createdAt: Date = Date()
 
     /// Inverse declared on `Person.events`, mirroring how `Interaction.people`

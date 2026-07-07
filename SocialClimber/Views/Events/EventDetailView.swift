@@ -79,6 +79,7 @@ struct EventDetailView: View {
                     Button(role: .destructive) { confirmDelete = true } label: {
                         Label("Delete", systemImage: "trash")
                     }
+                    .tint(.red)
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
@@ -89,9 +90,11 @@ struct EventDetailView: View {
         .confirmationDialog("Delete this event?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
                 Haptics.warning()
+                NotificationService.shared.cancel(event: event)
                 context.delete(event)
                 dismiss()
             }
+            .tint(.red)
         }
     }
 
@@ -112,9 +115,9 @@ struct EventDetailView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(20)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: SCTheme.heroCardRadius, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: SCTheme.heroCardRadius, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.055))
         }
     }
@@ -163,6 +166,7 @@ struct EventLogView: View {
                 }
                 Section("Follow-up") {
                     Toggle("Create a follow-up for each", isOn: $followUpNeeded.animation(.snappy))
+                        .tint(.green)
                     if followUpNeeded {
                         DatePicker("Follow up by", selection: $followUpDate, displayedComponents: .date)
                         TextField("Next move", text: $nextMove, axis: .vertical)
@@ -204,12 +208,10 @@ struct EventLogView: View {
             quality: sentiment.quality,
             messageSummary: summary
         )
-        interaction.people = people
-        context.insert(interaction)
-        InteractionSaver.applyClosenessImpact(of: interaction, to: people)
-        for person in people {
-            person.markContacted(type: .event, date: event.date)
-        }
+        // `finalize`'s own follow-up scheduling is a no-op here since
+        // `followUpNeeded` is left false — attendees each get their own
+        // reminder below instead of one shared one.
+        InteractionSaver.finalize(interaction, people: people, context: context)
         // A follow-up reminder for each attendee, if requested.
         if followUpNeeded {
             for person in people {

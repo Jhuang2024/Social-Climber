@@ -29,13 +29,7 @@ struct PeopleListView: View {
             result = result.filter { $0.status == filterStatus }
         }
         if !searchText.isEmpty {
-            let term = searchText.lowercased()
-            result = result.filter {
-                $0.name.lowercased().contains(term)
-                    || $0.nickname.lowercased().contains(term)
-                    || $0.relationshipToMe.lowercased().contains(term)
-                    || $0.tags.contains { $0.lowercased().contains(term) }
-            }
+            result = result.filter { $0.matchesSearch(searchText) }
         }
         switch sortOption {
         case .name:
@@ -83,7 +77,7 @@ struct PeopleListView: View {
                         .listStyle(.plain)
                         .scrollContentBackground(.hidden)
                         .scrollDismissesKeyboard(.immediately)
-                        .searchable(text: $searchText, prompt: "Name, relationship, tag…")
+                        .searchable(text: $searchText, prompt: "Name, interest, tag, note…")
                         .animation(.snappy(duration: 0.25), value: filtered.map(\.persistentModelID))
                         .overlay {
                             if filtered.isEmpty {
@@ -177,6 +171,7 @@ struct PeopleListView: View {
                 }
             }
             Toggle("Show archived", isOn: $showArchived)
+                .tint(.green)
         } label: {
             Image(systemName: (filterCategory != nil || filterStatus != nil) ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
         }
