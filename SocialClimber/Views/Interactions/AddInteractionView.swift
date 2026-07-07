@@ -413,7 +413,13 @@ struct AddInteractionView: View {
                 )
                 interaction?.location = location
                 interaction?.quality = quality
-                interaction?.messageSummary = messageSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Only override the AI-generated summary if the user actually
+                // typed their own; otherwise keep what ExtractionApplier set
+                // from the AI extraction.
+                let typedSummary = messageSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !typedSummary.isEmpty {
+                    interaction?.messageSummary = typedSummary
+                }
                 interaction?.nextMove = nextMove.trimmingCharacters(in: .whitespacesAndNewlines)
                 // Keep any follow-up the analysis inferred; add the user's if set.
                 if followUpNeeded {
