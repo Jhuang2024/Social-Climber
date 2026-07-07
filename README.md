@@ -13,6 +13,13 @@ A private, local-first relationship memory app for iPhone. It helps you remember
 
 Free-account builds expire after 7 days — just hit Run again to reinstall (data is kept). A paid developer account extends this to a year.
 
+## Connecting Google Calendar (optional)
+
+1. In [Google Cloud Console](https://console.cloud.google.com/), create (or reuse) a project, then enable the **Google Calendar API** under APIs & Services.
+2. Under *APIs & Services → Credentials → Create Credentials → OAuth client ID*, choose application type **iOS**, and set the bundle ID to match your build (`com.jerryhuang.SocialClimber`, or whatever you changed it to).
+3. Copy the generated Client ID and paste it into Social Climber's **Settings → Google Calendar**, then tap **Connect Google Calendar** and sign in.
+4. No client secret is ever needed or requested — the app uses the standard PKCE flow for native apps. Only a refresh token is stored, in iOS Keychain.
+
 ## What's inside
 
 - **SwiftUI + SwiftData**, iOS 17+, iPhone only, MVVM-ish with a thin service layer.
@@ -22,12 +29,14 @@ Free-account builds expire after 7 days — just hit Run again to reinstall (dat
 - **Voice notes** — record a live conversation as it happens → on-device transcription (Speech framework, mock fallback in the Simulator) → selected AI extraction → review screen → applies interests, gifts, reminders, dates, personality notes, and logs a timeline interaction.
 - **AI** — `AIService` protocol with `MockAIService` (keyword heuristics, fully offline) and `OpenRouterAIService` for structured JSON extraction. API keys are stored only in iOS Keychain. Example documentation placeholder: `OPENROUTER_API_KEY_PLACEHOLDER`.
 - **Search** — local search across everything, with natural-ish queries and matched context: *"who likes F1?"*, *"who did I talk to about internships?"*, *"birthdays in November"*.
-- **Upcoming** — merged 60-day feed of birthdays, dates, reminders, and (optional, read-only) Calendar events that mention known people — swipe to track one as a planned hangout.
+- **Upcoming** — merged 60-day feed of birthdays, dates, reminders, and (optional, read-only) Google Calendar events that mention known people — swipe to track one as a planned hangout.
 - **Contacts** — optional one-at-a-time import via the system picker. No mass import.
+- **Nearby** — optional, on-demand: resolves your current city on-device (CoreLocation + reverse geocoding) and shows a dashboard card of saved people whose `location` field matches. One-shot lookup, no background tracking, nothing stored or transmitted; toggle it on in Settings → Integrations.
+- **Google Calendar** — read-only, bring-your-own OAuth client (same spirit as the OpenRouter AI key): create a free "iOS" OAuth Client ID in Google Cloud Console with the Calendar API enabled, paste it in Settings, and sign in via the standard PKCE flow (no client secret needed, no backend). Only a refresh token is stored, in iOS Keychain; events are fetched on demand and never saved to disk.
 - **Notifications** — local-only: birthdays at 9 AM, reminders on their due date.
 - **Backup** — JSON export via the share sheet; import asks before merging by name and skips duplicate interactions.
 - **Demo data** — available only in SwiftUI previews or the debug-only **Load Demo Data** action in Settings.
-- **Privacy** — local-first by default. Contacts import is selected-contact only, Calendar access is optional, and voice notes stay local unless explicitly analyzed with the selected LLM provider.
+- **Privacy** — local-first by default. Contacts import is selected-contact only, Google Calendar and location are opt-in, and voice notes stay local unless explicitly analyzed with the selected LLM provider.
 
 ## Layout
 
@@ -36,7 +45,7 @@ SocialClimber/
   Models/        SwiftData models (Person, Interaction, GiftIdea, Reminder,
                  ImportantDate, VoiceNote, ConversationSummary)
   Services/      RelationshipHealth, AIService (+Mock/OpenRouter),
-                 ExtractionApplier, Notification/Calendar/Contacts services,
+                 ExtractionApplier, Notification/Calendar/Contacts/Location services,
                  ExportImport, Search, SeedData, PreviewData
   ViewModels/    VoiceCaptureViewModel
   Views/         One folder per screen + reusable Components

@@ -1,5 +1,18 @@
 import SwiftUI
 import SwiftData
+import PhotosUI
+import UIKit
+
+/// How an interaction's content is getting into the app. Plain manual entry,
+/// or an imported social-media message — pasted or scanned from a screenshot.
+/// Import is a mode of logging an interaction, not a separate feature: it
+/// shares the same person picker, sentiment, follow-up, and save path.
+enum InteractionSource: String, CaseIterable, Identifiable {
+    case manual = "Manual"
+    case paste = "Paste Text"
+    case screenshot = "Screenshot"
+    var id: String { rawValue }
+}
 
 struct AddInteractionView: View {
     @Environment(\.modelContext) private var context
@@ -7,20 +20,47 @@ struct AddInteractionView: View {
 
     var preselected: [Person] = []
 
+    @State private var source: InteractionSource
     @State private var selectedPeople: [Person] = []
     @State private var type: InteractionType = .inPerson
     @State private var date = Date.now
     @State private var location = ""
     @State private var note = ""
+    @State private var messageSummary = ""
+    @State private var nextMove = ""
     @State private var topics: [String] = []
-    @State private var quality = 3
+    @State private var sentiment: Sentiment = .neutral
     @State private var followUpNeeded = false
+    @State private var followUpDate = Calendar.current.date(byAdding: .day, value: 3, to: .now) ?? .now
     @State private var analyzeWithAI = true
     @State private var isSaving = false
     @State private var showPeoplePicker = false
     @State private var message: String?
 
+    // Import-mode state.
+    @State private var rawText = ""
+    @State private var parsed: ParsedMessage?
+    @State private var platform: MessagePlatform = .instagram
+    @State private var photoItem: PhotosPickerItem?
+    @State private var isScanning = false
+    @State private var newContactName = ""
+
     @Query(sort: \Person.name) private var allPeople: [Person]
+
+    init(preselected: [Person] = [], initialSource: InteractionSource = .manual) {
+        self.preselected = preselected
+        _source = State(initialValue: initialSource)
+    }
+
+    private var isImportMode: Bool { source != .manual }
+
+    private var canSave: Bool {
+        guard !selectedPeople.isEmpty else { return false }
+        guard isImportMode else { return true }
+        let noContent = messageSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return !noContent
+    }
 
     var body: some View {
         NavigationStack {
@@ -36,52 +76,67 @@ struct AddInteractionView: View {
                         .padding(.vertical, 3)
                 )
 
-                Section("Who") {
-                    if selectedPeople.isEmpty {
-                        Button { showPeoplePicker = true } label: {
-                            Label("Choose people", systemImage: "person.2.badge.plus")
-                        }
-                    } else {
-                        ForEach(selectedPeople) { person in
-                            HStack {
-                                PersonAvatarView(person: person, size: 30)
-                                Text(person.displayName)
-                                Spacer()
-                            }
-                        }
-                        .onDelete { selectedPeople.remove(atOffsets: $0) }
-                        Button { showPeoplePicker = true } label: {
-                            Label("Add / remove people", systemImage: "person.2.badge.plus")
-                        }
-                    }
-                }
+                sourceSection
+
+                whoSection
+
+                if isImportMode { platformSection }
 
                 Section("What") {
-                    Picker("Type", selection: $type) {
-                        ForEach(InteractionType.allCases.filter { $0 != .voiceNote }) { t in
-                            Label(t.label, systemImage: t.icon).tag(t)
+                    if !isImportMode {
+                        Picker("Type", selection: $type) {
+                            ForEach(InteractionType.loggable) { t in
+                                Label(t.label, systemImage: t.icon).tag(t)
+                            }
                         }
                     }
-                    DatePicker("When", selection: $date, displayedComponents: [.date, .hourAndMinute])
+                    DatePicker(isImportMode ? "Message date" : "When", selection: $date, displayedComponents: [.date, .hourAndMinute])
+                    if isImportMode, let detected = parsed?.detectedDate {
+                        Button {
+                            date = detected
+                        } label: {
+                            Label("Use detected date (\(detected.formatted(date: .abbreviated, time: .shortened)))", systemImage: "clock.arrow.circlepath")
+                        }
+                    }
                     TextField("Location", text: $location)
                         .submitLabel(.done)
                 }
 
-                Section("Notes") {
-                    TextField("What happened? What did you talk about?", text: $note, axis: .vertical)
-                        .lineLimit(4...10)
+                Section(isImportMode ? "Summary" : "Notes") {
+                    TextField(isImportMode ? "Notes (optional)" : "What happened? What did you talk about?", text: $note, axis: .vertical)
+                        .lineLimit(isImportMode ? 1...4 : 4...10)
+                    TextField(isImportMode ? "Editable summary" : "Message summary (optional)", text: $messageSummary, axis: .vertical)
+                        .lineLimit(isImportMode ? 2...6 : 1...4)
+                    if let speakers = parsed?.speakers, !speakers.isEmpty {
+                        Text("Detected: \(speakers.joined(separator: ", "))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     TagListEditor(label: "topic", items: $topics)
                 }
 
                 Section {
-                    DotRatingPicker(label: "Quality", value: $quality, color: .yellow)
-                    Toggle("Needs follow-up", isOn: $followUpNeeded)
-                    Toggle(isOn: $analyzeWithAI) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Analyze note")
-                            Text("Extract interests, gifts, dates & follow-ups")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                    SentimentPicker(sentiment: $sentiment)
+                }
+
+                Section("Follow-up") {
+                    Toggle("Needs follow-up", isOn: $followUpNeeded.animation(.snappy))
+                    if followUpNeeded {
+                        DatePicker("Follow up by", selection: $followUpDate, displayedComponents: .date)
+                        TextField("Next move (e.g. send resume, grab coffee)", text: $nextMove, axis: .vertical)
+                            .lineLimit(1...3)
+                    }
+                }
+
+                if !isImportMode {
+                    Section {
+                        Toggle(isOn: $analyzeWithAI) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Analyze note")
+                                Text("Extract interests, gifts, dates & follow-ups")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
@@ -101,7 +156,7 @@ struct AddInteractionView: View {
                         ProgressView()
                     } else {
                         Button("Save") { Task { await save() } }
-                            .disabled(selectedPeople.isEmpty)
+                            .disabled(!canSave)
                     }
                 }
             }
@@ -125,11 +180,165 @@ struct AddInteractionView: View {
             .onAppear {
                 if selectedPeople.isEmpty { selectedPeople = preselected }
             }
+            .onChange(of: photoItem) { _, item in
+                if let item { Task { await scan(item) } }
+            }
+            .keyboardDoneButton()
         }
     }
 
+    // MARK: Sections
+
+    private var sourceSection: some View {
+        Section {
+            Picker("Source", selection: $source) {
+                ForEach(InteractionSource.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+
+            switch source {
+            case .manual:
+                EmptyView()
+            case .paste:
+                TextField("Paste the copied chat or message here…", text: $rawText, axis: .vertical)
+                    .lineLimit(5...14)
+                Button {
+                    parse()
+                } label: {
+                    Label("Detect summary", systemImage: "wand.and.stars")
+                }
+                .disabled(rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            case .screenshot:
+                PhotosPicker(selection: $photoItem, matching: .images) {
+                    Label(rawText.isEmpty ? "Choose a screenshot" : "Choose a different screenshot",
+                          systemImage: "photo.on.rectangle.angled")
+                }
+                if isScanning {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                        Text("Scanning on-device…").foregroundStyle(.secondary)
+                    }
+                }
+                if !rawText.isEmpty {
+                    Text("Extracted text (edit if needed):")
+                        .font(.caption).foregroundStyle(.secondary)
+                    TextField("Extracted text", text: $rawText, axis: .vertical)
+                        .lineLimit(4...14)
+                }
+            }
+        } header: {
+            Text("Source")
+        } footer: {
+            if isImportMode {
+                Text("Everything stays on your device. Screenshots are read with Apple's on-device text recognition and never uploaded.")
+            }
+        }
+    }
+
+    private var whoSection: some View {
+        Section("Who") {
+            if selectedPeople.isEmpty {
+                Button { showPeoplePicker = true } label: {
+                    Label("Choose people", systemImage: "person.2.badge.plus")
+                }
+            } else {
+                ForEach(selectedPeople) { person in
+                    HStack {
+                        PersonAvatarView(person: person, size: 30)
+                        Text(person.displayName)
+                        Spacer()
+                    }
+                }
+                .onDelete { selectedPeople.remove(atOffsets: $0) }
+                Button { showPeoplePicker = true } label: {
+                    Label("Add / remove people", systemImage: "person.2.badge.plus")
+                }
+            }
+            if isImportMode {
+                HStack {
+                    TextField(newContactPrompt, text: $newContactName)
+                    Button("Create") { createContact() }
+                        .disabled(newContactName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
+    }
+
+    private var platformSection: some View {
+        Section("Platform") {
+            Picker("Platform", selection: $platform) {
+                ForEach(MessagePlatform.allCases) { Label($0.label, systemImage: $0.icon).tag($0) }
+            }
+        }
+    }
+
+    private var newContactPrompt: String {
+        if let name = parsed?.speakers.first, !name.isEmpty {
+            return "New contact (e.g. \(name))"
+        }
+        return "Create a new contact"
+    }
+
+    private var quality: Int { sentiment.quality }
+
+    // MARK: Import helpers
+
+    private func parse() {
+        let result = MessageImportParser.parse(rawText)
+        parsed = result
+        if messageSummary.isEmpty { messageSummary = result.summary }
+        if let detected = result.detectedDate { date = detected }
+        if newContactName.isEmpty, let speaker = result.speakers.first,
+           !allPeople.contains(where: { $0.name.localizedCaseInsensitiveContains(speaker) }) {
+            newContactName = speaker
+        }
+        Haptics.success()
+    }
+
+    private func scan(_ item: PhotosPickerItem) async {
+        isScanning = true
+        message = nil
+        defer { isScanning = false }
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self),
+                  let image = UIImage(data: data) else {
+                message = OCRError.noImage.errorDescription
+                return
+            }
+            let text = try await OCRService.recognizeText(in: image)
+            rawText = text
+            parse()
+        } catch let error as OCRError {
+            message = error.errorDescription
+        } catch {
+            message = error.localizedDescription
+        }
+    }
+
+    private func createContact() {
+        let name = newContactName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        let person = Person(name: name, category: .acquaintance, closeness: 2, priority: 2)
+        context.insert(person)
+        selectedPeople.append(person)
+        newContactName = ""
+        Haptics.success()
+    }
+
+    // MARK: Save
+
     private func save() async {
         isSaving = true
+
+        if isImportMode {
+            if parsed == nil { parse() }
+            saveImportedInteraction()
+            isSaving = false
+            Haptics.success()
+            dismiss()
+            return
+        }
+
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if analyzeWithAI, !trimmedNote.isEmpty {
@@ -149,13 +358,23 @@ struct AddInteractionView: View {
                 )
                 interaction?.location = location
                 interaction?.quality = quality
-                if followUpNeeded { interaction?.followUpNeeded = true }
+                interaction?.messageSummary = messageSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+                interaction?.nextMove = nextMove.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Keep any follow-up the analysis inferred; add the user's if set.
+                if followUpNeeded {
+                    interaction?.followUpNeeded = true
+                    interaction?.followUpDate = followUpDate
+                }
                 var mergedTopics = interaction?.topics ?? []
                 for topic in topics where !mergedTopics.contains(topic) { mergedTopics.append(topic) }
                 interaction?.topics = mergedTopics
+                // Only schedule an extra reminder for the user's explicit toggle;
+                // the analysis already created reminders for anything it found.
+                if followUpNeeded, let interaction {
+                    InteractionSaver.scheduleFollowUpIfNeeded(for: interaction, people: selectedPeople, context: context)
+                }
             } catch {
                 savePlainInteraction(note: trimmedNote)
-                saveFollowUpReminderIfNeeded()
                 message = error.localizedDescription
                 isSaving = false
                 return
@@ -164,31 +383,45 @@ struct AddInteractionView: View {
             savePlainInteraction(note: trimmedNote)
         }
 
-        saveFollowUpReminderIfNeeded()
-
         isSaving = false
+        Haptics.success()
         dismiss()
     }
 
     private func savePlainInteraction(note: String) {
-        let interaction = Interaction(type: type, date: date, location: location, note: note, topics: topics, quality: quality, followUpNeeded: followUpNeeded)
-        interaction.people = selectedPeople
-        context.insert(interaction)
-        for person in selectedPeople {
-            person.markContacted(type: type, date: date)
-        }
+        let interaction = Interaction(
+            type: type,
+            date: date,
+            location: location,
+            note: note,
+            topics: topics,
+            quality: quality,
+            followUpNeeded: followUpNeeded,
+            followUpDate: followUpNeeded ? followUpDate : nil,
+            nextMove: nextMove.trimmingCharacters(in: .whitespacesAndNewlines),
+            messageSummary: messageSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        InteractionSaver.finalize(interaction, people: selectedPeople, context: context)
     }
 
-    private func saveFollowUpReminderIfNeeded() {
-        guard followUpNeeded, let first = selectedPeople.first else { return }
-            let reminder = Reminder(
-                title: "Follow up with \(selectedPeople.map(\.firstName).joined(separator: " & "))",
-                dueDate: Calendar.current.date(byAdding: .day, value: 3, to: .now) ?? .now,
-                type: .followUp,
-                person: first
-            )
-            context.insert(reminder)
-            NotificationService.shared.schedule(reminder: reminder)
+    private func saveImportedInteraction() {
+        let finalSummary = messageSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+        let interaction = Interaction(
+            type: .socialMedia,
+            date: date,
+            location: location,
+            note: note.trimmingCharacters(in: .whitespacesAndNewlines),
+            topics: topics,
+            quality: quality,
+            followUpNeeded: followUpNeeded,
+            followUpDate: followUpNeeded ? followUpDate : nil,
+            nextMove: nextMove.trimmingCharacters(in: .whitespacesAndNewlines),
+            messageSummary: finalSummary.isEmpty ? (parsed?.summary ?? "") : finalSummary
+        )
+        interaction.isImported = true
+        interaction.platform = platform
+        interaction.rawImportText = rawText
+        InteractionSaver.finalize(interaction, people: selectedPeople, context: context)
     }
 }
 

@@ -4,6 +4,7 @@ import Security
 enum KeychainService {
     private static let service = "com.jerryhuang.SocialClimber"
     private static let openRouterAccount = "openrouter-api-key"
+    private static let googleRefreshTokenAccount = "google-calendar-refresh-token"
 
     static func openRouterAPIKey() throws -> String {
         guard let key = try read(account: openRouterAccount), !key.isEmpty else {
@@ -22,6 +23,23 @@ enum KeychainService {
             try delete(account: openRouterAccount)
         } else {
             try save(trimmed, account: openRouterAccount)
+        }
+    }
+
+    static func googleRefreshToken() throws -> String? {
+        try read(account: googleRefreshTokenAccount)
+    }
+
+    static func hasGoogleRefreshToken() -> Bool {
+        (try? googleRefreshToken())?.isEmpty == false
+    }
+
+    static func saveGoogleRefreshToken(_ token: String) throws {
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            try delete(account: googleRefreshTokenAccount)
+        } else {
+            try save(trimmed, account: googleRefreshTokenAccount)
         }
     }
 

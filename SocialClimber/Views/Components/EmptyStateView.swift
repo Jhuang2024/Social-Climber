@@ -13,9 +13,9 @@ struct EmptyStateView: View {
                 .padding(.bottom, 2)
             Image(systemName: icon)
                 .font(.system(size: 34, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(SCTheme.accent)
                 .frame(width: 64, height: 64)
-                .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .background(SCTheme.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .padding(.bottom, 4)
             Text(title)
                 .font(.title3.weight(.semibold))
@@ -26,10 +26,14 @@ struct EmptyStateView: View {
             if let actionTitle, let action {
                 Button(action: action) {
                     Label(actionTitle, systemImage: "plus")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(SCTheme.accent, in: Capsule())
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                    .padding(.top, 8)
+                .buttonStyle(.pressable)
+                .padding(.top, 8)
             }
         }
         .padding(28)

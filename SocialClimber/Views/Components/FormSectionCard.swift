@@ -20,7 +20,7 @@ struct FormSectionCard<Content: View>: View {
                         .font(.caption.weight(.bold))
                         .foregroundStyle(.white)
                         .frame(width: 24, height: 24)
-                        .background(Color.accentColor.gradient, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        .background(SCTheme.accent.gradient, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 }
                 Text(title)
                     .font(.footnote.weight(.bold))

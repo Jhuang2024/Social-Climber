@@ -8,6 +8,7 @@ struct PersonProfileView: View {
 
     @State private var showEdit = false
     @State private var showAddInteraction = false
+    @State private var showImport = false
     @State private var showAddGift = false
     @State private var showAddReminder = false
     @State private var showAddDate = false
@@ -76,6 +77,7 @@ struct PersonProfileView: View {
                 giftsCard
                 datesCard
                 remindersCard
+                if !linkedEvents.isEmpty { eventsCard }
                 timelineCard
             }
             .padding(.horizontal)
@@ -89,6 +91,7 @@ struct PersonProfileView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button { showEdit = true } label: { Label("Edit", systemImage: "pencil") }
+                    Button { showImport = true } label: { Label("Import message", systemImage: "square.and.arrow.down") }
                     Button {
                         person.isArchived.toggle()
                     } label: {
@@ -104,11 +107,13 @@ struct PersonProfileView: View {
         }
         .sheet(isPresented: $showEdit) { PersonEditView(person: person) }
         .sheet(isPresented: $showAddInteraction) { AddInteractionView(preselected: [person]) }
+        .sheet(isPresented: $showImport) { AddInteractionView(preselected: [person], initialSource: .paste) }
         .sheet(isPresented: $showAddGift) { GiftIdeaEditSheet(person: person) }
         .sheet(isPresented: $showAddReminder) { ReminderEditSheet(person: person) }
         .sheet(isPresented: $showAddDate) { ImportantDateEditSheet(person: person) }
         .confirmationDialog("Delete \(person.displayName)? This removes all their data.", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
+                Haptics.warning()
                 context.delete(person)
                 dismiss()
             }
@@ -165,40 +170,77 @@ struct PersonProfileView: View {
 
     private var statsRow: some View {
         HStack(spacing: 10) {
-            StatTile(title: "Closeness", value: dots(person.closeness))
-            StatTile(title: "Priority", value: dots(person.priority))
+            DotStatTile(title: "Closeness", value: person.closeness)
+            DotStatTile(title: "Priority", value: person.priority)
             StatTile(title: "Last Contact", value: person.lastContactedAt?.relativeLabel ?? "Never")
             StatTile(title: "Last Met", value: person.lastMetAt?.relativeLabel ?? "Never")
         }
     }
 
-    private func dots(_ n: Int) -> String {
-        String(repeating: "●", count: n) + String(repeating: "○", count: 5 - n)
-    }
-
     private var actionsRow: some View {
-        HStack(spacing: 10) {
+        VStack(spacing: 10) {
             Button {
                 showAddInteraction = true
             } label: {
                 Label("Log Interaction", systemImage: "plus.bubble")
-                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .buttonStyle(.primaryCTA)
 
-            Button {
-                person.markContacted(type: .message, date: .now)
-            } label: {
-                Label("Contacted", systemImage: "checkmark")
-                    .frame(maxWidth: .infinity)
+            HStack(spacing: 10) {
+                Button {
+                    showImport = true
+                } label: {
+                    Label("Import", systemImage: "square.and.arrow.down")
+                }
+                .buttonStyle(.secondaryCTA)
+
+                Button {
+                    person.markContacted(type: .message, date: .now)
+                    Haptics.success()
+                } label: {
+                    Label("Contacted", systemImage: "checkmark")
+                }
+                .buttonStyle(.secondaryCTA(.green))
+                .sensoryFeedback(.success, trigger: person.lastContactedAt)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.large)
         }
     }
 
     // MARK: Cards
+
+    private var strategyCard: some View {
+        FormSectionCard("Strategy", icon: "wand.and.stars") {
+            ForEach(suggestions.prefix(4)) { suggestion in
+                SuggestionRow(suggestion: suggestion, linksToPerson: false)
+            }
+        }
+    }
+
+    private var eventsCard: some View {
+        FormSectionCard("Events", icon: "party.popper") {
+            ForEach(linkedEvents.prefix(6), id: \.persistentModelID) { event in
+                NavigationLink {
+                    EventDetailView(event: event)
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(event.name.isEmpty ? "Untitled event" : event.name)
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(.primary)
+                            Text(event.date.formatted(.dateTime.month(.abbreviated).day().year()))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(event.isUpcoming ? "Upcoming" : "Past")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(event.isUpcoming ? SCTheme.accent : .secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
 
     private var beforeMeetingBrief: some View {
         FormSectionCard("Before Meeting Brief", icon: "person.text.rectangle") {
@@ -403,6 +445,27 @@ private struct StatTile: View {
                 .font(.caption.weight(.bold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(SCTheme.cardBackground, in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.05))
+        }
+    }
+}
+
+private struct DotStatTile: View {
+    let title: String
+    let value: Int
+
+    var body: some View {
+        VStack(spacing: 6) {
+            DotsRow(value: value, color: SCTheme.accent, size: 6)
             Text(title)
                 .font(.caption2)
                 .foregroundStyle(.secondary)

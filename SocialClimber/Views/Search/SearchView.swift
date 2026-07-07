@@ -38,10 +38,12 @@ struct SearchView: View {
                 .padding(.horizontal)
                 .padding(.top, 6)
                 .padding(.bottom, 28)
+                .animation(.snappy(duration: 0.22), value: query)
             }
             .socialClimberPageBackground()
             .scrollDismissesKeyboard(.immediately)
             .navigationTitle("Search")
+            .keyboardDoneButton()
         }
     }
 
@@ -71,7 +73,7 @@ struct SearchView: View {
                 } label: {
                     HStack {
                         Image(systemName: "sparkle.magnifyingglass")
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(SCTheme.accent)
                         Text(suggestion)
                             .foregroundStyle(.primary)
                         Spacer()
@@ -79,7 +81,7 @@ struct SearchView: View {
                     .padding(12)
                     .background(SCTheme.cardBackground, in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
             }
         }
         .padding(.top, 8)

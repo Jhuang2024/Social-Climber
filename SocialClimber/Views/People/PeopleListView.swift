@@ -84,6 +84,7 @@ struct PeopleListView: View {
                         .scrollContentBackground(.hidden)
                         .scrollDismissesKeyboard(.immediately)
                         .searchable(text: $searchText, prompt: "Name, relationship, tag…")
+                        .animation(.snappy(duration: 0.25), value: filtered.map(\.persistentModelID))
                         .overlay {
                             if filtered.isEmpty {
                                 EmptyStateView(icon: "magnifyingglass", title: "No matches", message: "Try a different search or clear the current filter.")
@@ -92,7 +93,7 @@ struct PeopleListView: View {
                         }
                     }
                 }
-                .safeAreaPadding(.bottom, 86)
+                .safeAreaPadding(.bottom, 128)
 
                 voiceNoteBar
             }
@@ -112,41 +113,40 @@ struct PeopleListView: View {
     }
 
     private var voiceNoteBar: some View {
-        VStack(spacing: 0) {
-            Divider()
-            Button {
-                showVoiceCapture = true
-            } label: {
-                HStack(spacing: 12) {
+        Button {
+            showVoiceCapture = true
+        } label: {
+            HStack(spacing: 16) {
+                ZStack {
+                    Circle()
+                        .fill(.white.opacity(0.22))
+                        .frame(width: 58, height: 58)
                     Image(systemName: "mic.fill")
-                        .font(.headline)
+                        .font(.system(size: 26, weight: .semibold))
                         .foregroundStyle(.white)
-                        .frame(width: 42, height: 42)
-                        .background(Color.accentColor.gradient, in: Circle())
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Record a conversation")
-                            .font(.headline)
-                            .foregroundStyle(.primary)
-                        Text("Capture a live conversation, reminder, or follow-up")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.up")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.tertiary)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .contentShape(Rectangle())
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Record a conversation")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(.white)
+                    Text("Capture a live conversation, reminder, or follow-up")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.85))
+                        .lineLimit(2)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.headline)
+                    .foregroundStyle(.white.opacity(0.75))
             }
-            .buttonStyle(.plain)
-            .background(.regularMaterial)
-            .overlay(alignment: .top) {
-                LinearGradient(colors: [.clear, Color.black.opacity(0.04)], startPoint: .top, endPoint: .bottom)
-                    .frame(height: 1)
-            }
+            .padding(18)
+            .frame(maxWidth: .infinity)
+            .background(SCTheme.accent.gradient, in: RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous))
+            .cardShadow()
         }
+        .buttonStyle(.pressable)
+        .padding(.horizontal)
+        .padding(.bottom, 10)
     }
 
     private var filterMenu: some View {
@@ -180,6 +180,9 @@ struct PeopleListView: View {
         } label: {
             Image(systemName: (filterCategory != nil || filterStatus != nil) ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
         }
+        .sensoryFeedback(.selection, trigger: filterCategory)
+        .sensoryFeedback(.selection, trigger: filterStatus)
+        .sensoryFeedback(.selection, trigger: sortOption)
     }
 }
 

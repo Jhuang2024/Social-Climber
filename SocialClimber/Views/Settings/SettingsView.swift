@@ -8,7 +8,8 @@ struct SettingsView: View {
     @Query private var reminders: [Reminder]
 
     @AppStorage("notificationsEnabled") private var notificationsEnabled = false
-    @AppStorage("calendarEnabled") private var calendarEnabled = false
+    @AppStorage("locationEnabled") private var locationEnabled = false
+    @AppStorage("googleClientID") private var googleClientID = "201027748898-lerfifmsfgdu2uubgph606p2rsa6ic7j.apps.googleusercontent.com"
     @AppStorage("aiProvider") private var aiProvider = AIProvider.mock.rawValue
     @AppStorage("openRouterModelID") private var openRouterModelID = OpenRouterDefaults.modelID
     @AppStorage("defaultCadenceClose") private var cadenceClose = 7
@@ -24,7 +25,10 @@ struct SettingsView: View {
     @State private var pendingImportName = ""
     @State private var openRouterAPIKey = ""
     @State private var hasOpenRouterAPIKey = false
+    @State private var isConnectingGoogleCalendar = false
     @State private var message: String?
+
+    private var googleCalendar: GoogleCalendarService { GoogleCalendarService.shared }
 
     var body: some View {
         NavigationStack {
@@ -80,23 +84,55 @@ struct SettingsView: View {
                 }
 
                 Section("Integrations") {
-                    Toggle("Calendar (read-only)", isOn: $calendarEnabled)
-                        .onChange(of: calendarEnabled) {
-                            if calendarEnabled {
-                                Task {
-                                    if await !CalendarService.shared.requestAccess() {
-                                        calendarEnabled = false
-                                        message = "Calendar access was denied."
-                                    }
-                                }
-                            }
-                        }
                     Button {
                         showContactPicker = true
                     } label: {
                         Label("Import a contact…", systemImage: "person.crop.circle.badge.plus")
                     }
                     Text("Contacts are imported one at a time, only when you pick them. No mass import, ever.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle("Location (\"Who's nearby\")", isOn: $locationEnabled)
+                        .onChange(of: locationEnabled) {
+                            if locationEnabled {
+                                Task {
+                                    if await !LocationService.shared.requestAccess() {
+                                        locationEnabled = false
+                                        message = "Location access was denied."
+                                    }
+                                }
+                            }
+                        }
+                    Text("Looks up your current city on-device to show people whose saved location matches. Never tracked in the background, never stored, never sent anywhere.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Google Calendar") {
+                    LabeledContent("Status", value: googleCalendar.isConnected ? "Connected" : "Not connected")
+                    if !googleCalendar.isConnected {
+                        TextField("OAuth Client ID (Google Cloud Console)", text: $googleClientID)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        Button {
+                            connectGoogleCalendar()
+                        } label: {
+                            if isConnectingGoogleCalendar {
+                                ProgressView()
+                            } else {
+                                Label("Connect Google Calendar", systemImage: "calendar.badge.plus")
+                            }
+                        }
+                        .disabled(googleClientID.trimmingCharacters(in: .whitespaces).isEmpty || isConnectingGoogleCalendar)
+                    } else {
+                        Button(role: .destructive) {
+                            googleCalendar.disconnect()
+                            message = "Disconnected from Google Calendar."
+                        } label: {
+                            Label("Disconnect Google Calendar", systemImage: "calendar.badge.minus")
+                        }
+                    }
+                    Text("Read-only. Create a free \"iOS\" OAuth Client ID in Google Cloud Console (enable the Google Calendar API, set the bundle ID to match this app's) and paste it above — no client secret needed. Only a refresh token is stored, in the iOS Keychain; events are fetched on demand and never saved.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -204,6 +240,7 @@ struct SettingsView: View {
             }
             .confirmationDialog("Delete all data?", isPresented: $confirmClear, titleVisibility: .visible) {
                 Button("Delete Everything", role: .destructive) {
+                    Haptics.warning()
                     SeedData.clearAll(context: context)
                     message = "All data deleted."
                 }
@@ -229,6 +266,21 @@ struct SettingsView: View {
             .onAppear {
                 refreshOpenRouterKeyStatus()
             }
+            .keyboardDoneButton()
+        }
+    }
+
+    private func connectGoogleCalendar() {
+        isConnectingGoogleCalendar = true
+        Task {
+            do {
+                try await googleCalendar.connect()
+                Haptics.success()
+                message = "Connected to Google Calendar."
+            } catch {
+                message = error.localizedDescription
+            }
+            isConnectingGoogleCalendar = false
         }
     }
 
@@ -248,6 +300,7 @@ struct SettingsView: View {
         guard let pendingImportData else { return }
         do {
             let count = try ExportImportService.importData(pendingImportData, context: context)
+            Haptics.success()
             message = "Import complete. \(count) new people added; existing records were merged by name."
         } catch {
             message = "Import failed: \(error.localizedDescription)"

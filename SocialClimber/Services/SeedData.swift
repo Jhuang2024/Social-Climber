@@ -120,7 +120,19 @@ enum SeedData {
         let i6 = Interaction(type: .inPerson, date: daysAgo(48), location: "Berkeley Ironworks", note: "Climbing session with Jordan and Dev. Jordan finally sent his V5 project. Talked about vinyl and coffee gear.", topics: ["Sports"], quality: 4)
         i6.people = [jordan, dev]
 
-        [i1, i2, i3, i4, i5, i6].forEach { context.insert($0) }
+        // An imported social-media message.
+        let i7 = Interaction(type: .socialMedia, date: daysAgo(4), note: "Maya: omg the internship posting just went up!! are you applying?\nyeah I think so, wanna swap resumes this weekend?", quality: 4, followUpNeeded: true, nextMove: "Swap resumes with Maya this weekend", messageSummary: "Maya flagged the internship posting is live and offered to swap resumes this weekend.")
+        i7.people = [maya]
+        i7.isImported = true
+        i7.platform = .instagram
+        i7.rawImportText = "Maya\n2:14 PM\nomg the internship posting just went up!! are you applying?\nyeah I think so, wanna swap resumes this weekend?\nDelivered"
+
+        [i1, i2, i3, i4, i5, i6, i7].forEach { context.insert($0) }
+
+        // Events
+        let dinner = Event(name: "Apartment dinner party", date: daysAgo(3), location: "Our place", purpose: "Catch up before finals season", notes: "Dev cooked. Good chance to reconnect with the whole crew.", attendees: [dev, alex, maya])
+        let conf = Event(name: "Bay Area CS mixer", date: daysAhead(10), location: "SF, Salesforce Tower", purpose: "Networking — reconnect with Priya", notes: "Bring a few resume copies.", attendees: [priya, sarah])
+        [dinner, conf].forEach { context.insert($0) }
 
         // Gift ideas
         context.insert(GiftIdea(title: "Lando Norris cap", person: alex, notes: "Mentioned at ramen — check the official F1 store", priceRange: "$30–45", occasion: "Birthday (Mar 22)", status: .idea))
@@ -150,6 +162,7 @@ enum SeedData {
         try? context.delete(model: GiftIdea.self)
         try? context.delete(model: Reminder.self)
         try? context.delete(model: ImportantDate.self)
+        try? context.delete(model: Event.self)
         try? context.delete(model: Person.self)
         try? context.save()
         NotificationService.shared.cancelAll()

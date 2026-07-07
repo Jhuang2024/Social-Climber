@@ -13,17 +13,25 @@ struct VoiceCaptureView: View {
 
     @Query(sort: \Person.name) private var allPeople: [Person]
 
+    private var isAnalyzeDisabled: Bool {
+        selectedPeople.isEmpty
+            || model.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || model.isAnalyzing || model.isRecording
+    }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 16) {
                 VStack(spacing: 4) {
                     Text("Capture the conversation as it happens.")
                         .font(.headline)
-                    Text("Record it live, or type notes, then review what gets added.")
+                    Text("Choose who you were talking to, then record or type notes.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
                 .multilineTextAlignment(.center)
+
+                peopleSection
 
                 recordButton
 
@@ -57,8 +65,6 @@ struct VoiceCaptureView: View {
                         }
                 }
 
-                peopleSection
-
                 if let error = model.errorMessage {
                     Text(error)
                         .font(.caption)
@@ -71,21 +77,28 @@ struct VoiceCaptureView: View {
                 Button {
                     Task {
                         await model.analyze(knownPeople: allPeople.map(\.name))
-                        autoSelectMentionedPeople()
                         if model.extraction != nil { showReview = true }
                     }
                 } label: {
-                    if model.isAnalyzing {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                    } else {
-                        Label("Analyze & Review", systemImage: "sparkles")
-                            .frame(maxWidth: .infinity)
+                    Group {
+                        if model.isAnalyzing {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Label("Analyze & Review", systemImage: "sparkles")
+                                .foregroundStyle(.white)
+                        }
                     }
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(
+                        SCTheme.accent.opacity(isAnalyzeDisabled ? 0.4 : 1),
+                        in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous)
+                    )
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .disabled(model.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isAnalyzing || model.isRecording)
+                .buttonStyle(.pressable)
+                .disabled(isAnalyzeDisabled)
             }
             .padding()
             .background(SCTheme.pageBackground)
@@ -103,7 +116,7 @@ struct VoiceCaptureView: View {
             .sheet(isPresented: $showPeoplePicker) {
                 NavigationStack {
                     PersonMultiPicker(selected: $selectedPeople)
-                        .navigationTitle("Who is this about?")
+                        .navigationTitle("Who were you talking to?")
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
                             ToolbarItem(placement: .confirmationAction) {
@@ -134,33 +147,51 @@ struct VoiceCaptureView: View {
             } label: {
                 ZStack {
                     Circle()
-                        .fill(model.isRecording ? Color.red : Color.accentColor)
+                        .stroke(Color.red.opacity(model.isRecording ? 0.35 : 0), lineWidth: 3)
                         .frame(width: 88, height: 88)
-                        .shadow(color: (model.isRecording ? Color.red : Color.accentColor).opacity(0.35), radius: 12, y: 4)
+                        .scaleEffect(model.isRecording ? 1.35 : 1)
+                        .opacity(model.isRecording ? 0 : 1)
+                        .animation(model.isRecording ? .easeOut(duration: 1.1).repeatForever(autoreverses: false) : .default, value: model.isRecording)
+                    Circle()
+                        .fill(model.isRecording ? Color.red : SCTheme.accent)
+                        .frame(width: 88, height: 88)
+                        .shadow(color: (model.isRecording ? Color.red : SCTheme.accent).opacity(0.35), radius: 12, y: 4)
                     Image(systemName: model.isRecording ? "stop.fill" : "mic.fill")
                         .font(.system(size: 32))
                         .foregroundStyle(.white)
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
+            .sensoryFeedback(.start, trigger: model.isRecording) { _, isRecording in isRecording }
+            .sensoryFeedback(.stop, trigger: model.isRecording) { _, isRecording in !isRecording }
             Text(model.isRecording ? "Recording live… tap to stop" : "Tap to record the conversation live")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+                .contentTransition(.opacity)
+                .animation(.snappy, value: model.isRecording)
         }
         .padding(.top, 4)
     }
 
     private var peopleSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("ABOUT")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+            HStack(spacing: 4) {
+                Text("WHO WERE YOU TALKING TO?")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text("Required")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.orange.opacity(0.14), in: Capsule())
+            }
             Button {
                 showPeoplePicker = true
             } label: {
                 HStack {
                     if selectedPeople.isEmpty {
-                        Text("Choose people (or let AI detect them)")
+                        Text("Choose the person or people you're talking to")
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(selectedPeople.prefix(5)) { person in
@@ -180,20 +211,10 @@ struct VoiceCaptureView: View {
                 .background(SCTheme.cardBackground, in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.06))
+                        .strokeBorder(selectedPeople.isEmpty ? Color.orange.opacity(0.35) : Color.primary.opacity(0.06))
                 }
             }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private func autoSelectMentionedPeople() {
-        guard let extraction = model.extraction else { return }
-        for name in extraction.peopleMentioned {
-            if let person = allPeople.first(where: { $0.name == name }),
-               !selectedPeople.contains(where: { $0 === person }) {
-                selectedPeople.append(person)
-            }
+            .buttonStyle(.pressable)
         }
     }
 }

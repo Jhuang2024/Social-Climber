@@ -5,7 +5,7 @@ import SwiftData
 struct DotRatingPicker: View {
     let label: String
     @Binding var value: Int
-    var color: Color = .accentColor
+    var color: Color = SCTheme.accent
 
     var body: some View {
         HStack {
@@ -27,6 +27,47 @@ struct DotRatingPicker: View {
                 }
             }
         }
+        .sensoryFeedback(.selection, trigger: value)
+    }
+}
+
+/// Four-level sentiment selector (bad / neutral / good / great) shown as a
+/// row of tappable chips. Backed by the same 1–5 quality scale as before.
+struct SentimentPicker: View {
+    @Binding var sentiment: Sentiment
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("How did it go?")
+                .font(.subheadline)
+            HStack(spacing: 8) {
+                ForEach(Sentiment.allCases) { option in
+                    Button {
+                        withAnimation(.snappy(duration: 0.16)) { sentiment = option }
+                    } label: {
+                        VStack(spacing: 4) {
+                            Text(option.emoji)
+                                .font(.title3)
+                            Text(option.label)
+                                .font(.caption2.weight(.semibold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(
+                            (sentiment == option ? option.color.opacity(0.20) : Color(.tertiarySystemFill)),
+                            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(sentiment == option ? option.color : .clear, lineWidth: 1.5)
+                        }
+                        .foregroundStyle(sentiment == option ? option.color : .secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .sensoryFeedback(.selection, trigger: sentiment)
     }
 }
 
@@ -52,8 +93,8 @@ struct TagListEditor: View {
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
-                        .background(Color.accentColor.opacity(0.12), in: Capsule())
-                        .foregroundStyle(Color.accentColor)
+                        .background(SCTheme.accent.opacity(0.12), in: Capsule())
+                        .foregroundStyle(SCTheme.accent)
                     }
                 }
             }
@@ -106,7 +147,7 @@ struct PersonMultiPicker: View {
                         Spacer()
                         if selected.contains(where: { $0 === person }) {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(Color.accentColor)
+                                .foregroundStyle(SCTheme.accent)
                         }
                     }
                 }
@@ -116,5 +157,6 @@ struct PersonMultiPicker: View {
         }
         .scrollContentBackground(.hidden)
         .background(SCTheme.pageBackground)
+        .sensoryFeedback(.selection, trigger: selected.count)
     }
 }

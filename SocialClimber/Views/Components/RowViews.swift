@@ -48,6 +48,7 @@ struct ReminderRowView: View {
                 .background(reminder.type.color.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .padding(.vertical, 7)
+        .sensoryFeedback(.selection, trigger: reminder.completed)
     }
 }
 
@@ -105,6 +106,7 @@ struct GiftIdeaRowView: View {
             }
         }
         .padding(.vertical, 7)
+        .sensoryFeedback(.selection, trigger: gift.status)
     }
 }
 
@@ -118,9 +120,9 @@ struct TimelineRowView: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: interaction.type.icon)
                 .font(.subheadline)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(SCTheme.accent)
                 .frame(width: 32, height: 32)
-                .background(Color.accentColor.opacity(0.12), in: Circle())
+                .background(SCTheme.accent.opacity(0.12), in: Circle())
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack {

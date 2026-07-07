@@ -32,6 +32,7 @@ struct GiftIdeasView: View {
                 }
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                .sensoryFeedback(.selection, trigger: filter)
             }
 
             if filtered.isEmpty {
@@ -56,6 +57,7 @@ struct GiftIdeasView: View {
             }
         }
         .listStyle(.plain)
+        .animation(.snappy(duration: 0.25), value: filtered.map(\.persistentModelID))
         .socialClimberPageBackground()
         .navigationTitle("Gift Ideas")
         .toolbar {
@@ -75,12 +77,12 @@ struct GiftIdeasView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(
-                    filter == status ? Color.accentColor : SCTheme.cardBackground,
+                    filter == status ? SCTheme.accent : SCTheme.cardBackground,
                     in: Capsule()
                 )
                 .foregroundStyle(filter == status ? .white : .primary)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 }
 
