@@ -75,7 +75,8 @@ enum ExtractionApplier {
             date: date,
             note: sourceText,
             topics: extraction.topics,
-            followUpNeeded: !extraction.reminders.isEmpty
+            followUpNeeded: !extraction.reminders.isEmpty,
+            messageSummary: extraction.summary
         )
         interaction.people = people
         context.insert(interaction)
