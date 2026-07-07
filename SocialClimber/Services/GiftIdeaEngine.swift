@@ -54,11 +54,38 @@ enum GiftIdeaEngine {
         return lines.joined(separator: "\n")
     }
 
-    static func suggestions(for person: Person) async throws -> [GiftSuggestion] {
+    struct Outcome {
+        let suggestions: [GiftSuggestion]
+        /// True when `suggestions` came from the local heuristic fallback
+        /// rather than the configured AI provider.
+        let degraded: Bool
+        /// A clean, user-facing explanation of why it degraded. `nil` when
+        /// the request succeeded normally.
+        let notice: String?
+    }
+
+    /// Tries the configured AI provider first; if it fails for any reason
+    /// (missing/invalid key, rate limit, timeout, network, bad response),
+    /// falls back to the deterministic local suggestions built from the
+    /// person's own logged interests rather than surfacing a raw error —
+    /// same shape as `AIExtractionCoordinator.extract`.
+    static func suggestions(for person: Person) async -> Outcome {
         let existingTitles = person.giftIdeas.map(\.title)
-        return try await AIProvider.current.suggestGiftIdeas(
-            personContext: context(for: person),
-            existingGiftTitles: existingTitles
-        )
+        let personContext = context(for: person)
+        do {
+            let result = try await AIProvider.current.suggestGiftIdeas(
+                personContext: personContext,
+                existingGiftTitles: existingTitles
+            )
+            return Outcome(suggestions: result, degraded: false, notice: nil)
+        } catch {
+            let mapped = AIServiceError.from(error)
+            mapped.logForDeveloper(context: "gift suggestions")
+            let fallback = (try? await MockAIService().suggestGiftIdeas(
+                personContext: personContext,
+                existingGiftTitles: existingTitles
+            )) ?? []
+            return Outcome(suggestions: fallback, degraded: true, notice: mapped.errorDescription)
+        }
     }
 }

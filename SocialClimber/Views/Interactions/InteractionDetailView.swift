@@ -2,10 +2,11 @@ import SwiftUI
 import SwiftData
 
 struct InteractionDetailView: View {
-    let interaction: Interaction
+    @Bindable var interaction: Interaction
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @State private var confirmDelete = false
+    @State private var showEdit = false
 
     var body: some View {
         ScrollView {
@@ -79,14 +80,24 @@ struct InteractionDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button(role: .destructive) { confirmDelete = true } label: {
-                    Image(systemName: "trash")
+                HStack(spacing: 16) {
+                    Button { showEdit = true } label: {
+                        Image(systemName: "pencil")
+                    }
+                    Button(role: .destructive) { confirmDelete = true } label: {
+                        Image(systemName: "trash")
+                    }
                 }
             }
         }
+        .sheet(isPresented: $showEdit) { InteractionEditView(interaction: interaction) }
         .confirmationDialog("Delete this interaction?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
                 Haptics.warning()
+                // Undo this interaction's closeness impact before it's gone,
+                // otherwise the person's score would keep a "ghost" nudge
+                // from an interaction that no longer exists.
+                InteractionSaver.reverseClosenessImpact(of: interaction)
                 context.delete(interaction)
                 dismiss()
             }

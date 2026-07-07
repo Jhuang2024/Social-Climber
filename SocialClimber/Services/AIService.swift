@@ -166,14 +166,21 @@ enum AIProvider: String, CaseIterable, Identifiable {
         }
     }
 
-    static var current: AIService {
+    /// The provider selected in Settings, defaulting to Mock.
+    static var currentCase: AIProvider {
         let raw = UserDefaults.standard.string(forKey: "aiProvider") ?? AIProvider.mock.rawValue
-        return (AIProvider(rawValue: raw) ?? .mock).service
+        return AIProvider(rawValue: raw) ?? .mock
     }
+
+    static var current: AIService { currentCase.service }
 }
 
 enum AIServiceError: LocalizedError {
     case missingOpenRouterAPIKey
+    case invalidAPIKey
+    case rateLimited
+    case timeout
+    case networkFailure
     case invalidResponse
     case emptyResponse
     case requestFailed(status: Int)
@@ -182,6 +189,14 @@ enum AIServiceError: LocalizedError {
         switch self {
         case .missingOpenRouterAPIKey:
             "Add your OpenRouter API key in Settings, or switch AI Provider to Mock."
+        case .invalidAPIKey:
+            "Your OpenRouter API key was rejected. Check it in Settings — showing a local summary instead."
+        case .rateLimited:
+            "OpenRouter is rate-limiting requests right now. Try again in a bit — showing a local summary instead."
+        case .timeout:
+            "The AI request took too long and timed out — showing a local summary instead."
+        case .networkFailure:
+            "Couldn't reach the AI provider. Check your connection — showing a local summary instead."
         case .invalidResponse:
             "The AI provider returned a response Social Climber could not read."
         case .emptyResponse:
@@ -189,6 +204,59 @@ enum AIServiceError: LocalizedError {
         case .requestFailed(let status):
             "OpenRouter request failed (HTTP \(status)). Check your API key and model in Settings."
         }
+    }
+
+    /// Maps a thrown error (ours, a decoding error, or a `URLError`) to a
+    /// clean, user-facing `AIServiceError` — never a raw system error string.
+    static func from(_ error: Error) -> AIServiceError {
+        if let known = error as? AIServiceError { return known }
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .timedOut:
+                return .timeout
+            case .notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed, .internationalRoamingOff, .dataNotAllowed:
+                return .networkFailure
+            default:
+                return .networkFailure
+            }
+        }
+        if error is DecodingError { return .invalidResponse }
+        return .invalidResponse
+    }
+
+    /// Logs a developer-facing diagnostic without ever including the API key
+    /// or request/response bodies (which may contain the user's private notes).
+    func logForDeveloper(context: String) {
+        #if DEBUG
+        print("[AIService] \(context) failed: \(self)")
+        #endif
+    }
+}
+
+/// A dedicated session with tight timeouts so a slow or hanging AI provider
+/// can never leave the UI spinning indefinitely.
+private let aiURLSession: URLSession = {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.timeoutIntervalForRequest = 20
+    configuration.timeoutIntervalForResource = 25
+    return URLSession(configuration: configuration)
+}()
+
+/// Races `operation` against a hard deadline so a hung request can never
+/// block the caller past `seconds`, even if the underlying `URLSession`
+/// timeout somehow doesn't fire (e.g. a stalled DNS resolution).
+func withAITimeout<T: Sendable>(seconds: TimeInterval = 20, _ operation: @escaping @Sendable () async throws -> T) async throws -> T {
+    try await withThrowingTaskGroup(of: T.self) { group in
+        group.addTask { try await operation() }
+        group.addTask {
+            try await Task.sleep(for: .seconds(seconds))
+            throw AIServiceError.timeout
+        }
+        guard let result = try await group.next() else {
+            throw AIServiceError.timeout
+        }
+        group.cancelAll()
+        return result
     }
 }
 
@@ -213,24 +281,65 @@ final class OpenRouterAIService: AIService {
             responseFormat: .init(type: "json_object")
         )
 
+        let content = try await Self.send(requestBody, apiKey: apiKey, endpoint: endpoint, decoder: decoder)
+        return try Self.decodeExtraction(from: content, decoder: decoder)
+    }
+
+    /// Runs one chat completion and returns the raw assistant message text.
+    /// Centralizes the network call, timeout, and error classification so
+    /// every OpenRouter call site (extraction, gift ideas, person summary)
+    /// fails the same clean way instead of leaking raw network errors.
+    private static func send(
+        _ requestBody: OpenRouterRequest,
+        apiKey: String,
+        endpoint: URL,
+        decoder: JSONDecoder
+    ) async throws -> String {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
+        request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.httpBody = try JSONEncoder().encode(requestBody)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            throw AIServiceError.requestFailed(status: (response as? HTTPURLResponse)?.statusCode ?? -1)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await withAITimeout {
+                try await aiURLSession.data(for: request)
+            }
+        } catch {
+            let mapped = AIServiceError.from(error)
+            mapped.logForDeveloper(context: "network request")
+            throw mapped
         }
 
-        let completion = try decoder.decode(OpenRouterResponse.self, from: data)
+        guard let http = response as? HTTPURLResponse else {
+            throw AIServiceError.networkFailure
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            let mapped: AIServiceError
+            switch http.statusCode {
+            case 401, 403: mapped = .invalidAPIKey
+            case 429: mapped = .rateLimited
+            default: mapped = .requestFailed(status: http.statusCode)
+            }
+            mapped.logForDeveloper(context: "HTTP \(http.statusCode)")
+            throw mapped
+        }
+
+        let completion: OpenRouterResponse
+        do {
+            completion = try decoder.decode(OpenRouterResponse.self, from: data)
+        } catch {
+            AIServiceError.invalidResponse.logForDeveloper(context: "decoding chat completion")
+            throw AIServiceError.invalidResponse
+        }
         guard let content = completion.choices.first?.message.content.trimmingCharacters(in: .whitespacesAndNewlines),
               !content.isEmpty else {
             throw AIServiceError.emptyResponse
         }
-
-        return try Self.decodeExtraction(from: content, decoder: decoder)
+        return content
     }
 
     private static let systemPrompt = """
@@ -287,25 +396,30 @@ final class OpenRouterAIService: AIService {
             responseFormat: .init(type: "json_object")
         )
 
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.httpBody = try JSONEncoder().encode(requestBody)
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            throw AIServiceError.requestFailed(status: (response as? HTTPURLResponse)?.statusCode ?? -1)
-        }
-
-        let completion = try decoder.decode(OpenRouterResponse.self, from: data)
-        guard let content = completion.choices.first?.message.content.trimmingCharacters(in: .whitespacesAndNewlines),
-              !content.isEmpty else {
-            throw AIServiceError.emptyResponse
-        }
-
+        let content = try await Self.send(requestBody, apiKey: apiKey, endpoint: endpoint, decoder: decoder)
         return try Self.decodeGiftSuggestions(from: content, decoder: decoder)
     }
+
+    /// Plain-text relationship summary — no JSON schema, just a few honest
+    /// sentences grounded in what's already logged for this person.
+    func summarizePerson(context personContext: String) async throws -> String {
+        let apiKey = try KeychainService.openRouterAPIKey()
+        let model = UserDefaults.standard.string(forKey: "openRouterModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let requestBody = OpenRouterRequest(
+            model: model?.isEmpty == false ? model! : OpenRouterDefaults.modelID,
+            messages: [
+                .init(role: "system", content: Self.summarySystemPrompt),
+                .init(role: "user", content: personContext),
+            ],
+            temperature: 0.4,
+            responseFormat: nil
+        )
+        return try await Self.send(requestBody, apiKey: apiKey, endpoint: endpoint, decoder: decoder)
+    }
+
+    private static let summarySystemPrompt = """
+    You write a short, honest relationship summary (3-5 sentences, plain text, no markdown) for a local-first iOS app, grounded strictly in the facts given. Mention how things have been going, the general tone, and one concrete suggested next move. Do not invent facts that aren't in the context.
+    """
 
     private static let giftSystemPrompt = """
     You suggest thoughtful gift ideas for a local-first relationship app. Return only JSON. Ground every idea strictly in the facts given about the person — their interests, notes, tags, past interactions, and events. Do not invent specific personal facts (brands, sizes, exact preferences) that aren't implied by the given context; if the context is thin, suggest a more general idea tied to what is known instead of fabricating detail.
@@ -351,13 +465,23 @@ final class OpenRouterAIService: AIService {
         let model: String
         let messages: [Message]
         let temperature: Double
-        let responseFormat: ResponseFormat
+        /// `nil` for plain-text completions (e.g. the person summary), which
+        /// don't ask the model for strict JSON.
+        let responseFormat: ResponseFormat?
 
         enum CodingKeys: String, CodingKey {
             case model
             case messages
             case temperature
             case responseFormat = "response_format"
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(model, forKey: .model)
+            try container.encode(messages, forKey: .messages)
+            try container.encode(temperature, forKey: .temperature)
+            try container.encodeIfPresent(responseFormat, forKey: .responseFormat)
         }
     }
 

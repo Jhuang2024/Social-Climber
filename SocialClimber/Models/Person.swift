@@ -29,6 +29,23 @@ final class Person {
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
 
+    // MARK: AI feature caches
+    // Both caches persist so re-opening a contact never re-triggers an API
+    // call on its own — regeneration only happens when the user explicitly
+    // taps refresh.
+
+    /// Suggestions from the last "Suggest with AI" run. Regenerated only on
+    /// explicit refresh, same pattern as `contactMethods` below.
+    var cachedGiftSuggestions: [GiftSuggestion] = []
+
+    /// The last generated relationship summary (AI-written, or the
+    /// deterministic local fallback when AI is unavailable/unconfigured).
+    var cachedAISummary: String = ""
+    var aiSummaryGeneratedAt: Date?
+    /// True when `cachedAISummary` is the deterministic local fallback
+    /// rather than a real AI-generated summary.
+    var aiSummaryIsFallback: Bool = false
+
     @Relationship(deleteRule: .cascade, inverse: \GiftIdea.person)
     var giftIdeas: [GiftIdea] = []
     @Relationship(deleteRule: .cascade, inverse: \Reminder.person)
@@ -103,18 +120,16 @@ final class Person {
         updatedAt = .now
     }
 
-    /// Nudges closeness based on how an interaction went: bad interactions
-    /// erode it, neutral ones leave it alone, good/great ones build it.
-    /// Clamped to the 1...5 scale.
-    func applyInteractionQuality(_ quality: Int) {
-        let delta: Int
-        switch quality {
-        case ..<3: delta = -1
-        case 3: delta = 0
-        default: delta = 1
-        }
-        guard delta != 0 else { return }
+    /// Applies a closeness delta (from `ClosenessScoring`), clamped to the
+    /// 1...5 scale. Pass a negative delta to undo a previously-applied one
+    /// (e.g. when an interaction is edited or deleted) so the score never
+    /// drifts out of sync with what's actually on the timeline.
+    @discardableResult
+    func adjustCloseness(by delta: Int) -> Int {
+        guard delta != 0 else { return 0 }
+        let before = closeness
         closeness = min(5, max(1, closeness + delta))
+        return closeness - before
     }
 
     func addInterests(_ new: [String]) {

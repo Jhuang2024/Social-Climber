@@ -36,6 +36,10 @@ struct AddInteractionView: View {
     @State private var isSaving = false
     @State private var showPeoplePicker = false
     @State private var message: String?
+    /// When true, tapping "OK" on the `message` alert dismisses this sheet —
+    /// used so a post-save notice (AI degraded, closeness impact) is
+    /// actually visible instead of being torn down by an immediate dismiss.
+    @State private var dismissAfterAlert = false
 
     // Import-mode state.
     @State private var rawText = ""
@@ -202,8 +206,18 @@ struct AddInteractionView: View {
                         }
                 }
             }
-            .alert("Social Climber", isPresented: .init(get: { message != nil }, set: { if !$0 { message = nil } })) {
-                Button("OK") { message = nil }
+            .alert("Social Climber", isPresented: .init(get: { message != nil }, set: { isPresented in
+                guard !isPresented else { return }
+                // Fires however the alert closes — OK, swipe, or tap-outside
+                // — so a saved interaction never leaves the sheet open behind
+                // a dismissed alert (which risked a duplicate on re-tapping
+                // Save).
+                message = nil
+                let shouldDismiss = dismissAfterAlert
+                dismissAfterAlert = false
+                if shouldDismiss { dismiss() }
+            })) {
+                Button("OK") {}
             } message: {
                 Text(message ?? "")
             }
@@ -350,18 +364,20 @@ struct AddInteractionView: View {
 
         isAnalyzing = true
         defer { isAnalyzing = false }
-        do {
-            let extraction = try await AIProvider.current.extract(from: trimmed, knownPeople: allPeople.map(\.name))
-            aiExtraction = extraction
-            messageSummary = extraction.summary.isEmpty ? local.summary : extraction.summary
-            for topic in extraction.topics where !topics.contains(topic) { topics.append(topic) }
-            hasAnalyzed = true
+        // Never leaves the user with nothing: if the configured AI provider
+        // fails (missing/invalid key, timeout, rate limit, network, bad
+        // response), this falls back to a deterministic local summary
+        // instead of blocking the save.
+        let outcome = await AIExtractionCoordinator.extract(from: trimmed, knownPeople: allPeople.map(\.name))
+        let extraction = outcome.extraction
+        aiExtraction = extraction
+        messageSummary = extraction.summary.isEmpty ? local.summary : extraction.summary
+        for topic in extraction.topics where !topics.contains(topic) { topics.append(topic) }
+        hasAnalyzed = true
+        if let notice = outcome.notice {
+            message = notice
+        } else {
             Haptics.success()
-        } catch {
-            aiExtraction = nil
-            messageSummary = local.summary
-            hasAnalyzed = true
-            message = error.localizedDescription
         }
     }
 
@@ -414,69 +430,95 @@ struct AddInteractionView: View {
 
         if isImportMode {
             if parsed == nil { await analyzeImport(rawText) }
-            saveImportedInteraction()
+            let closenessNotice = saveImportedInteraction()
             isSaving = false
             Haptics.success()
-            dismiss()
+            if let closenessNotice {
+                message = closenessNotice
+                dismissAfterAlert = true
+            } else {
+                dismiss()
+            }
             return
         }
 
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        var closenessNotice: String?
+        var aiNotice: String?
 
         if analyzeWithAI, !trimmedNote.isEmpty {
-            do {
-                let extraction = try await AIProvider.current.extract(
-                    from: trimmedNote,
-                    knownPeople: allPeople.map(\.name)
-                )
+            // Never throws: falls back to a deterministic local extraction if
+            // the configured AI provider fails, so the save always goes
+            // through with something useful.
+            let outcome = await AIExtractionCoordinator.extract(from: trimmedNote, knownPeople: allPeople.map(\.name))
+            aiNotice = outcome.notice
 
-                let interaction = ExtractionApplier.apply(
-                    extraction,
-                    to: selectedPeople,
-                    sourceText: trimmedNote,
-                    interactionType: type,
-                    date: date,
-                    quality: quality,
-                    context: context
-                )
-                interaction?.location = location
-                // Only override the AI-generated summary if the user actually
-                // typed their own; otherwise keep what ExtractionApplier set
-                // from the AI extraction.
-                let typedSummary = messageSummary.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !typedSummary.isEmpty {
-                    interaction?.messageSummary = typedSummary
-                }
-                interaction?.nextMove = nextMove.trimmingCharacters(in: .whitespacesAndNewlines)
-                // Keep any follow-up the analysis inferred; add the user's if set.
-                if followUpNeeded {
-                    interaction?.followUpNeeded = true
-                    interaction?.followUpDate = followUpDate
-                }
-                var mergedTopics = interaction?.topics ?? []
-                for topic in topics where !mergedTopics.contains(topic) { mergedTopics.append(topic) }
-                interaction?.topics = mergedTopics
-                // Only schedule an extra reminder for the user's explicit toggle;
-                // the analysis already created reminders for anything it found.
-                if followUpNeeded, let interaction {
-                    InteractionSaver.scheduleFollowUpIfNeeded(for: interaction, people: selectedPeople, context: context)
-                }
-            } catch {
-                savePlainInteraction(note: trimmedNote)
-                message = error.localizedDescription
-                isSaving = false
-                return
+            let interaction = ExtractionApplier.apply(
+                outcome.extraction,
+                to: selectedPeople,
+                sourceText: trimmedNote,
+                interactionType: type,
+                date: date,
+                quality: quality,
+                context: context
+            )
+            interaction?.location = location
+            // Only override the AI-generated summary if the user actually
+            // typed their own; otherwise keep what ExtractionApplier set
+            // from the AI extraction.
+            let typedSummary = messageSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !typedSummary.isEmpty {
+                interaction?.messageSummary = typedSummary
             }
+            interaction?.nextMove = nextMove.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Keep any follow-up the analysis inferred; add the user's if set.
+            if followUpNeeded {
+                interaction?.followUpNeeded = true
+                interaction?.followUpDate = followUpDate
+            }
+            var mergedTopics = interaction?.topics ?? []
+            for topic in topics where !mergedTopics.contains(topic) { mergedTopics.append(topic) }
+            interaction?.topics = mergedTopics
+            // Only schedule an extra reminder for the user's explicit toggle;
+            // the analysis already created reminders for anything it found.
+            if followUpNeeded, let interaction {
+                InteractionSaver.scheduleFollowUpIfNeeded(for: interaction, people: selectedPeople, context: context)
+            }
+            closenessNotice = interaction.flatMap(closenessImpactMessage)
         } else {
-            savePlainInteraction(note: trimmedNote)
+            closenessNotice = savePlainInteraction(note: trimmedNote)
         }
 
         isSaving = false
         Haptics.success()
-        dismiss()
+        // Show both notices together rather than letting one silently win —
+        // an AI degradation notice shouldn't hide that closeness also moved.
+        let combined = [aiNotice, closenessNotice].compactMap { $0 }.joined(separator: "\n\n")
+        if !combined.isEmpty {
+            message = combined
+            dismissAfterAlert = true
+        } else {
+            dismiss()
+        }
     }
 
-    private func savePlainInteraction(note: String) {
+    /// A short, immediate confirmation of how this interaction moved
+    /// closeness — e.g. "Closeness -1 for Jordan." — so the impact of a
+    /// poorly- or well-rated interaction is never a surprise you have to go
+    /// looking for.
+    private func closenessImpactMessage(for interaction: Interaction) -> String? {
+        let deltas = interaction.appliedClosenessDeltas
+        let parts = selectedPeople.compactMap { person -> String? in
+            guard let delta = deltas[person.persistentModelID], delta != 0 else { return nil }
+            let signed = delta > 0 ? "+\(delta)" : "\(delta)"
+            return "\(signed) for \(person.firstName)"
+        }
+        guard !parts.isEmpty else { return nil }
+        return "Closeness \(parts.joined(separator: ", "))."
+    }
+
+    @discardableResult
+    private func savePlainInteraction(note: String) -> String? {
         let interaction = Interaction(
             type: type,
             date: date,
@@ -490,9 +532,11 @@ struct AddInteractionView: View {
             messageSummary: messageSummary.trimmingCharacters(in: .whitespacesAndNewlines)
         )
         InteractionSaver.finalize(interaction, people: selectedPeople, context: context)
+        return closenessImpactMessage(for: interaction)
     }
 
-    private func saveImportedInteraction() {
+    @discardableResult
+    private func saveImportedInteraction() -> String? {
         let finalSummary = messageSummary.trimmingCharacters(in: .whitespacesAndNewlines)
         let interaction = Interaction(
             type: .socialMedia,
@@ -529,6 +573,8 @@ struct AddInteractionView: View {
             summary.interaction = interaction
             context.insert(summary)
         }
+
+        return closenessImpactMessage(for: interaction)
     }
 }
 

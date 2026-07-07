@@ -20,6 +20,18 @@ final class Interaction {
     var messageSummary: String = ""
     var createdAt: Date = Date()
 
+    /// The closeness delta actually applied to each attached person when
+    /// this interaction was saved, keyed by the person's stable
+    /// `persistentModelID` (never a name — names are user-editable, so a
+    /// rename would silently break the lookup and leave a permanent "ghost"
+    /// adjustment behind). Tracked per-person, rather than as one shared
+    /// number, because `Person.adjustCloseness` clamps to 1...5 — two
+    /// attendees can absorb the same nominal delta differently if one was
+    /// already near the ceiling/floor. Editing or deleting the interaction
+    /// reverses exactly what was applied to each person instead of guessing
+    /// from the current quality value.
+    var appliedClosenessDeltasData: Data?
+
     // MARK: Imported-message metadata
 
     /// True when this interaction was created from an imported chat/message.
@@ -82,5 +94,16 @@ final class Interaction {
     /// Best single-line preview: summary if present, else the note.
     var preview: String {
         messageSummary.isEmpty ? note : messageSummary
+    }
+
+    /// Decoded view of `appliedClosenessDeltasData`.
+    var appliedClosenessDeltas: [PersistentIdentifier: Int] {
+        get {
+            guard let appliedClosenessDeltasData else { return [:] }
+            return (try? JSONDecoder().decode([PersistentIdentifier: Int].self, from: appliedClosenessDeltasData)) ?? [:]
+        }
+        set {
+            appliedClosenessDeltasData = newValue.isEmpty ? nil : try? JSONEncoder().encode(newValue)
+        }
     }
 }
