@@ -82,6 +82,7 @@ struct PeopleListView: View {
                         }
                         .listStyle(.plain)
                         .scrollContentBackground(.hidden)
+                        .scrollDismissesKeyboard(.immediately)
                         .searchable(text: $searchText, prompt: "Name, relationship, tag…")
                         .overlay {
                             if filtered.isEmpty {

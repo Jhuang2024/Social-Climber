@@ -15,6 +15,8 @@ struct SearchBar: View {
                 .focused($focused)
                 .autocorrectionDisabled()
                 .submitLabel(.search)
+                .onSubmit { focused = false }
+                .keyboardDoneToolbar()
             if !text.isEmpty {
                 Button {
                     text = ""

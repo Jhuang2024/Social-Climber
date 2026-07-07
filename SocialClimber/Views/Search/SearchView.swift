@@ -40,6 +40,7 @@ struct SearchView: View {
                 .padding(.bottom, 28)
             }
             .socialClimberPageBackground()
+            .scrollDismissesKeyboard(.immediately)
             .navigationTitle("Search")
         }
     }

@@ -13,6 +13,13 @@ struct PersonProfileView: View {
     @State private var showAddDate = false
     @State private var confirmDelete = false
 
+    /// Source of truth for whether the Strategy section should exist at all.
+    /// Reads the persisted interaction relationship directly, so it reacts to
+    /// newly logged interactions and does not depend on transient UI state.
+    private var hasLoggedInteractions: Bool {
+        !person.interactions.isEmpty
+    }
+
     private var followUpQuestions: [String] {
         person.sortedInteractions
             .compactMap(\.aiSummary)
@@ -43,7 +50,14 @@ struct PersonProfileView: View {
                 header
                 statsRow
                 actionsRow
-                beforeMeetingBrief
+                // Strategy: only shown once this specific person has at least one
+                // persisted interaction. Visibility is driven purely by the SwiftData
+                // relationship (the same source of truth as the timeline), so it
+                // appears the moment an interaction is logged, survives navigation,
+                // and never shows placeholder advice for a contact with no history.
+                if hasLoggedInteractions {
+                    beforeMeetingBrief
+                }
 
                 if !person.notes.isEmpty {
                     FormSectionCard("Notes", icon: "note.text") {
@@ -225,11 +239,6 @@ struct PersonProfileView: View {
                             .font(.subheadline)
                     }
                 }
-            }
-            if lastTopics.isEmpty && person.openReminders.isEmpty && person.openGiftIdeas.isEmpty && upcomingImportantDates.isEmpty && followUpQuestions.isEmpty {
-                Text("Log an interaction or voice note to build a useful pre-meeting brief.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
             }
         }
     }
