@@ -24,6 +24,15 @@ struct PersonProfileView: View {
         StrategyEngine.suggestions(for: person)
     }
 
+    /// The Strategy section is tied strictly to whether this specific contact has
+    /// at least one persisted interaction — the same source of truth as the
+    /// timeline. This keeps it hidden (no placeholder advice) for contacts with no
+    /// logged history, even if they were marked "contacted", and makes it appear
+    /// the moment an interaction is logged and stay visible thereafter.
+    private var hasLoggedInteractions: Bool {
+        !person.interactions.isEmpty
+    }
+
     private var followUpQuestions: [String] {
         person.sortedInteractions
             .compactMap(\.aiSummary)
@@ -55,7 +64,7 @@ struct PersonProfileView: View {
                 statsRow
                 actionsRow
                 RelationshipScoreCard(person: person)
-                if !suggestions.isEmpty { strategyCard }
+                if hasLoggedInteractions && !suggestions.isEmpty { strategyCard }
                 beforeMeetingBrief
 
                 if !person.notes.isEmpty {
