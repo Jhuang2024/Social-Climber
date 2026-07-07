@@ -63,6 +63,7 @@ struct SettingsView: View {
 
                 Section("Notifications") {
                     Toggle("Local notifications", isOn: $notificationsEnabled)
+                        .tint(.green)
                         .onChange(of: notificationsEnabled) {
                             Task {
                                 if notificationsEnabled {
@@ -93,6 +94,7 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Toggle("Location (\"Who's nearby\")", isOn: $locationEnabled)
+                        .tint(.green)
                         .onChange(of: locationEnabled) {
                             if locationEnabled {
                                 Task {
@@ -147,6 +149,7 @@ struct SettingsView: View {
                         } label: {
                             Label("Disconnect Google Calendar", systemImage: "calendar.badge.minus")
                         }
+                        .tint(.red)
                     }
                     Text("Read-only. Create a free \"iOS\" OAuth Client ID in Google Cloud Console (enable the Google Calendar API, set the bundle ID to match this app's) and paste it above — no client secret needed. Only a refresh token is stored, in the iOS Keychain; events are fetched on demand and never saved.")
                         .font(.caption)
@@ -176,6 +179,7 @@ struct SettingsView: View {
                             } label: {
                                 Label("Remove Saved API Key", systemImage: "trash")
                             }
+                            .tint(.red)
                         }
                         TextField("Model ID", text: $openRouterModelID)
                             .textInputAutocapitalization(.never)
@@ -214,6 +218,7 @@ struct SettingsView: View {
                     } label: {
                         Label("Clear all data…", systemImage: "trash")
                     }
+                    .tint(.red)
                 }
 
                 Section("Privacy") {
@@ -259,6 +264,7 @@ struct SettingsView: View {
                     SeedData.clearAll(context: context)
                     message = "All data deleted."
                 }
+                .tint(.red)
             } message: {
                 Text("This permanently removes every person, interaction, reminder, gift, important date, voice note, and AI summary on this iPhone. Export first if you want a backup.")
             }

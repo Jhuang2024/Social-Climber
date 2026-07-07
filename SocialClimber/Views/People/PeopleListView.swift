@@ -177,6 +177,7 @@ struct PeopleListView: View {
                 }
             }
             Toggle("Show archived", isOn: $showArchived)
+                .tint(.green)
         } label: {
             Image(systemName: (filterCategory != nil || filterStatus != nil) ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
         }

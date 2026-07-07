@@ -79,6 +79,7 @@ struct EventDetailView: View {
                     Button(role: .destructive) { confirmDelete = true } label: {
                         Label("Delete", systemImage: "trash")
                     }
+                    .tint(.red)
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
@@ -92,6 +93,7 @@ struct EventDetailView: View {
                 context.delete(event)
                 dismiss()
             }
+            .tint(.red)
         }
     }
 
@@ -163,6 +165,7 @@ struct EventLogView: View {
                 }
                 Section("Follow-up") {
                     Toggle("Create a follow-up for each", isOn: $followUpNeeded.animation(.snappy))
+                        .tint(.green)
                     if followUpNeeded {
                         DatePicker("Follow up by", selection: $followUpDate, displayedComponents: .date)
                         TextField("Next move", text: $nextMove, axis: .vertical)

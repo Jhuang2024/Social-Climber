@@ -111,6 +111,7 @@ struct PersonProfileView: View {
                     Button(role: .destructive) { confirmDelete = true } label: {
                         Label("Delete", systemImage: "trash")
                     }
+                    .tint(.red)
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
@@ -129,6 +130,7 @@ struct PersonProfileView: View {
                 context.delete(person)
                 dismiss()
             }
+            .tint(.red)
         }
     }
 
@@ -493,6 +495,7 @@ struct PersonProfileView: View {
                                 .foregroundStyle(.red)
                         }
                         .buttonStyle(.plain)
+                        .tint(.red)
                     }
                 }
             }

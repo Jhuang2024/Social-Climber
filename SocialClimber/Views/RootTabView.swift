@@ -62,7 +62,13 @@ struct RootTabView: View {
                 .tabItem { Label("Settings", systemImage: "gearshape.fill") }
                 .tag(Tab.settings)
         }
-        .tint(.primary)
+        // Deliberately no `.tint()` here: a tint set this high cascades to
+        // every screen in every tab as the *ambient* tint, not just the tab
+        // bar — it's what was turning Toggles and destructive buttons grey
+        // app-wide instead of their normal green/red (see SCTheme.accent's
+        // doc comment for the same lesson learned the hard way once
+        // already). Let each screen's controls use their real system/brand
+        // color instead.
         .task {
             DemoDataCleanupService.removeBundledDemoContactsIfNeeded(context: context)
             checkForSharedImport()

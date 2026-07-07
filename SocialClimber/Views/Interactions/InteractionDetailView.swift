@@ -87,6 +87,7 @@ struct InteractionDetailView: View {
                     Button(role: .destructive) { confirmDelete = true } label: {
                         Image(systemName: "trash")
                     }
+                    .tint(.red)
                 }
             }
         }
@@ -94,13 +95,23 @@ struct InteractionDetailView: View {
         .confirmationDialog("Delete this interaction?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
                 Haptics.warning()
+                // Capture before deleting — once the interaction is gone,
+                // its `people` relationship is nullified along with it.
+                let people = interaction.people
                 // Undo this interaction's closeness impact before it's gone,
                 // otherwise the person's score would keep a "ghost" nudge
                 // from an interaction that no longer exists.
                 InteractionSaver.reverseClosenessImpact(of: interaction)
                 context.delete(interaction)
+                // The deleted interaction may have been the one holding a
+                // person's "last contacted" date — recompute from what's
+                // left instead of leaving it stale.
+                for person in people {
+                    person.recomputeContactDates()
+                }
                 dismiss()
             }
+            .tint(.red)
         }
     }
 

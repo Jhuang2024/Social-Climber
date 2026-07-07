@@ -61,6 +61,7 @@ struct PersonEditView: View {
                                     .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.bordered)
+                            .tint(.red)
                         }
 
                         if let avatarError {
@@ -91,6 +92,7 @@ struct PersonEditView: View {
                     DotRatingPicker(label: "Closeness", value: $closeness, color: .pink)
                     DotRatingPicker(label: "Priority", value: $priority, color: .orange)
                     Toggle("Custom check-in cadence", isOn: $customCadence)
+                        .tint(.green)
                     if customCadence {
                         Stepper("Every \(cadenceDays) days", value: $cadenceDays, in: 1...365)
                     }
@@ -98,6 +100,7 @@ struct PersonEditView: View {
 
                 Section("Details") {
                     Toggle("Birthday", isOn: $hasBirthday)
+                        .tint(.green)
                     if hasBirthday {
                         DatePicker("Date", selection: $birthday, displayedComponents: .date)
                     }

@@ -105,6 +105,10 @@ final class Person {
     }
 
     /// Update the relevant "last..." fields for an interaction of the given type.
+    /// Only ever nudges forward — correct for logging a brand-new
+    /// interaction, but can't walk a field backward or drop it if the
+    /// interaction responsible for the current value is later edited or
+    /// deleted. Use `recomputeContactDates()` for those cases.
     func markContacted(type: InteractionType, date: Date) {
         if lastContactedAt == nil || date > lastContactedAt! { lastContactedAt = date }
         switch type {
@@ -117,6 +121,21 @@ final class Person {
         case .favor, .intro, .voiceNote, .other:
             break
         }
+        updatedAt = .now
+    }
+
+    /// Recomputes the "last contacted" family of fields from every
+    /// currently-logged interaction, from scratch — unlike `markContacted`,
+    /// this can also move a field *earlier* or clear it entirely. Call this
+    /// (instead of `markContacted`) whenever an existing interaction's date
+    /// or type changes, or an interaction is deleted, so the People list's
+    /// "last contacted" display and status badge never keep pointing at an
+    /// interaction that no longer supports that date.
+    func recomputeContactDates() {
+        lastContactedAt = interactions.map(\.date).max()
+        lastMetAt = interactions.filter { $0.type == .inPerson || $0.type == .event }.map(\.date).max()
+        lastCalledAt = interactions.filter { $0.type == .call || $0.type == .videoCall }.map(\.date).max()
+        lastMessagedAt = interactions.filter { $0.type == .message || $0.type == .socialMedia || $0.type == .email }.map(\.date).max()
         updatedAt = .now
     }
 

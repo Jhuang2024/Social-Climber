@@ -145,6 +145,7 @@ struct ImportantDateEditSheet: View {
                 }
                 DatePicker("Date", selection: $date, displayedComponents: .date)
                 Toggle("Repeats yearly", isOn: $repeatsYearly)
+                    .tint(.green)
                 TextField("Notes", text: $notes, axis: .vertical)
                     .lineLimit(2...5)
             }

@@ -136,6 +136,7 @@ struct UpcomingView: View {
                 } label: {
                     Label("Delete", systemImage: "trash")
                 }
+                .tint(.red)
             }
             if entry.subtitle.hasPrefix("Calendar"), let person = entry.person {
                 Button {

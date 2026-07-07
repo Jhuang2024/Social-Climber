@@ -168,6 +168,7 @@ struct AddInteractionView: View {
 
                 Section("Follow-up") {
                     Toggle("Needs follow-up", isOn: $followUpNeeded.animation(.snappy))
+                        .tint(.green)
                     if followUpNeeded {
                         DatePicker("Follow up by", selection: $followUpDate, displayedComponents: .date)
                         TextField("Next move (e.g. send resume, grab coffee)", text: $nextMove, axis: .vertical)
@@ -186,6 +187,7 @@ struct AddInteractionView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    .tint(.green)
                     if isImportMode && isAnalyzing {
                         HStack(spacing: 8) {
                             ProgressView()
