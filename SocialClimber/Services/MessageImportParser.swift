@@ -69,7 +69,11 @@ enum MessageImportParser {
         let words = name.split(separator: " ")
         guard words.count <= 3, name.count <= 32 else { return nil }
         guard !name.contains(where: \.isNumber) else { return nil }
-        guard !["http", "https", "www", "note", "info"].contains(name.lowercased()) else { return nil }
+        // "Me"/"Them" are OCRService's own bubble-color sender labels, not a
+        // real contact's name — leave them attached to the line (readable,
+        // useful context for the AI summary) but never suggest them as a
+        // new contact to create.
+        guard !["http", "https", "www", "note", "info", "me", "them"].contains(name.lowercased()) else { return nil }
         guard !rest.hasPrefix("//") else { return nil }
         return (name, rest)
     }

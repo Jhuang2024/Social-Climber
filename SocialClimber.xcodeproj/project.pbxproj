@@ -6,9 +6,53 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		4C90A984853C38E4010C706F /* SocialClimberShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A33ACB88B0D8DBEF0F300D76 /* SocialClimberShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		735F11858021853B7E897158 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 132B063A0703D724AEAB23FB /* Foundation.framework */; };
+		BC9A5E8DA59BABE7A4DC6C15 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0530607C55C0C6E76810262 /* ShareViewController.swift */; };
+		D62C4D7D7DEC952B7CF70619 /* SharedImportInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C0D2C5876D87C1D70FFFB2 /* SharedImportInbox.swift */; };
+		D76497CBD3C45C88333C8588 /* SharedImportInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C0D2C5876D87C1D70FFFB2 /* SharedImportInbox.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		D0657B3A1721A9A8E206E804 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000000000000000000006 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E31E1DF4BD7FCA411A945B94;
+			remoteInfo = SocialClimberShare;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		6AEE2375A2E36810EA9C811D /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				4C90A984853C38E4010C706F /* SocialClimberShare.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		132B063A0703D724AEAB23FB /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		A10000000000000000000004 /* SocialClimber.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SocialClimber.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A33ACB88B0D8DBEF0F300D76 /* SocialClimberShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SocialClimberShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A3C0D2C5876D87C1D70FFFB2 /* SharedImportInbox.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SharedImportInbox.swift; path = Shared/SharedImportInbox.swift; sourceTree = "<group>"; };
+		B2DFFEDD102045676599CF79 /* SocialClimberShare.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = SocialClimberShare.entitlements; path = SocialClimberShare/SocialClimberShare.entitlements; sourceTree = "<group>"; };
+		C0530607C55C0C6E76810262 /* ShareViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ShareViewController.swift; path = SocialClimberShare/ShareViewController.swift; sourceTree = "<group>"; };
+		FEF86E102053FE0402912AED /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = Info.plist; path = SocialClimberShare/Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A10000000000000000000002 /* SocialClimber */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = SocialClimber;
 			sourceTree = "<group>";
 		};
@@ -22,14 +66,59 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CB67596E2B658DF0BF8F37C5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				735F11858021853B7E897158 /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		2A111BB61B250C542AEC7B6B /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				8ADF262F1AE3DD5667AF1DD6 /* iOS */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		424D5D2946BDACA0B5B4626C /* SocialClimberShare */ = {
+			isa = PBXGroup;
+			children = (
+				C0530607C55C0C6E76810262 /* ShareViewController.swift */,
+				FEF86E102053FE0402912AED /* Info.plist */,
+				B2DFFEDD102045676599CF79 /* SocialClimberShare.entitlements */,
+			);
+			name = SocialClimberShare;
+			sourceTree = "<group>";
+		};
+		42C1C48ABECB03A9C0C5EC69 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				A3C0D2C5876D87C1D70FFFB2 /* SharedImportInbox.swift */,
+			);
+			name = Shared;
+			sourceTree = "<group>";
+		};
+		8ADF262F1AE3DD5667AF1DD6 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				132B063A0703D724AEAB23FB /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
 		A10000000000000000000001 = {
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000002 /* SocialClimber */,
 				A10000000000000000000003 /* Products */,
+				424D5D2946BDACA0B5B4626C /* SocialClimberShare */,
+				42C1C48ABECB03A9C0C5EC69 /* Shared */,
+				2A111BB61B250C542AEC7B6B /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -37,6 +126,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000004 /* SocialClimber.app */,
+				A33ACB88B0D8DBEF0F300D76 /* SocialClimberShare.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -51,20 +141,37 @@
 				A10000000000000000000007 /* Sources */,
 				A10000000000000000000008 /* Frameworks */,
 				A10000000000000000000009 /* Resources */,
+				6AEE2375A2E36810EA9C811D /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				74AA0E6C964BA55A7BA0A678 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				A10000000000000000000002 /* SocialClimber */,
 			);
 			name = SocialClimber;
-			packageProductDependencies = (
-			);
 			productName = SocialClimber;
 			productReference = A10000000000000000000004 /* SocialClimber.app */;
 			productType = "com.apple.product-type.application";
+		};
+		E31E1DF4BD7FCA411A945B94 /* SocialClimberShare */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0C16F2C20DC93CAB90FB9ACF /* Build configuration list for PBXNativeTarget "SocialClimberShare" */;
+			buildPhases = (
+				702BB499F24CF94E92DB2222 /* Sources */,
+				CB67596E2B658DF0BF8F37C5 /* Frameworks */,
+				CFC70A3C7AAE42C8D9384D28 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SocialClimberShare;
+			productName = SocialClimberShare;
+			productReference = A33ACB88B0D8DBEF0F300D76 /* SocialClimberShare.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -96,6 +203,7 @@
 			projectRoot = "";
 			targets = (
 				A10000000000000000000005 /* SocialClimber */,
+				E31E1DF4BD7FCA411A945B94 /* SocialClimberShare */,
 			);
 		};
 /* End PBXProject section */
@@ -108,23 +216,100 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-/* End PBXResourcesBuildPhase section */
-
-/* Begin PBXSourcesBuildPhase section */
-		A10000000000000000000007 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
+		CFC70A3C7AAE42C8D9384D28 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		702BB499F24CF94E92DB2222 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BC9A5E8DA59BABE7A4DC6C15 /* ShareViewController.swift in Sources */,
+				D62C4D7D7DEC952B7CF70619 /* SharedImportInbox.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10000000000000000000007 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D76497CBD3C45C88333C8588 /* SharedImportInbox.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
-/* Begin PBXFileReference section */
-		A10000000000000000000004 /* SocialClimber.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SocialClimber.app; sourceTree = BUILT_PRODUCTS_DIR; };
-/* End PBXFileReference section */
+/* Begin PBXTargetDependency section */
+		74AA0E6C964BA55A7BA0A678 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = SocialClimberShare;
+			target = E31E1DF4BD7FCA411A945B94 /* SocialClimberShare */;
+			targetProxy = D0657B3A1721A9A8E206E804 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		2047A3186169B0E225E53F83 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = SocialClimberShare/SocialClimberShare.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SocialClimberShare/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jerryhuang.SocialClimber.Share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		6F17A42CB03741EE5E1C6786 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = SocialClimberShare/SocialClimberShare.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SocialClimberShare/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jerryhuang.SocialClimber.Share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		A1000000000000000000000C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -249,6 +434,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = SocialClimber/SocialClimber.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
@@ -280,6 +466,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = SocialClimber/SocialClimber.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
@@ -309,6 +496,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		0C16F2C20DC93CAB90FB9ACF /* Build configuration list for PBXNativeTarget "SocialClimberShare" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6F17A42CB03741EE5E1C6786 /* Release */,
+				2047A3186169B0E225E53F83 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		A1000000000000000000000A /* Build configuration list for PBXNativeTarget "SocialClimber" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

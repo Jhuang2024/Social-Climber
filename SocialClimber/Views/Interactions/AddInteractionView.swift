@@ -54,9 +54,15 @@ struct AddInteractionView: View {
 
     @Query(sort: \Person.name) private var allPeople: [Person]
 
-    init(preselected: [Person] = [], initialSource: InteractionSource = .manual) {
+    /// `initialRawText` pre-fills the paste-import text field — used to hand
+    /// off text the Share Extension queued (e.g. selected Messages bubbles
+    /// shared from outside the app). Forces paste mode so it's immediately
+    /// visible; the user still explicitly taps "Detect summary" themselves,
+    /// same as any other paste import.
+    init(preselected: [Person] = [], initialSource: InteractionSource = .manual, initialRawText: String = "") {
         self.preselected = preselected
-        _source = State(initialValue: initialSource)
+        _source = State(initialValue: initialRawText.isEmpty ? initialSource : .paste)
+        _rawText = State(initialValue: initialRawText)
     }
 
     private var isImportMode: Bool { source != .manual }
