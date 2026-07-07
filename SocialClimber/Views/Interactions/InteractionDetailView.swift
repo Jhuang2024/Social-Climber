@@ -150,9 +150,9 @@ struct InteractionDetailView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(20)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: SCTheme.heroCardRadius, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: SCTheme.heroCardRadius, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.055))
         }
     }

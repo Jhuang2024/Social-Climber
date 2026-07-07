@@ -41,10 +41,8 @@ struct VoiceCaptureView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("NOTE")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionHeader("Note", icon: "note.text")
                     TextEditor(text: $model.transcript)
                         .frame(minHeight: 160)
                         .padding(8)
@@ -174,11 +172,8 @@ struct VoiceCaptureView: View {
     }
 
     private var peopleSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 4) {
-                Text("WHO WERE YOU TALKING TO?")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("Who were you talking to?", icon: "person.2") {
                 Text("Required")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.orange)

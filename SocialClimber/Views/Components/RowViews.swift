@@ -69,22 +69,11 @@ struct GiftIdeaRowView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(gift.title)
                     .font(.body.weight(.medium))
-                HStack(spacing: 6) {
-                    if showPerson, let person = gift.person {
-                        Text("For \(person.firstName)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    if !gift.occasion.isEmpty {
-                        Text(gift.occasion)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    if !gift.priceRange.isEmpty {
-                        Text(gift.priceRange)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                if !giftSubtitle.isEmpty {
+                    Text(giftSubtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
             }
             Spacer()
@@ -107,6 +96,14 @@ struct GiftIdeaRowView: View {
         }
         .padding(.vertical, 7)
         .sensoryFeedback(.selection, trigger: gift.status)
+    }
+
+    private var giftSubtitle: String {
+        var parts: [String] = []
+        if showPerson, let person = gift.person { parts.append("For \(person.firstName)") }
+        if !gift.occasion.isEmpty { parts.append(gift.occasion) }
+        if !gift.priceRange.isEmpty { parts.append(gift.priceRange) }
+        return parts.joined(separator: " · ")
     }
 }
 

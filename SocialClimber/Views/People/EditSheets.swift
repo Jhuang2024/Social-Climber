@@ -160,6 +160,7 @@ struct ImportantDateEditSheet: View {
                     Button("Save") {
                         let important = ImportantDate(title: title, date: date, repeatsYearly: repeatsYearly, person: person ?? selectedPerson, notes: notes)
                         context.insert(important)
+                        NotificationService.shared.schedule(importantDate: important)
                         Haptics.success()
                         dismiss()
                     }

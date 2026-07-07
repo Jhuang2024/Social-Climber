@@ -90,6 +90,7 @@ struct EventDetailView: View {
         .confirmationDialog("Delete this event?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
                 Haptics.warning()
+                NotificationService.shared.cancel(event: event)
                 context.delete(event)
                 dismiss()
             }
@@ -114,9 +115,9 @@ struct EventDetailView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(20)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: SCTheme.heroCardRadius, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: SCTheme.heroCardRadius, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.055))
         }
     }

@@ -7,6 +7,7 @@ final class ImportantDate {
     var date: Date = Date()
     var repeatsYearly: Bool = true
     var notes: String = ""
+    var notificationID: String?
     var createdAt: Date = Date()
 
     var person: Person?

@@ -4,8 +4,11 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.scenePhase) private var scenePhase
     @Query private var people: [Person]
     @Query private var reminders: [Reminder]
+    @Query private var importantDates: [ImportantDate]
+    @Query private var events: [Event]
 
     @AppStorage("notificationsEnabled") private var notificationsEnabled = false
     @AppStorage("locationEnabled") private var locationEnabled = false
@@ -26,6 +29,7 @@ struct SettingsView: View {
     @State private var openRouterAPIKey = ""
     @State private var hasOpenRouterAPIKey = false
     @State private var isConnectingGoogleCalendar = false
+    @State private var notificationsAuthDenied = false
     @State private var message: String?
 
     private var googleCalendar: GoogleCalendarService { GoogleCalendarService.shared }
@@ -68,18 +72,29 @@ struct SettingsView: View {
                             Task {
                                 if notificationsEnabled {
                                     let granted = await NotificationService.shared.requestAuthorization()
+                                    await refreshNotificationAuthorization()
                                     if !granted {
                                         notificationsEnabled = false
                                         message = "Notifications are disabled in iOS Settings."
                                     } else {
-                                        NotificationService.shared.rescheduleAll(people: people, reminders: reminders)
+                                        NotificationService.shared.rescheduleAll(people: people, reminders: reminders, importantDates: importantDates, events: events)
                                     }
                                 } else {
                                     NotificationService.shared.cancelAll()
                                 }
                             }
                         }
-                    Text("Birthdays at 9 AM, reminders on their due date. Everything fires locally.")
+                    if notificationsAuthDenied {
+                        Button {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        } label: {
+                            Label("Notifications are off in iOS Settings — tap to open", systemImage: "gear")
+                        }
+                        .font(.caption)
+                    }
+                    Text("Birthdays, important dates, and events at 9 AM (events at their scheduled time), reminders on their due date. Everything fires locally — nothing is ever sent off this iPhone.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -286,8 +301,25 @@ struct SettingsView: View {
             }
             .onAppear {
                 refreshOpenRouterKeyStatus()
+                Task { await refreshNotificationAuthorization() }
+            }
+            .onChange(of: scenePhase) {
+                if scenePhase == .active {
+                    Task { await refreshNotificationAuthorization() }
+                }
             }
             .keyboardDoneButton()
+        }
+    }
+
+    /// Detects a permission revoked in iOS Settings after the user granted
+    /// it here, so the toggle never claims notifications are on when the OS
+    /// has actually silenced them.
+    private func refreshNotificationAuthorization() async {
+        let status = await NotificationService.shared.authorizationStatus()
+        notificationsAuthDenied = status == .denied
+        if status == .denied {
+            notificationsEnabled = false
         }
     }
 

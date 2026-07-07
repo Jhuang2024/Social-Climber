@@ -170,8 +170,14 @@ enum ExportImportService {
 
             // Replace child collections wholesale to avoid duplicates.
             person.giftIdeas.forEach { context.delete($0) }
-            person.reminders.forEach { context.delete($0) }
-            person.importantDates.forEach { context.delete($0) }
+            person.reminders.forEach {
+                NotificationService.shared.cancel(reminder: $0)
+                context.delete($0)
+            }
+            person.importantDates.forEach {
+                NotificationService.shared.cancel(importantDate: $0)
+                context.delete($0)
+            }
             for gift in dto.giftIdeas {
                 context.insert(GiftIdea(title: gift.title, person: person, notes: gift.notes, priceRange: gift.priceRange, occasion: gift.occasion, status: GiftStatus(rawValue: gift.status) ?? .idea))
             }
@@ -179,10 +185,14 @@ enum ExportImportService {
                 let record = Reminder(title: reminder.title, dueDate: reminder.dueDate, type: ReminderType(rawValue: reminder.type) ?? .custom, person: person, notes: reminder.notes)
                 record.completed = reminder.completed
                 context.insert(record)
+                NotificationService.shared.schedule(reminder: record)
             }
             for date in dto.importantDates {
-                context.insert(ImportantDate(title: date.title, date: date.date, repeatsYearly: date.repeatsYearly, person: person, notes: date.notes))
+                let record = ImportantDate(title: date.title, date: date.date, repeatsYearly: date.repeatsYearly, person: person, notes: date.notes)
+                context.insert(record)
+                NotificationService.shared.schedule(importantDate: record)
             }
+            NotificationService.shared.scheduleBirthday(for: person)
         }
 
         // Interactions: skip exact duplicates (same date + note).

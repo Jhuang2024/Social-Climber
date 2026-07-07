@@ -190,6 +190,7 @@ struct EventEditView: View {
     }
 
     private func save() {
+        let target: Event
         if let event {
             event.name = name
             event.date = date
@@ -197,10 +198,13 @@ struct EventEditView: View {
             event.purpose = purpose
             event.notes = notes
             event.attendees = attendees
+            target = event
         } else {
             let new = Event(name: name, date: date, location: location, purpose: purpose, notes: notes, attendees: attendees)
             context.insert(new)
+            target = new
         }
+        NotificationService.shared.schedule(event: target)
         Haptics.success()
         dismiss()
     }

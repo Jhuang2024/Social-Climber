@@ -105,6 +105,7 @@ struct PersonProfileView: View {
                     Button { showImport = true } label: { Label("Import message", systemImage: "square.and.arrow.down") }
                     Button {
                         person.isArchived.toggle()
+                        NotificationService.shared.scheduleBirthday(for: person)
                     } label: {
                         Label(person.isArchived ? "Unarchive" : "Archive", systemImage: "archivebox")
                     }
@@ -127,6 +128,9 @@ struct PersonProfileView: View {
         .confirmationDialog("Delete \(person.displayName)? This removes all their data.", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
                 Haptics.warning()
+                for reminder in person.reminders { NotificationService.shared.cancel(reminder: reminder) }
+                for date in person.importantDates { NotificationService.shared.cancel(importantDate: date) }
+                NotificationService.shared.cancelBirthday(for: person)
                 context.delete(person)
                 dismiss()
             }
@@ -173,10 +177,10 @@ struct PersonProfileView: View {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             ),
-            in: RoundedRectangle(cornerRadius: 24, style: .continuous)
+            in: RoundedRectangle(cornerRadius: SCTheme.heroCardRadius, style: .continuous)
         )
         .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: SCTheme.heroCardRadius, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.055))
         }
         .cardShadow()
@@ -327,12 +331,20 @@ struct PersonProfileView: View {
         }
     }
 
+    private var hasBriefActionItems: Bool {
+        !person.openReminders.isEmpty || !person.openGiftIdeas.isEmpty
+            || (person.nextBirthday?.daysFromNow ?? .max) <= 60 || !upcomingImportantDates.isEmpty
+    }
+
     private var beforeMeetingBrief: some View {
         FormSectionCard("Before Meeting Brief", icon: "person.text.rectangle") {
             briefRow("clock.arrow.circlepath", "Last contacted", person.lastContactedAt?.relativeLabel ?? "Never")
             briefRow("person.2.wave.2", "Last met", person.lastMetAt?.relativeLabel ?? "Never")
             if !lastTopics.isEmpty {
                 briefRow("text.bubble", "Last topics", lastTopics.joined(separator: ", "))
+            }
+            if hasBriefActionItems {
+                Divider()
             }
             if !person.openReminders.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
@@ -359,6 +371,7 @@ struct PersonProfileView: View {
                 }
             }
             if !followUpQuestions.isEmpty {
+                Divider()
                 VStack(alignment: .leading, spacing: 8) {
                     briefLabel("Suggested questions", icon: "questionmark.bubble")
                     ForEach(followUpQuestions, id: \.self) { question in
@@ -488,6 +501,7 @@ struct PersonProfileView: View {
                         }
                         Button {
                             Haptics.warning()
+                            NotificationService.shared.cancel(importantDate: date)
                             context.delete(date)
                         } label: {
                             Image(systemName: "trash")

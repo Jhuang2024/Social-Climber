@@ -83,9 +83,11 @@ enum ExtractionApplier {
                 guard let dateValue = extracted.date else { continue }
                 if extracted.title == "Birthday", person.birthday == nil {
                     person.birthday = dateValue
+                    NotificationService.shared.scheduleBirthday(for: person)
                 } else {
                     let important = ImportantDate(title: extracted.title, date: dateValue, person: person)
                     context.insert(important)
+                    NotificationService.shared.schedule(importantDate: important)
                 }
             }
             if !approvedPersonalityNotes.isEmpty {
