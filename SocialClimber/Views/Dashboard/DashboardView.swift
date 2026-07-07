@@ -105,7 +105,7 @@ struct DashboardView: View {
                     } else {
                         statsStrip
                         quickActions
-                        if !interactions.isEmpty && !strategy.nextMoves.isEmpty { prioritiesCard }
+                        if !strategy.nextMoves.isEmpty { prioritiesCard }
                         if !overdueReminders.isEmpty { overdueCard }
                         if !upcomingFollowUps.isEmpty { followUpsCard }
                         if !eventsNeedingLog.isEmpty || !upcomingEvents.isEmpty { eventsCard }

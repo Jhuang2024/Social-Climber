@@ -41,7 +41,9 @@ enum StrategyEngine {
     // MARK: Per-contact
 
     static func suggestions(for person: Person, now: Date = .now) -> [Suggestion] {
-        guard !person.isArchived else { return [] }
+        // No logged interactions means no basis for a strategy — don't fabricate
+        // placeholder advice for a contact we know nothing about yet.
+        guard !person.isArchived, !person.interactions.isEmpty else { return [] }
         var out: [Suggestion] = []
 
         let cadence = RelationshipHealth.expectedCadenceDays(for: person)
@@ -72,15 +74,6 @@ enum StrategyEngine {
                 title: "It's been \(days) days",
                 detail: "You usually reach out every ~\(cadence) days. Time for a check-in.",
                 weight: 80 + min(days, 40),
-                person: person
-            ))
-        } else if days == nil {
-            out.append(Suggestion(
-                icon: "person.crop.circle.badge.questionmark",
-                color: .blue,
-                title: "No interactions yet",
-                detail: "Log your first interaction to start tracking this relationship.",
-                weight: 60,
                 person: person
             ))
         }
@@ -165,7 +158,9 @@ enum StrategyEngine {
     // MARK: Global
 
     static func global(people: [Person], now: Date = .now) -> GlobalStrategy {
-        let active = people.filter { !$0.isArchived }
+        // Contacts with no logged interactions have no basis for a strategy —
+        // exclude them from every bucket instead of surfacing placeholder rows.
+        let active = people.filter { !$0.isArchived && !$0.interactions.isEmpty }
         var g = GlobalStrategy()
 
         g.reconnect = active
