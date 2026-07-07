@@ -218,7 +218,6 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .background(SCTheme.pageBackground)
             .scrollDismissesKeyboard(.interactively)
-            .keyboardDoneToolbar()
             .navigationTitle("Settings")
             .sheet(item: $exportItem) { item in
                 ShareSheet(items: [item.url])

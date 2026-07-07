@@ -48,18 +48,17 @@ extension View {
         shadow(color: Color.black.opacity(0.06), radius: 14, x: 0, y: 8)
     }
 
-    /// Adds a "Done" checkmark above the keyboard so text fields and text
+    /// Adds a clear "Done" button above the keyboard so text fields and text
     /// editors can be dismissed without needing a Return key or tapping
     /// somewhere else first.
     func keyboardDoneButton() -> some View {
         toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
-                Button {
+                Button("Done") {
                     UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                } label: {
-                    Image(systemName: "checkmark")
                 }
+                .fontWeight(.semibold)
             }
         }
     }

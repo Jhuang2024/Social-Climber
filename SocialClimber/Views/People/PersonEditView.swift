@@ -160,7 +160,7 @@ struct PersonEditView: View {
                         .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
-            .keyboardDoneToolbar()
+            .keyboardDoneButton()
             .onAppear(perform: load)
             .onChange(of: avatarItem) {
                 Task {

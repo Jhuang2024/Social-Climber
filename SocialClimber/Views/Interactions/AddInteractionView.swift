@@ -146,7 +146,6 @@ struct AddInteractionView: View {
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Log Interaction")
             .navigationBarTitleDisplayMode(.inline)
-            .keyboardDoneToolbar()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

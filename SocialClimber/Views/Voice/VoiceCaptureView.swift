@@ -112,7 +112,7 @@ struct VoiceCaptureView: View {
                     }
                 }
             }
-            .keyboardDoneToolbar()
+            .keyboardDoneButton()
             .sheet(isPresented: $showPeoplePicker) {
                 NavigationStack {
                     PersonMultiPicker(selected: $selectedPeople)
