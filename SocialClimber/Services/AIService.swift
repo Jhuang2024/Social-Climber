@@ -176,6 +176,7 @@ enum AIServiceError: LocalizedError {
     case missingOpenRouterAPIKey
     case invalidResponse
     case emptyResponse
+    case requestFailed(status: Int)
 
     var errorDescription: String? {
         switch self {
@@ -185,6 +186,8 @@ enum AIServiceError: LocalizedError {
             "The AI provider returned a response Social Climber could not read."
         case .emptyResponse:
             "The AI provider returned an empty response."
+        case .requestFailed(let status):
+            "OpenRouter request failed (HTTP \(status)). Check your API key and model in Settings."
         }
     }
 }
@@ -218,7 +221,7 @@ final class OpenRouterAIService: AIService {
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            return try await MockAIService().extract(from: text, knownPeople: knownPeople)
+            throw AIServiceError.requestFailed(status: (response as? HTTPURLResponse)?.statusCode ?? -1)
         }
 
         let completion = try decoder.decode(OpenRouterResponse.self, from: data)
@@ -292,7 +295,7 @@ final class OpenRouterAIService: AIService {
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            return try await MockAIService().suggestGiftIdeas(personContext: personContext, existingGiftTitles: existingGiftTitles)
+            throw AIServiceError.requestFailed(status: (response as? HTTPURLResponse)?.statusCode ?? -1)
         }
 
         let completion = try decoder.decode(OpenRouterResponse.self, from: data)

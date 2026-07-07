@@ -45,6 +45,7 @@ struct AddInteractionView: View {
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var isScanning = false
     @State private var isAnalyzing = false
+    @State private var hasAnalyzed = false
     @State private var newContactName = ""
 
     @Query(sort: \Person.name) private var allPeople: [Person]
@@ -107,8 +108,26 @@ struct AddInteractionView: View {
                 Section(isImportMode ? "Summary" : "Notes") {
                     TextField(isImportMode ? "Notes (optional)" : "What happened? What did you talk about?", text: $note, axis: .vertical)
                         .lineLimit(isImportMode ? 1...4 : 4...10)
-                    TextField(isImportMode ? "Editable summary" : "Message summary (optional)", text: $messageSummary, axis: .vertical)
-                        .lineLimit(isImportMode ? 2...6 : 1...4)
+                    if isImportMode {
+                        if isAnalyzing {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                Text("Generating summary with AI…").foregroundStyle(.secondary)
+                            }
+                        } else if hasAnalyzed {
+                            TextField("Editable summary", text: $messageSummary, axis: .vertical)
+                                .lineLimit(2...6)
+                        } else {
+                            Text(rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                 ? "Paste a message or choose a screenshot above to generate a summary."
+                                 : "Tap \"Detect summary\" above to generate a summary with AI.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        TextField("Message summary (optional)", text: $messageSummary, axis: .vertical)
+                            .lineLimit(1...4)
+                    }
                     if let speakers = parsed?.speakers, !speakers.isEmpty {
                         Text("Detected: \(speakers.joined(separator: ", "))")
                             .font(.caption)
@@ -308,6 +327,11 @@ struct AddInteractionView: View {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
+        // Hide the (not-yet-generated) summary field again while this run
+        // is in flight, so a re-scan or re-detect doesn't leave stale text
+        // sitting in an editable field.
+        hasAnalyzed = false
+
         let local = MessageImportParser.parse(text)
         parsed = local
         if let detected = local.detectedDate { date = detected }
@@ -318,7 +342,8 @@ struct AddInteractionView: View {
 
         guard analyzeWithAI else {
             aiExtraction = nil
-            if messageSummary.isEmpty { messageSummary = local.summary }
+            messageSummary = local.summary
+            hasAnalyzed = true
             Haptics.success()
             return
         }
@@ -330,10 +355,12 @@ struct AddInteractionView: View {
             aiExtraction = extraction
             messageSummary = extraction.summary.isEmpty ? local.summary : extraction.summary
             for topic in extraction.topics where !topics.contains(topic) { topics.append(topic) }
+            hasAnalyzed = true
             Haptics.success()
         } catch {
             aiExtraction = nil
-            if messageSummary.isEmpty { messageSummary = local.summary }
+            messageSummary = local.summary
+            hasAnalyzed = true
             message = error.localizedDescription
         }
     }
@@ -409,10 +436,10 @@ struct AddInteractionView: View {
                     sourceText: trimmedNote,
                     interactionType: type,
                     date: date,
+                    quality: quality,
                     context: context
                 )
                 interaction?.location = location
-                interaction?.quality = quality
                 // Only override the AI-generated summary if the user actually
                 // typed their own; otherwise keep what ExtractionApplier set
                 // from the AI extraction.

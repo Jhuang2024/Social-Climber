@@ -22,6 +22,7 @@ enum ExtractionApplier {
         sourceText: String,
         interactionType: InteractionType,
         date: Date = .now,
+        quality: Int = 3,
         voiceNote: VoiceNote? = nil,
         options: Options = Options(),
         context: ModelContext
@@ -66,6 +67,13 @@ enum ExtractionApplier {
                     : person.personalityNotes + "\n" + addition
             }
             person.markContacted(type: interactionType, date: date)
+            // Only nudge closeness when this call is logging the interaction
+            // itself — when it's just applying extras onto an interaction
+            // that InteractionSaver already finalized, that call already
+            // applied the quality adjustment once.
+            if options.createInteraction {
+                person.applyInteractionQuality(quality)
+            }
         }
 
         guard options.createInteraction else { return nil }
@@ -75,6 +83,7 @@ enum ExtractionApplier {
             date: date,
             note: sourceText,
             topics: extraction.topics,
+            quality: quality,
             followUpNeeded: !extraction.reminders.isEmpty,
             messageSummary: extraction.summary
         )

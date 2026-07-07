@@ -15,6 +15,7 @@ enum InteractionSaver {
         context.insert(interaction)
         for person in people {
             person.markContacted(type: interaction.type, date: interaction.date)
+            person.applyInteractionQuality(interaction.quality)
         }
         return scheduleFollowUpIfNeeded(for: interaction, people: people, context: context)
     }
