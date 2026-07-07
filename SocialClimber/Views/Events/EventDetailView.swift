@@ -206,9 +206,9 @@ struct EventLogView: View {
         )
         interaction.people = people
         context.insert(interaction)
+        InteractionSaver.applyClosenessImpact(of: interaction, to: people)
         for person in people {
             person.markContacted(type: .event, date: event.date)
-            person.applyInteractionQuality(interaction.quality)
         }
         // A follow-up reminder for each attendee, if requested.
         if followUpNeeded {

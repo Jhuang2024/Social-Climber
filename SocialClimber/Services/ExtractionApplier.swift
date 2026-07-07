@@ -67,13 +67,6 @@ enum ExtractionApplier {
                     : person.personalityNotes + "\n" + addition
             }
             person.markContacted(type: interactionType, date: date)
-            // Only nudge closeness when this call is logging the interaction
-            // itself — when it's just applying extras onto an interaction
-            // that InteractionSaver already finalized, that call already
-            // applied the quality adjustment once.
-            if options.createInteraction {
-                person.applyInteractionQuality(quality)
-            }
         }
 
         guard options.createInteraction else { return nil }
@@ -89,6 +82,11 @@ enum ExtractionApplier {
         )
         interaction.people = people
         context.insert(interaction)
+        // Only nudge closeness when this call is logging the interaction
+        // itself — when it's just applying extras onto an interaction that
+        // InteractionSaver already finalized, that call already applied the
+        // quality adjustment once.
+        InteractionSaver.applyClosenessImpact(of: interaction, to: people)
 
         let summary = ConversationSummary(extraction: extraction)
         summary.interaction = interaction

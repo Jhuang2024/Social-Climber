@@ -13,6 +13,9 @@ final class VoiceCaptureViewModel {
     var isAnalyzing = false
     var transcript = ""
     var extraction: AIExtraction?
+    /// Set when the configured AI provider failed and `extraction` is the
+    /// deterministic local fallback instead — shown as an informational
+    /// notice, never blocks review/apply.
     var errorMessage: String?
 
     private var recorder: AVAudioRecorder?
@@ -118,11 +121,12 @@ final class VoiceCaptureViewModel {
         guard !text.isEmpty else { return }
         isAnalyzing = true
         defer { isAnalyzing = false }
-        do {
-            extraction = try await AIProvider.current.extract(from: text, knownPeople: knownPeople)
-        } catch {
-            errorMessage = "Analysis failed: \(error.localizedDescription)"
-        }
+        // Never blocks: falls back to a deterministic local extraction if the
+        // configured AI provider fails, so review/apply always has something
+        // to work with.
+        let outcome = await AIExtractionCoordinator.extract(from: text, knownPeople: knownPeople)
+        extraction = outcome.extraction
+        errorMessage = outcome.notice
     }
 
     func discardRecording() {

@@ -14,6 +14,8 @@ struct PersonProfileView: View {
     @State private var showAddReminder = false
     @State private var showAddDate = false
     @State private var confirmDelete = false
+    @State private var isGeneratingSummary = false
+    @State private var summaryNotice: String?
 
     @Query(sort: \Event.date, order: .reverse) private var allEvents: [Event]
 
@@ -66,6 +68,7 @@ struct PersonProfileView: View {
                 actionsRow
                 RelationshipScoreCard(person: person)
                 if hasLoggedInteractions { strategyCard }
+                if hasLoggedInteractions { aiSummaryCard }
                 beforeMeetingBrief
 
                 if !person.notes.isEmpty {
@@ -229,6 +232,71 @@ struct PersonProfileView: View {
                 }
             }
         }
+    }
+
+    /// A short relationship recap: most recent interaction, total logged,
+    /// tone lately, current closeness, and a suggested next step. Generation
+    /// is always manual (never auto-fires on appear) and the result is
+    /// cached on `person`, so opening this profile again shows it instantly
+    /// without another API call.
+    private var aiSummaryCard: some View {
+        FormSectionCard("AI Summary", icon: "sparkles") {
+            if isGeneratingSummary {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("Generating summary…").foregroundStyle(.secondary)
+                }
+            } else if !person.cachedAISummary.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(person.cachedAISummary)
+                        .font(.subheadline)
+                    HStack {
+                        if let generatedAt = person.aiSummaryGeneratedAt {
+                            Text(person.aiSummaryIsFallback
+                                 ? "Local summary · \(generatedAt.relativeLabel)"
+                                 : "Generated \(generatedAt.relativeLabel)")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                        Spacer()
+                        Button {
+                            Task { await generateSummary() }
+                        } label: {
+                            Label("Refresh", systemImage: "arrow.clockwise")
+                                .font(.caption.weight(.medium))
+                        }
+                    }
+                    if let summaryNotice {
+                        Text(summaryNotice)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Get a quick recap of how things stand with \(person.firstName).")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Button {
+                        Task { await generateSummary() }
+                    } label: {
+                        Label("Generate Summary", systemImage: "sparkles")
+                            .font(.subheadline.weight(.medium))
+                    }
+                }
+            }
+        }
+    }
+
+    private func generateSummary() async {
+        isGeneratingSummary = true
+        summaryNotice = nil
+        let result = await PersonSummaryEngine.summary(for: person)
+        person.cachedAISummary = result.text
+        person.aiSummaryGeneratedAt = .now
+        person.aiSummaryIsFallback = !result.isAIGenerated
+        summaryNotice = result.notice
+        isGeneratingSummary = false
     }
 
     private var eventsCard: some View {

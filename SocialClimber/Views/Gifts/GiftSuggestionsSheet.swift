@@ -12,7 +12,10 @@ struct GiftSuggestionsSheet: View {
     @State private var suggestions: [GiftSuggestion] = []
     @State private var addedTitles: Set<String> = []
     @State private var isLoading = false
-    @State private var errorMessage: String?
+    /// Set when the shown suggestions are the local fallback rather than
+    /// AI-generated — informational only, never blocks the list. `GiftIdeaEngine.suggestions`
+    /// always returns *something* usable, so there's no separate error state.
+    @State private var degradedNotice: String?
 
     var body: some View {
         NavigationStack {
@@ -25,26 +28,24 @@ struct GiftSuggestionsSheet: View {
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let errorMessage {
-                    EmptyStateView(
-                        icon: "exclamationmark.triangle",
-                        title: "Couldn't generate ideas",
-                        message: errorMessage,
-                        actionTitle: "Try Again"
-                    ) {
-                        Task { await load() }
-                    }
                 } else if suggestions.isEmpty {
                     EmptyStateView(
                         icon: "gift",
                         title: "No ideas yet",
-                        message: "Log interests, notes, or interactions for \(person.firstName) so Social Climber has something to work with.",
+                        message: degradedNotice ?? "Log interests, notes, or interactions for \(person.firstName) so Social Climber has something to work with.",
                         actionTitle: "Try Again"
                     ) {
                         Task { await load() }
                     }
                 } else {
                     List {
+                        if let degradedNotice {
+                            Section {
+                                Label(degradedNotice, systemImage: "wifi.slash")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
                         ForEach(suggestions) { suggestion in
                             suggestionRow(suggestion)
                         }
@@ -69,7 +70,23 @@ struct GiftSuggestionsSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
-        .task { await load() }
+        .task {
+            // Seed from what's already a real gift idea for this person —
+            // otherwise a suggestion added in an earlier session would show
+            // its "+" re-enabled on reopen (reading from cache resets this
+            // view's local `addedTitles`) and tapping it would create a
+            // duplicate GiftIdea.
+            addedTitles = Set(person.giftIdeas.map(\.title))
+            // Show cached ideas instantly and only call the AI provider again
+            // when the user explicitly taps refresh — opening this sheet
+            // should never silently re-trigger an API call.
+            let cached = person.cachedGiftSuggestions
+            if !cached.isEmpty {
+                suggestions = cached
+            } else {
+                await load()
+            }
+        }
     }
 
     private func suggestionRow(_ suggestion: GiftSuggestion) -> some View {
@@ -127,12 +144,11 @@ struct GiftSuggestionsSheet: View {
 
     private func load() async {
         isLoading = true
-        errorMessage = nil
-        do {
-            suggestions = try await GiftIdeaEngine.suggestions(for: person)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        degradedNotice = nil
+        let outcome = await GiftIdeaEngine.suggestions(for: person)
+        suggestions = outcome.suggestions
+        person.cachedGiftSuggestions = outcome.suggestions
+        degradedNotice = outcome.notice
         isLoading = false
     }
 }
