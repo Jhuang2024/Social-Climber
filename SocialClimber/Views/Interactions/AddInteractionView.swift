@@ -256,6 +256,7 @@ struct AddInteractionView: View {
             if isImportMode {
                 HStack {
                     TextField(newContactPrompt, text: $newContactName)
+                        .submitLabel(.done)
                     Button("Create") { createContact() }
                         .disabled(newContactName.trimmingCharacters(in: .whitespaces).isEmpty)
                 }

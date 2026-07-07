@@ -64,7 +64,7 @@ struct PersonProfileView: View {
                 statsRow
                 actionsRow
                 RelationshipScoreCard(person: person)
-                if hasLoggedInteractions && !suggestions.isEmpty { strategyCard }
+                if hasLoggedInteractions { strategyCard }
                 beforeMeetingBrief
 
                 if !person.notes.isEmpty {
@@ -217,8 +217,14 @@ struct PersonProfileView: View {
 
     private var strategyCard: some View {
         FormSectionCard("Strategy", icon: "wand.and.stars") {
-            ForEach(suggestions.prefix(4)) { suggestion in
-                SuggestionRow(suggestion: suggestion, linksToPerson: false)
+            if suggestions.isEmpty {
+                Text("You're all caught up with \(person.firstName). No urgent moves right now.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(suggestions.prefix(4)) { suggestion in
+                    SuggestionRow(suggestion: suggestion, linksToPerson: false)
+                }
             }
         }
     }

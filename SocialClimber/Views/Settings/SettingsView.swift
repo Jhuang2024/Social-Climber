@@ -114,6 +114,7 @@ struct SettingsView: View {
                         TextField("OAuth Client ID (Google Cloud Console)", text: $googleClientID)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
+                            .submitLabel(.done)
                         Button {
                             connectGoogleCalendar()
                         } label: {
