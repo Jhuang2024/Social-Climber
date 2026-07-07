@@ -22,6 +22,11 @@ struct UpcomingView: View {
         let title: String
         let subtitle: String
         let person: Person?
+        /// Set only when this entry came from an `ImportantDate` — lets the
+        /// row offer a delete swipe action straight back to the source
+        /// record, since birthdays/reminders/calendar entries aren't
+        /// standalone deletable records the same way.
+        var importantDate: ImportantDate? = nil
     }
 
     private var entries: [Entry] {
@@ -33,7 +38,7 @@ struct UpcomingView: View {
         }
         for date in importantDates {
             if let next = date.nextOccurrence, next.daysFromNow <= windowDays {
-                items.append(Entry(date: next, icon: "star.fill", color: .orange, title: date.title, subtitle: date.person?.displayName ?? date.notes, person: date.person))
+                items.append(Entry(date: next, icon: "star.fill", color: .orange, title: date.title, subtitle: date.person?.displayName ?? date.notes, person: date.person, importantDate: date))
             }
         }
         for reminder in reminders where !reminder.completed && reminder.dueDate.daysFromNow <= windowDays {
@@ -124,6 +129,14 @@ struct UpcomingView: View {
         }
         .padding(.vertical, 8)
         .swipeActions(edge: .trailing) {
+            if let importantDate = entry.importantDate {
+                Button(role: .destructive) {
+                    Haptics.warning()
+                    context.delete(importantDate)
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
             if entry.subtitle.hasPrefix("Calendar"), let person = entry.person {
                 Button {
                     let reminder = Reminder(title: "Plan: \(entry.title)", dueDate: entry.date, type: .hangout, person: person)

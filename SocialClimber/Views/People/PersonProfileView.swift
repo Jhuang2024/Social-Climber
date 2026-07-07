@@ -484,6 +484,15 @@ struct PersonProfileView: View {
                                 .font(.subheadline)
                                 .foregroundStyle(next.daysFromNow <= 14 ? Color.orange : Color.secondary)
                         }
+                        Button {
+                            Haptics.warning()
+                            context.delete(date)
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.subheadline)
+                                .foregroundStyle(.red)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
