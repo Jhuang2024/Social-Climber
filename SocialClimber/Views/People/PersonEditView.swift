@@ -76,7 +76,9 @@ struct PersonEditView: View {
 
                 Section {
                     TextField("Name", text: $name)
+                        .submitLabel(.done)
                     TextField("Nickname", text: $nickname)
+                        .submitLabel(.done)
                     TextField("Relationship to me (e.g. Berkeley roommate)", text: $relationshipToMe, axis: .vertical)
                 }
 
@@ -100,7 +102,9 @@ struct PersonEditView: View {
                         DatePicker("Date", selection: $birthday, displayedComponents: .date)
                     }
                     TextField("School / Work", text: $schoolOrWork)
+                        .submitLabel(.done)
                     TextField("Location", text: $location)
+                        .submitLabel(.done)
                 }
 
                 Section("Contact Methods") {
@@ -118,6 +122,7 @@ struct PersonEditView: View {
                         }
                         .labelsHidden()
                         TextField("Value", text: $newMethodValue)
+                            .submitLabel(.done)
                         Button {
                             let value = newMethodValue.trimmingCharacters(in: .whitespaces)
                             guard !value.isEmpty else { return }
@@ -143,6 +148,7 @@ struct PersonEditView: View {
             }
             .scrollContentBackground(.hidden)
             .background(SCTheme.pageBackground)
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(person == nil ? "New Person" : "Edit Person")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -154,7 +160,7 @@ struct PersonEditView: View {
                         .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
-            .keyboardDoneButton()
+            .keyboardDoneToolbar()
             .onAppear(perform: load)
             .onChange(of: avatarItem) {
                 Task {

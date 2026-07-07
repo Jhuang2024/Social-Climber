@@ -99,6 +99,7 @@ struct AddInteractionView: View {
                         }
                     }
                     TextField("Location", text: $location)
+                        .submitLabel(.done)
                 }
 
                 Section(isImportMode ? "Summary" : "Notes") {
@@ -142,8 +143,10 @@ struct AddInteractionView: View {
             }
             .scrollContentBackground(.hidden)
             .background(SCTheme.pageBackground)
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Log Interaction")
             .navigationBarTitleDisplayMode(.inline)
+            .keyboardDoneToolbar()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

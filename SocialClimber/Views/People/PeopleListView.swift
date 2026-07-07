@@ -82,6 +82,7 @@ struct PeopleListView: View {
                         }
                         .listStyle(.plain)
                         .scrollContentBackground(.hidden)
+                        .scrollDismissesKeyboard(.immediately)
                         .searchable(text: $searchText, prompt: "Name, relationship, tag…")
                         .animation(.snappy(duration: 0.25), value: filtered.map(\.persistentModelID))
                         .overlay {

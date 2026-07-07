@@ -41,6 +41,7 @@ struct SearchView: View {
                 .animation(.snappy(duration: 0.22), value: query)
             }
             .socialClimberPageBackground()
+            .scrollDismissesKeyboard(.immediately)
             .navigationTitle("Search")
             .keyboardDoneButton()
         }

@@ -147,6 +147,7 @@ struct SettingsView: View {
                         SecureField(hasOpenRouterAPIKey ? "OpenRouter API key saved" : "OpenRouter API key", text: $openRouterAPIKey)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
+                            .submitLabel(.done)
                         Button {
                             saveOpenRouterKey()
                         } label: {
@@ -163,6 +164,7 @@ struct SettingsView: View {
                         TextField("Model ID", text: $openRouterModelID)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
+                            .submitLabel(.done)
                         Text("Default: \(OpenRouterDefaults.modelID). The API key is stored only in iOS Keychain and is never exported or logged.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -215,6 +217,8 @@ struct SettingsView: View {
             }
             .scrollContentBackground(.hidden)
             .background(SCTheme.pageBackground)
+            .scrollDismissesKeyboard(.interactively)
+            .keyboardDoneToolbar()
             .navigationTitle("Settings")
             .sheet(item: $exportItem) { item in
                 ShareSheet(items: [item.url])

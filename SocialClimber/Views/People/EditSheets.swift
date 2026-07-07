@@ -20,6 +20,7 @@ struct GiftIdeaEditSheet: View {
         NavigationStack {
             Form {
                 TextField("Gift idea", text: $title)
+                    .submitLabel(.done)
                 if person == nil {
                     Picker("For", selection: $selectedPerson) {
                         Text("No one specific").tag(Person?.none)
@@ -29,7 +30,9 @@ struct GiftIdeaEditSheet: View {
                     }
                 }
                 TextField("Occasion (e.g. Birthday)", text: $occasion)
+                    .submitLabel(.done)
                 TextField("Price range (e.g. $30–50)", text: $priceRange)
+                    .submitLabel(.done)
                 Picker("Status", selection: $status) {
                     ForEach(GiftStatus.allCases) { Text($0.label).tag($0) }
                 }
@@ -38,6 +41,8 @@ struct GiftIdeaEditSheet: View {
             }
             .scrollContentBackground(.hidden)
             .background(SCTheme.pageBackground)
+            .scrollDismissesKeyboard(.interactively)
+            .keyboardDoneToolbar()
             .navigationTitle("Gift Idea")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -74,6 +79,7 @@ struct ReminderEditSheet: View {
         NavigationStack {
             Form {
                 TextField("Reminder", text: $title)
+                    .submitLabel(.done)
                 if person == nil {
                     Picker("Person", selection: $selectedPerson) {
                         Text("No one specific").tag(Person?.none)
@@ -91,6 +97,8 @@ struct ReminderEditSheet: View {
             }
             .scrollContentBackground(.hidden)
             .background(SCTheme.pageBackground)
+            .scrollDismissesKeyboard(.interactively)
+            .keyboardDoneToolbar()
             .navigationTitle("Reminder")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -128,6 +136,7 @@ struct ImportantDateEditSheet: View {
         NavigationStack {
             Form {
                 TextField("Title (e.g. Anniversary, Graduation)", text: $title)
+                    .submitLabel(.done)
                 if person == nil {
                     Picker("Person", selection: $selectedPerson) {
                         Text("No one specific").tag(Person?.none)
@@ -143,6 +152,8 @@ struct ImportantDateEditSheet: View {
             }
             .scrollContentBackground(.hidden)
             .background(SCTheme.pageBackground)
+            .scrollDismissesKeyboard(.interactively)
+            .keyboardDoneToolbar()
             .navigationTitle("Important Date")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
