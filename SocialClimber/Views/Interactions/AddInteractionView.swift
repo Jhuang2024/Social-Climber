@@ -64,6 +64,7 @@ struct AddInteractionView: View {
                     }
                     DatePicker("When", selection: $date, displayedComponents: [.date, .hourAndMinute])
                     TextField("Location", text: $location)
+                        .submitLabel(.done)
                 }
 
                 Section("Notes") {
@@ -87,8 +88,10 @@ struct AddInteractionView: View {
             }
             .scrollContentBackground(.hidden)
             .background(SCTheme.pageBackground)
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Log Interaction")
             .navigationBarTitleDisplayMode(.inline)
+            .keyboardDoneToolbar()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
