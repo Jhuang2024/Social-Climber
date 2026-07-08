@@ -7,6 +7,7 @@ import SwiftData
 /// flow instead of silently continuing as if this were a fresh install.
 struct AppRootView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.scenePhase) private var scenePhase
     @State private var previousCountIfLossDetected: Int?
     @State private var hasChecked = false
 
@@ -25,6 +26,15 @@ struct AppRootView: View {
         }
         .task {
             runCheckIfNeeded()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            // Redundant with `AutoBackupObserver`'s per-save backup, on
+            // purpose: this also catches the app being backgrounded right
+            // before the exact kind of external event (a reinstall, a
+            // signing change) that this whole system exists to survive.
+            if newPhase == .background {
+                BackupManager.createBackup(context: context, reason: "auto-background")
+            }
         }
     }
 

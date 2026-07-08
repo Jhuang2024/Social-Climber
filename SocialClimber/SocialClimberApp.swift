@@ -22,18 +22,37 @@ struct SocialClimberApp: App {
         // the container itself opens.
         let storeURL = ModelConfiguration().url
         PersistenceGuard.checkAndLogPathChange(currentPath: storeURL.path)
-        do {
+
+        func open() throws -> ModelContainer {
             let container = try ModelContainer(for: schema)
-            // Never a destructive reset on failure: a broken migration
-            // still fails loudly above via `fatalError`, rather than
-            // silently deleting and recreating an empty store. This just
-            // snapshots the data once a migration has succeeded, so the
-            // next launch (paired with `AppRootView`'s check) can catch a
-            // migration that quietly wiped something.
+            // Never a silent destructive reset: this just snapshots data
+            // once a migration has succeeded (`SchemaVersionGuard`), and
+            // watches for every future save (`AutoBackupObserver`), so the
+            // next launch (paired with `AppRootView`'s check) can catch
+            // anything that quietly went wrong.
             SchemaVersionGuard.backupIfNeeded(container: container)
+            AutoBackupObserver.start(container: container)
             return container
+        }
+
+        do {
+            return try open()
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            // The store exists but SwiftData can't open it at all
+            // (corruption, an interrupted write, an unreconcilable
+            // migration). Crashing on every subsequent launch is exactly
+            // what an unrecoverable crash loop looks like from the
+            // outside, and it's strictly worse than recovering: quarantine
+            // (never delete) the unreadable files and try once more with a
+            // fresh store. `AppRootView`'s data-loss check then surfaces
+            // the recovery screen on this very next launch instead of this
+            // happening silently.
+            PersistenceRecovery.quarantineUnreadableStore(at: storeURL)
+            do {
+                return try open()
+            } catch {
+                fatalError("Could not create ModelContainer even after quarantining the existing store: \(error)")
+            }
         }
     }()
 
