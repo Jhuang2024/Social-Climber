@@ -48,7 +48,7 @@ struct SocialClimberPublicContext: Codable, Equatable {
 extension SocialClimberPublicContext {
     /// Caps on how much goes into a single snapshot. This is a small status
     /// file re-read on every launch, not an export, so it only ever needs
-    /// enough to answer "what's due" and "what's coming up" — not a full
+    /// enough to answer "what's due" and "what's coming up," not a full
     /// backlog.
     private static let maxTasks = 20
     private static let maxUpcomingEvents = 20

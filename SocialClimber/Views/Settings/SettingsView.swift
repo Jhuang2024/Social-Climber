@@ -134,7 +134,7 @@ struct SettingsView: View {
 
                 Section("Locked In Fit") {
                     LabeledContent("Readiness context", value: crossAppStatusText)
-                    Text("If Locked In Fit is installed and shares an App Group with Social Climber, its energy/recovery snapshot can quiet down low-priority check-ins on rough days. Social Climber only reads that one small file: it never opens Locked In Fit's database, and never edits its logs, workouts, or health data. In return, Social Climber publishes only today's social task titles and clean event context (type, timing, intensity) for important events — no notes, messages, or people details ever leave this app.")
+                    Text("If Locked In Fit is installed and shares an App Group with Social Climber, its energy/recovery snapshot can quiet down low-priority check-ins on rough days. Social Climber only reads that one small file: it never opens Locked In Fit's database, and never edits its logs, workouts, or health data. In return, Social Climber publishes only today's social task titles and clean event context (type, timing, intensity) for important events; no notes, messages, or people details ever leave this app.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

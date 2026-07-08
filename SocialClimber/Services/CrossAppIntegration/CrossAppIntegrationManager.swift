@@ -4,7 +4,7 @@ import Foundation
 /// Locked In Fit, so the rest of the app never has to know whether an App
 /// Group container is actually available. `CrossAppIntegrationManager`
 /// picks `AppGroupCrossAppBridge` when the shared container is reachable
-/// and `NoOpCrossAppBridge` otherwise — every call on either one is safe to
+/// and `NoOpCrossAppBridge` otherwise: every call on either one is safe to
 /// make unconditionally.
 protocol CrossAppContextBridge {
     func readLockedInFitContext() -> LockedInFitPublicContext?
@@ -69,7 +69,7 @@ enum SocialReadinessMode: Equatable {
 
 /// The single entry point the rest of Social Climber uses for the Locked In
 /// Fit bridge: reading readiness context and publishing Social Climber's own
-/// snapshot. Everything is optional and fails soft — a missing, stale, or
+/// snapshot. Everything is optional and fails soft: a missing, stale, or
 /// corrupted file is treated identically to "Locked In Fit isn't installed."
 enum CrossAppIntegrationManager {
     /// Shared with Locked In Fit; both apps' App Group entitlements must

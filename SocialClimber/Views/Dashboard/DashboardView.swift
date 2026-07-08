@@ -23,7 +23,7 @@ struct DashboardView: View {
     @State private var isLoadingNearby = false
     /// Locked In Fit's readiness context, refreshed once per appearance
     /// (see `refreshCrossAppContext`). `nil` whenever the bridge is
-    /// unavailable, the snapshot is missing/corrupted, or stale — Social
+    /// unavailable, the snapshot is missing/corrupted, or stale; Social
     /// Climber then behaves exactly as it does without the integration.
     @State private var readiness: SocialReadinessMode?
 
@@ -295,7 +295,7 @@ struct DashboardView: View {
     }
 
     /// A one-line, subtly-marked note surfacing Locked In Fit's imported
-    /// readiness context. Never editable here — Social Climber only ever
+    /// readiness context. Never editable here: Social Climber only ever
     /// displays it, never writes back to Locked In Fit's data.
     private func readinessCard(_ readiness: SocialReadinessMode) -> some View {
         HStack(spacing: 10) {
