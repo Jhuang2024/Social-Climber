@@ -200,15 +200,15 @@ struct SettingsView: View {
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .submitLabel(.done)
-                        Text("Default: \(OpenRouterDefaults.modelID). The API key is stored only in iOS Keychain and is never exported or logged.")
+                        Text("Default: \(OpenRouterDefaults.modelID). The API key is stored only in iOS Keychain and is never exported or logged. Fit Checker and How to Respond need a vision-capable model to read photos — check your model's capabilities on OpenRouter if those come back with an error.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
-                        Text("Mock uses deterministic local heuristics and never sends notes off this iPhone.")
+                        Text("Mock uses deterministic local heuristics and never sends notes off this iPhone. Fit Checker and How to Respond need real photo analysis, so both require OpenRouter.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    Text("Voice notes and typed notes stay local unless you explicitly analyze them with the selected LLM provider.")
+                    Text("Voice notes, typed notes, and photos (outfit or screenshot) stay on this iPhone unless you explicitly analyze them with the selected LLM provider.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

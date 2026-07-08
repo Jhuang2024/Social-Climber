@@ -16,6 +16,7 @@ struct PersonProfileView: View {
     @State private var confirmDelete = false
     @State private var isGeneratingSummary = false
     @State private var summaryNotice: String?
+    @State private var showHowToRespond = false
 
     @Query(sort: \Event.date, order: .reverse) private var allEvents: [Event]
 
@@ -69,6 +70,7 @@ struct PersonProfileView: View {
                 RelationshipScoreCard(person: person)
                 if hasLoggedInteractions { strategyCard }
                 if hasLoggedInteractions { aiSummaryCard }
+                howToRespondCard
                 beforeMeetingBrief
 
                 if !person.notes.isEmpty {
@@ -125,6 +127,7 @@ struct PersonProfileView: View {
         .sheet(isPresented: $showGiftSuggestions) { GiftSuggestionsSheet(person: person) }
         .sheet(isPresented: $showAddReminder) { ReminderEditSheet(person: person) }
         .sheet(isPresented: $showAddDate) { ImportantDateEditSheet(person: person) }
+        .sheet(isPresented: $showHowToRespond) { HowToRespondSheet(person: person) }
         .confirmationDialog("Delete \(person.displayName)? This removes all their data.", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
                 Haptics.warning()
@@ -323,6 +326,23 @@ struct PersonProfileView: View {
         person.aiSummaryIsFallback = !result.isAIGenerated
         summaryNotice = result.notice
         isGeneratingSummary = false
+    }
+
+    /// Screenshot-a-conversation reply assist. Deliberately shown for every
+    /// contact, even ones with no logged interactions yet — unlike Strategy
+    /// and AI Summary, replying to an incoming message doesn't depend on
+    /// history existing first. Analyzing a screenshot here never creates an
+    /// interaction and never touches closeness.
+    private var howToRespondCard: some View {
+        FormSectionCard("How to Respond", icon: "text.bubble.fill") {
+            Text("Screenshot a message from \(person.firstName) and get a reply grounded in their profile, closeness, and history. Never logged as an interaction.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Button { showHowToRespond = true } label: {
+                Label("Analyze a Screenshot", systemImage: "sparkles")
+                    .font(.subheadline.weight(.medium))
+            }
+        }
     }
 
     private var eventsCard: some View {

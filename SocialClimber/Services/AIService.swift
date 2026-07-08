@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 // MARK: - Extraction output
 
@@ -137,6 +138,105 @@ struct GiftSuggestion: Codable, Identifiable, Hashable {
         try container.encode(reason, forKey: .reason)
         try container.encode(priceRange, forKey: .priceRange)
         try container.encode(occasion, forKey: .occasion)
+    }
+}
+
+// MARK: - Fit Checker
+
+/// A single photo's outfit rated against the event it's headed to. Event-prep
+/// assistance only — never written to a `Person` or `Interaction`, so it can
+/// never touch closeness, cadence, or relationship scoring.
+struct FitCheckResult: Codable, Hashable {
+    var score: Int = 0
+    var verdict: String = ""
+    var strengths: [String] = []
+    var weaknesses: [String] = []
+    var improvements: [String] = []
+    /// 0...1, how confident the model is given photo quality/angle/lighting.
+    /// `nil` when the model didn't return one.
+    var confidence: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case score, verdict, strengths, weaknesses, improvements, confidence
+    }
+
+    init(score: Int = 0, verdict: String = "", strengths: [String] = [], weaknesses: [String] = [], improvements: [String] = [], confidence: Double? = nil) {
+        self.score = min(100, max(0, score))
+        self.verdict = verdict
+        self.strengths = strengths
+        self.weaknesses = weaknesses
+        self.improvements = improvements
+        self.confidence = confidence
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let rawScore = try container.decodeIfPresent(Int.self, forKey: .score) ?? 0
+        score = min(100, max(0, rawScore))
+        verdict = try container.decodeIfPresent(String.self, forKey: .verdict) ?? ""
+        strengths = try container.decodeIfPresent([String].self, forKey: .strengths) ?? []
+        weaknesses = try container.decodeIfPresent([String].self, forKey: .weaknesses) ?? []
+        improvements = try container.decodeIfPresent([String].self, forKey: .improvements) ?? []
+        confidence = try container.decodeIfPresent(Double.self, forKey: .confidence)
+    }
+}
+
+// MARK: - How to Respond
+
+/// One candidate reply, always with a plain rationale — no bare text with no
+/// explanation of when you'd actually send it.
+struct ReplyOption: Codable, Hashable {
+    var text: String = ""
+    var why: String = ""
+
+    enum CodingKeys: String, CodingKey {
+        case text, why
+    }
+
+    init(text: String = "", why: String = "") {
+        self.text = text
+        self.why = why
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        text = try container.decodeIfPresent(String.self, forKey: .text) ?? ""
+        why = try container.decodeIfPresent(String.self, forKey: .why) ?? ""
+    }
+}
+
+/// Reply guidance for an incoming screenshot, grounded in a specific person's
+/// existing profile. Purely an assist surface — analyzing a screenshot here
+/// never creates an `Interaction` or touches closeness.
+struct ReplyAdvice: Codable, Hashable {
+    var recommendedReply: String = ""
+    var alternates: [ReplyOption] = []
+    var explanation: String = ""
+    var tone: String = ""
+    /// Set only when the incoming message reads as sensitive, risky, dry,
+    /// hostile, or ambiguous — `nil` otherwise.
+    var warning: String?
+
+    enum CodingKeys: String, CodingKey {
+        case recommendedReply, alternates, explanation, tone, warning
+    }
+
+    init(recommendedReply: String = "", alternates: [ReplyOption] = [], explanation: String = "", tone: String = "", warning: String? = nil) {
+        self.recommendedReply = recommendedReply
+        self.alternates = alternates
+        self.explanation = explanation
+        self.tone = tone
+        self.warning = warning
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        recommendedReply = try container.decodeIfPresent(String.self, forKey: .recommendedReply) ?? ""
+        alternates = try container.decodeIfPresent([ReplyOption].self, forKey: .alternates) ?? []
+        explanation = try container.decodeIfPresent(String.self, forKey: .explanation) ?? ""
+        tone = try container.decodeIfPresent(String.self, forKey: .tone) ?? ""
+        let rawWarning = try container.decodeIfPresent(String.self, forKey: .warning)
+        warning = (rawWarning?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) ? nil : rawWarning
     }
 }
 
@@ -289,8 +389,8 @@ final class OpenRouterAIService: AIService {
     /// Centralizes the network call, timeout, and error classification so
     /// every OpenRouter call site (extraction, gift ideas, person summary)
     /// fails the same clean way instead of leaking raw network errors.
-    private static func send(
-        _ requestBody: OpenRouterRequest,
+    private static func send<Body: Encodable>(
+        _ requestBody: Body,
         apiKey: String,
         endpoint: URL,
         decoder: JSONDecoder
@@ -421,6 +521,97 @@ final class OpenRouterAIService: AIService {
     You write a short, honest relationship summary (3-5 sentences, plain text, no markdown) for a local-first iOS app, grounded strictly in the facts given. Mention how things have been going, the general tone, and one concrete suggested next move. Do not invent facts that aren't in the context.
     """
 
+    // MARK: Fit Checker (vision)
+
+    /// Rates a single outfit photo against the specific event it's headed
+    /// to. Event-prep assistance only — the result is never persisted onto
+    /// a `Person` or `Interaction`, so it can't touch closeness or history.
+    func checkFit(image: UIImage, eventContext: String) async throws -> FitCheckResult {
+        let apiKey = try KeychainService.openRouterAPIKey()
+        guard let dataURL = ImageEncoding.dataURL(for: image) else { throw AIServiceError.invalidResponse }
+        let model = UserDefaults.standard.string(forKey: "openRouterModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let requestBody = VisionRequest(
+            model: model?.isEmpty == false ? model! : OpenRouterDefaults.modelID,
+            messages: [
+                VisionMessage(role: "system", content: [VisionContentPart.text(Self.fitCheckSystemPrompt)]),
+                VisionMessage(role: "user", content: [VisionContentPart.text(Self.fitCheckUserPrompt(eventContext: eventContext)), VisionContentPart.imageURL(dataURL)]),
+            ],
+            temperature: 0.4,
+            responseFormat: ResponseFormat(type: "json_object")
+        )
+        let content = try await Self.send(requestBody, apiKey: apiKey, endpoint: endpoint, decoder: decoder)
+        return try Self.decode(FitCheckResult.self, from: content, decoder: decoder)
+    }
+
+    private static let fitCheckSystemPrompt = """
+    You are a sharp, honest personal stylist embedded in a private local-first relationship app called Social Climber. You are given one photo of an outfit and the details of a specific social event it's being worn to. Return only JSON. Be direct and concrete — never generic filler like "just be yourself" or "wear something nice". Ground every point strictly in what is actually visible in the photo (fit, color, layering, formality, condition) and in the event details given. Never invent details about the photo you can't actually see.
+    """
+
+    private static func fitCheckUserPrompt(eventContext: String) -> String {
+        """
+        Event context:
+        \(eventContext)
+
+        Rate how well the outfit in the photo fits this specific event — its formality, its social context, and the people involved. Return this JSON shape:
+        {
+          "score": 0-100 integer overall fit score,
+          "verdict": "one short, punchy sentence verdict",
+          "strengths": ["specific strengths actually visible in the photo"],
+          "weaknesses": ["specific weak points — call out plainly if it reads too casual, too formal, too boring, too loud, or mismatched for this event"],
+          "improvements": ["specific, actionable swaps or additions to make before going — not vague advice"],
+          "confidence": 0.0-1.0 how confident you are given the photo's quality, angle, and lighting
+        }
+        """
+    }
+
+    // MARK: How to Respond (vision)
+
+    /// Reads one or more conversation screenshots and suggests how to reply,
+    /// grounded in what Social Climber already knows about this specific
+    /// person. Assist-only — never creates an `Interaction` or touches
+    /// closeness; the caller must not persist the screenshots either.
+    func analyzeReply(images: [UIImage], personContext: String) async throws -> ReplyAdvice {
+        let apiKey = try KeychainService.openRouterAPIKey()
+        let dataURLs = images.compactMap { ImageEncoding.dataURL(for: $0) }
+        guard !dataURLs.isEmpty else { throw AIServiceError.invalidResponse }
+        let model = UserDefaults.standard.string(forKey: "openRouterModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var userContent: [VisionContentPart] = [VisionContentPart.text(Self.replyUserPrompt(personContext: personContext))]
+        userContent.append(contentsOf: dataURLs.map { VisionContentPart.imageURL($0) })
+        let requestBody = VisionRequest(
+            model: model?.isEmpty == false ? model! : OpenRouterDefaults.modelID,
+            messages: [
+                VisionMessage(role: "system", content: [VisionContentPart.text(Self.replySystemPrompt)]),
+                VisionMessage(role: "user", content: userContent),
+            ],
+            temperature: 0.5,
+            responseFormat: ResponseFormat(type: "json_object")
+        )
+        let content = try await Self.send(requestBody, apiKey: apiKey, endpoint: endpoint, decoder: decoder)
+        return try Self.decode(ReplyAdvice.self, from: content, decoder: decoder)
+    }
+
+    private static let replySystemPrompt = """
+    You are embedded in a private local-first relationship app called Social Climber. Given one or more screenshots of an incoming conversation, plus everything the app already knows about this specific person, you help the user decide how to reply. Return only JSON. Read the actual message text in the screenshot(s) carefully — your recommended reply should respond to what was actually said, not something generic. Ground the tone and content of every reply in the person's real profile data given (closeness, notes, history) rather than generic advice. Never suggest anything as vague as "just be yourself" — give a reply the user could send as-is.
+    """
+
+    private static func replyUserPrompt(personContext: String) -> String {
+        """
+        Person context:
+        \(personContext)
+
+        Read the attached screenshot(s) of the incoming conversation, in order, and figure out what the other person most recently said or asked. Then return this JSON shape:
+        {
+          "recommendedReply": "a reply the user could send as-is, matched to the right tone (casual, funny, direct, warm, flirty, professional, distant, concise — whichever actually fits) for this specific person and message",
+          "alternates": [{"text": "an alternative reply", "why": "when or why you'd send this one instead"}],
+          "explanation": "why the recommended reply fits, referencing the person's profile and the incoming message's tone",
+          "tone": "short label for the tone used, e.g. 'Warm and casual' or 'Direct and professional'",
+          "warning": "a short flag if the incoming message seems sensitive, risky, dry, hostile, or ambiguous — omit or null otherwise"
+        }
+
+        Give 1 to 3 alternates.
+        """
+    }
+
     private static let giftSystemPrompt = """
     You suggest thoughtful gift ideas for a local-first relationship app. Return only JSON. Ground every idea strictly in the facts given about the person — their interests, notes, tags, past interactions, and events. Do not invent specific personal facts (brands, sizes, exact preferences) that aren't implied by the given context; if the context is thin, suggest a more general idea tied to what is known instead of fabricating detail.
     """
@@ -459,6 +650,79 @@ final class OpenRouterAIService: AIService {
         let json = String(content[start...end])
         guard let data = json.data(using: .utf8) else { throw AIServiceError.invalidResponse }
         return try decoder.decode(GiftSuggestionsResponse.self, from: data).giftIdeas
+    }
+
+    /// Shared strict-JSON decoding for the vision responses (Fit Checker,
+    /// How to Respond): tries the raw content first, then falls back to the
+    /// substring between the first `{` and last `}` in case the model
+    /// wrapped the JSON in prose or a code fence despite the JSON-mode ask.
+    private static func decode<T: Decodable>(_ type: T.Type, from content: String, decoder: JSONDecoder) throws -> T {
+        if let data = content.data(using: .utf8), let value = try? decoder.decode(T.self, from: data) {
+            return value
+        }
+        guard let start = content.firstIndex(of: "{"),
+              let end = content.lastIndex(of: "}") else {
+            throw AIServiceError.invalidResponse
+        }
+        let json = String(content[start...end])
+        guard let data = json.data(using: .utf8) else { throw AIServiceError.invalidResponse }
+        return try decoder.decode(T.self, from: data)
+    }
+
+    /// A chat completion request whose user message can include image parts
+    /// — the vision counterpart to `OpenRouterRequest`'s plain-string
+    /// messages, used only by the Fit Checker and How to Respond calls.
+    private struct VisionRequest: Encodable {
+        let model: String
+        let messages: [VisionMessage]
+        let temperature: Double
+        let responseFormat: ResponseFormat?
+
+        enum CodingKeys: String, CodingKey {
+            case model
+            case messages
+            case temperature
+            case responseFormat = "response_format"
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(model, forKey: .model)
+            try container.encode(messages, forKey: .messages)
+            try container.encode(temperature, forKey: .temperature)
+            try container.encodeIfPresent(responseFormat, forKey: .responseFormat)
+        }
+    }
+
+    private struct VisionMessage: Encodable {
+        let role: String
+        let content: [VisionContentPart]
+    }
+
+    /// One part of a multipart vision message — either plain text or an
+    /// inline base64 image, matching OpenRouter/OpenAI's `content` array
+    /// shape for chat completions.
+    private enum VisionContentPart: Encodable {
+        case text(String)
+        case imageURL(String)
+
+        private enum CodingKeys: String, CodingKey {
+            case type, text
+            case imageURL = "image_url"
+        }
+        private struct ImageURLBox: Encodable { let url: String }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            switch self {
+            case .text(let text):
+                try container.encode("text", forKey: .type)
+                try container.encode(text, forKey: .text)
+            case .imageURL(let url):
+                try container.encode("image_url", forKey: .type)
+                try container.encode(ImageURLBox(url: url), forKey: .imageURL)
+            }
+        }
     }
 
     private struct OpenRouterRequest: Encodable {
