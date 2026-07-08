@@ -166,5 +166,10 @@ enum SeedData {
         try? context.delete(model: Person.self)
         try? context.save()
         NotificationService.shared.cancelAll()
+        // This is the one place zero records is genuinely correct and
+        // user-confirmed (via the "Delete Everything" dialog), so reset
+        // DataLossGuard's baseline to match; otherwise the very next launch
+        // would misread this intentional wipe as the data silently vanishing.
+        DataLossGuard.recordCurrentCount(0)
     }
 }

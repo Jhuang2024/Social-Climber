@@ -1,17 +1,51 @@
 import Foundation
 import SwiftData
 
+/// Decodes a value defensively: any decode failure (a missing key, the
+/// wrong type, or the container itself throwing) falls back to `fallback`
+/// instead of propagating, so one malformed or not-yet-invented field never
+/// fails an entire archive or record. Shared by `Archive` and the DTOs
+/// below so every backward-compatibility fallback uses the same rule.
+private func decodeOrDefault<Key: CodingKey, T: Decodable>(_ container: KeyedDecodingContainer<Key>, _ key: Key, _ fallback: T) -> T {
+    guard let value = try? container.decodeIfPresent(T.self, forKey: key) else { return fallback }
+    return value ?? fallback
+}
+
 /// JSON export/import of the whole database. People are matched by name on
-/// import, so re-importing a backup merges instead of duplicating.
+/// import, so re-importing a backup merges instead of duplicating. This is
+/// also the format `BackupManager`'s automatic snapshots use, so every
+/// safeguard here (defensive decoding of old/future files, never requiring
+/// a field that didn't always exist) protects backups just as much as the
+/// manual "Export JSON…" / "Import JSON…" flow.
 enum ExportImportService {
 
     // MARK: DTOs
 
     struct Archive: Codable {
-        var version = 1
+        var version = 2
         var exportedAt = Date()
         var people: [PersonDTO] = []
         var interactions: [InteractionDTO] = []
+        var events: [EventDTO] = []
+
+        init() {}
+
+        private enum CodingKeys: String, CodingKey {
+            case version, exportedAt, people, interactions, events
+        }
+
+        /// Every field decoded with a fallback to its default, so an older
+        /// export (from before `events` existed) still restores everything
+        /// it originally had, instead of failing the whole file over one
+        /// missing key.
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            version = decodeOrDefault(c, .version, 1)
+            exportedAt = decodeOrDefault(c, .exportedAt, Date())
+            people = decodeOrDefault(c, .people, [])
+            interactions = decodeOrDefault(c, .interactions, [])
+            events = decodeOrDefault(c, .events, [])
+        }
     }
 
     struct PersonDTO: Codable {
@@ -75,6 +109,73 @@ enum ExportImportService {
         var quality: Int
         var followUpNeeded: Bool
         var peopleNames: [String]
+        var followUpDate: Date?
+        var nextMove: String
+        var messageSummary: String
+        var isImported: Bool
+        var platform: String?
+        var rawImportText: String
+
+        init(
+            type: String, date: Date, location: String, note: String, topics: [String],
+            quality: Int, followUpNeeded: Bool, peopleNames: [String],
+            followUpDate: Date? = nil, nextMove: String = "", messageSummary: String = "",
+            isImported: Bool = false, platform: String? = nil, rawImportText: String = ""
+        ) {
+            self.type = type
+            self.date = date
+            self.location = location
+            self.note = note
+            self.topics = topics
+            self.quality = quality
+            self.followUpNeeded = followUpNeeded
+            self.peopleNames = peopleNames
+            self.followUpDate = followUpDate
+            self.nextMove = nextMove
+            self.messageSummary = messageSummary
+            self.isImported = isImported
+            self.platform = platform
+            self.rawImportText = rawImportText
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case type, date, location, note, topics, quality, followUpNeeded, peopleNames
+            case followUpDate, nextMove, messageSummary, isImported, platform, rawImportText
+        }
+
+        /// The original fields are required (every export ever written has
+        /// them); the fields added alongside this backup system default
+        /// gracefully so an older export still decodes in full.
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            type = try c.decode(String.self, forKey: .type)
+            date = try c.decode(Date.self, forKey: .date)
+            location = try c.decode(String.self, forKey: .location)
+            note = try c.decode(String.self, forKey: .note)
+            topics = try c.decode([String].self, forKey: .topics)
+            quality = try c.decode(Int.self, forKey: .quality)
+            followUpNeeded = try c.decode(Bool.self, forKey: .followUpNeeded)
+            peopleNames = try c.decode([String].self, forKey: .peopleNames)
+            followUpDate = (try? c.decodeIfPresent(Date.self, forKey: .followUpDate)) ?? nil
+            nextMove = decodeOrDefault(c, .nextMove, "")
+            messageSummary = decodeOrDefault(c, .messageSummary, "")
+            isImported = decodeOrDefault(c, .isImported, false)
+            platform = (try? c.decodeIfPresent(String.self, forKey: .platform)) ?? nil
+            rawImportText = decodeOrDefault(c, .rawImportText, "")
+        }
+    }
+
+    struct EventDTO: Codable {
+        var name: String
+        var date: Date
+        var location: String
+        var purpose: String
+        var notes: String
+        var eventKind: String
+        var importance: String
+        var socialIntensity: String
+        var prepNeeded: Bool
+        var attendeeNames: [String]
     }
 
     // MARK: Export
@@ -82,6 +183,7 @@ enum ExportImportService {
     static func exportData(context: ModelContext) throws -> Data {
         let people = try context.fetch(FetchDescriptor<Person>())
         let interactions = try context.fetch(FetchDescriptor<Interaction>())
+        let events = try context.fetch(FetchDescriptor<Event>())
 
         var archive = Archive()
         archive.people = people.map { p in
@@ -104,7 +206,17 @@ enum ExportImportService {
             InteractionDTO(
                 type: i.typeRaw, date: i.date, location: i.location, note: i.note,
                 topics: i.topics, quality: i.quality, followUpNeeded: i.followUpNeeded,
-                peopleNames: i.people.map(\.name)
+                peopleNames: i.people.map(\.name),
+                followUpDate: i.followUpDate, nextMove: i.nextMove, messageSummary: i.messageSummary,
+                isImported: i.isImported, platform: i.platformRaw.isEmpty ? nil : i.platformRaw,
+                rawImportText: i.rawImportText
+            )
+        }
+        archive.events = events.map { e in
+            EventDTO(
+                name: e.name, date: e.date, location: e.location, purpose: e.purpose, notes: e.notes,
+                eventKind: e.eventKindRaw, importance: e.importanceRaw, socialIntensity: e.socialIntensityRaw,
+                prepNeeded: e.prepNeeded, attendeeNames: e.attendees.map(\.name)
             )
         }
 
@@ -120,6 +232,16 @@ enum ExportImportService {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
         try data.write(to: url)
         return url
+    }
+
+    /// The total record count a raw archive file contains, without
+    /// touching the live database. Used to refuse restoring an empty or
+    /// unreadable backup instead of silently "succeeding" at doing nothing.
+    static func recordCount(in data: Data) -> Int? {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let archive = try? decoder.decode(Archive.self, from: data) else { return nil }
+        return archive.people.count + archive.interactions.count + archive.events.count
     }
 
     // MARK: Import
@@ -197,16 +319,38 @@ enum ExportImportService {
 
         // Interactions: skip exact duplicates (same date + note).
         let existingInteractions = try context.fetch(FetchDescriptor<Interaction>())
-        let seen = Set(existingInteractions.map { "\($0.date.timeIntervalSince1970)|\($0.note)" })
+        let seenInteractions = Set(existingInteractions.map { "\($0.date.timeIntervalSince1970)|\($0.note)" })
         for dto in archive.interactions {
-            guard !seen.contains("\(dto.date.timeIntervalSince1970)|\(dto.note)") else { continue }
+            guard !seenInteractions.contains("\(dto.date.timeIntervalSince1970)|\(dto.note)") else { continue }
             let interaction = Interaction(
                 type: InteractionType(rawValue: dto.type) ?? .other,
                 date: dto.date, location: dto.location, note: dto.note,
-                topics: dto.topics, quality: dto.quality, followUpNeeded: dto.followUpNeeded
+                topics: dto.topics, quality: dto.quality, followUpNeeded: dto.followUpNeeded,
+                followUpDate: dto.followUpDate, nextMove: dto.nextMove, messageSummary: dto.messageSummary
             )
+            interaction.isImported = dto.isImported
+            interaction.platformRaw = dto.platform ?? ""
+            interaction.rawImportText = dto.rawImportText
             interaction.people = dto.peopleNames.compactMap { byName[$0.lowercased()] }
             context.insert(interaction)
+        }
+
+        // Events: skip exact duplicates (same date + name); nothing to
+        // update in place since, unlike people, events have no stable
+        // identity beyond that pair.
+        let existingEvents = try context.fetch(FetchDescriptor<Event>())
+        let seenEvents = Set(existingEvents.map { "\($0.date.timeIntervalSince1970)|\($0.name.lowercased())" })
+        for dto in archive.events {
+            guard !seenEvents.contains("\(dto.date.timeIntervalSince1970)|\(dto.name.lowercased())") else { continue }
+            let event = Event(
+                name: dto.name, date: dto.date, location: dto.location, purpose: dto.purpose, notes: dto.notes,
+                attendees: dto.attendeeNames.compactMap { byName[$0.lowercased()] },
+                eventKind: EventKind(rawValue: dto.eventKind) ?? .hangout,
+                importance: ImportanceLevel(rawValue: dto.importance) ?? .medium,
+                socialIntensity: ImportanceLevel(rawValue: dto.socialIntensity) ?? .medium,
+                prepNeeded: dto.prepNeeded
+            )
+            context.insert(event)
         }
 
         try context.save()

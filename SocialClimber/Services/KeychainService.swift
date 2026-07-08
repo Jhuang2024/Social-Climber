@@ -5,6 +5,7 @@ enum KeychainService {
     private static let service = "com.jerryhuang.SocialClimber"
     private static let openRouterAccount = "openrouter-api-key"
     private static let googleRefreshTokenAccount = "google-calendar-refresh-token"
+    private static let lastKnownRecordCountAccount = "last-known-record-count"
 
     static func openRouterAPIKey() throws -> String {
         guard let key = try read(account: openRouterAccount), !key.isEmpty else {
@@ -41,6 +42,23 @@ enum KeychainService {
         } else {
             try save(trimmed, account: googleRefreshTokenAccount)
         }
+    }
+
+    // MARK: Data-loss detection
+
+    /// The record count Social Climber last confirmed as real, so
+    /// `DataLossGuard` can tell "a fresh install" apart from "data silently
+    /// vanished." Deliberately kept in the Keychain rather than
+    /// `UserDefaults` or a file: Keychain items are the one thing on iOS
+    /// that survives an app delete + reinstall by default, which is exactly
+    /// the failure mode this exists to catch.
+    static func lastKnownRecordCount() -> Int? {
+        let raw = (try? read(account: lastKnownRecordCountAccount)) ?? nil
+        return raw.flatMap(Int.init)
+    }
+
+    static func setLastKnownRecordCount(_ count: Int) {
+        try? save(String(count), account: lastKnownRecordCountAccount)
     }
 
     private static func read(account: String) throws -> String? {

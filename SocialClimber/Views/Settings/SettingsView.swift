@@ -21,6 +21,7 @@ struct SettingsView: View {
 
     @State private var exportItem: ShareURL?
     @State private var showImporter = false
+    @State private var showBackupRestore = false
     @State private var showContactPicker = false
     @State private var confirmClear = false
     @State private var confirmImport = false
@@ -223,7 +224,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Data") {
+                Section {
                     Button {
                         do {
                             exportItem = ShareURL(url: try ExportImportService.writeExportFile(context: context))
@@ -238,12 +239,33 @@ struct SettingsView: View {
                     } label: {
                         Label("Import JSON…", systemImage: "square.and.arrow.down")
                     }
+                    Button {
+                        backUpNow()
+                    } label: {
+                        Label("Backup Now", systemImage: "externaldrive.badge.checkmark")
+                    }
+                    Button {
+                        showBackupRestore = true
+                    } label: {
+                        Label("Restore From Backup…", systemImage: "clock.arrow.circlepath")
+                    }
                     Button(role: .destructive) {
                         confirmClear = true
                     } label: {
                         Label("Clear all data…", systemImage: "trash")
                     }
                     .tint(.red)
+                    #if DEBUG
+                    NavigationLink {
+                        DiagnosticsView()
+                    } label: {
+                        Label("Diagnostics (Debug)", systemImage: "wrench.and.screwdriver")
+                    }
+                    #endif
+                } header: {
+                    Text("Data")
+                } footer: {
+                    Text("Social Climber automatically snapshots your data before any update that changes its internal storage, keeping the latest 5 backups on this device. \"Backup Now\" takes one on demand; \"Restore From Backup\" merges one back in without ever deleting or replacing what's already here.")
                 }
 
                 Section("Privacy") {
@@ -267,6 +289,9 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .sheet(item: $exportItem) { item in
                 ShareSheet(items: [item.url])
+            }
+            .sheet(isPresented: $showBackupRestore) {
+                BackupRestoreView(mode: .voluntary)
             }
             .sheet(isPresented: $showContactPicker) {
                 ContactPickerView { contact in
@@ -347,6 +372,15 @@ struct SettingsView: View {
         }
     }
 
+    private func backUpNow() {
+        guard let backup = BackupManager.createBackup(context: context, reason: "manual") else {
+            message = "Backup failed."
+            return
+        }
+        Haptics.success()
+        message = "Backed up at \(backup.createdAt.formatted(date: .abbreviated, time: .shortened))."
+    }
+
     private func prepareImport(_ url: URL) {
         do {
             let secured = url.startAccessingSecurityScopedResource()
@@ -364,6 +398,7 @@ struct SettingsView: View {
         do {
             let count = try ExportImportService.importData(pendingImportData, context: context)
             Haptics.success()
+            DataLossGuard.recordCurrentCount(RecordCounts.total(in: context))
             message = "Import complete. \(count) new people added; existing records were merged by name."
         } catch {
             message = "Import failed: \(error.localizedDescription)"
