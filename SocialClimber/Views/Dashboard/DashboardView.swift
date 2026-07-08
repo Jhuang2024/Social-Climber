@@ -21,12 +21,30 @@ struct DashboardView: View {
     @State private var message: String?
     @State private var nearbyCity: String?
     @State private var isLoadingNearby = false
+    /// Locked In Fit's readiness context, refreshed once per appearance
+    /// (see `refreshCrossAppContext`). `nil` whenever the bridge is
+    /// unavailable, the snapshot is missing/corrupted, or stale — Social
+    /// Climber then behaves exactly as it does without the integration.
+    @State private var readiness: SocialReadinessMode?
 
     private var people: [Person] { allPeople.filter { !$0.isArchived } }
+
+    /// True once Locked In Fit signals low energy, poor recovery, bad
+    /// sleep, or a heavy health-checklist day. Never hides social tasks,
+    /// just trims how many casual/low-priority ones surface today.
+    private var isReadinessReduced: Bool { readiness?.isReduced == true }
 
     // MARK: Derived data
 
     private var strategy: GlobalStrategy { StrategyEngine.global(people: people) }
+
+    /// `strategy.nextMoves`, narrowed to only high-urgency suggestions when
+    /// readiness is reduced, so a low-recovery day surfaces overdue
+    /// follow-ups and birthdays but skips casual nudges.
+    private var visibleNextMoves: [Suggestion] {
+        guard isReadinessReduced else { return strategy.nextMoves }
+        return strategy.nextMoves.filter { $0.weight >= 70 }
+    }
 
     private var interactionsThisWeek: Int {
         interactions.filter { $0.date.daysAgo <= 7 }.count
@@ -106,8 +124,9 @@ struct DashboardView: View {
                         emptyDashboard
                     } else {
                         statsStrip
+                        if let readiness { readinessCard(readiness) }
                         quickActions
-                        if !strategy.nextMoves.isEmpty { prioritiesCard }
+                        if !visibleNextMoves.isEmpty { prioritiesCard }
                         if !overdueReminders.isEmpty { overdueCard }
                         if !upcomingFollowUps.isEmpty { followUpsCard }
                         if !eventsNeedingLog.isEmpty || !upcomingEvents.isEmpty { eventsCard }
@@ -131,6 +150,7 @@ struct DashboardView: View {
             .navigationTitle(greeting)
             .navigationDestination(for: Person.self) { PersonProfileView(person: $0) }
             .task { await refreshNearby() }
+            .task { refreshCrossAppContext() }
             .sheet(isPresented: $showAddPerson) { PersonEditView() }
             .sheet(isPresented: $showAddInteraction) { AddInteractionView() }
             .sheet(isPresented: $showImport) { AddInteractionView(initialSource: .paste) }
@@ -166,6 +186,15 @@ struct DashboardView: View {
         isLoadingNearby = true
         nearbyCity = await LocationService.shared.currentCity()
         isLoadingNearby = false
+    }
+
+    /// Publishes Social Climber's own public context snapshot for Locked In
+    /// Fit and reads back its readiness context, if any. Both directions
+    /// are best-effort and silent: no App Group, no file, a stale
+    /// timestamp, or corrupted JSON all just mean `readiness` stays `nil`.
+    private func refreshCrossAppContext() {
+        CrossAppIntegrationManager.publish(reminders: reminders, events: events)
+        readiness = CrossAppIntegrationManager.readinessMode()
     }
 
     // MARK: Sections
@@ -265,9 +294,30 @@ struct DashboardView: View {
         }
     }
 
+    /// A one-line, subtly-marked note surfacing Locked In Fit's imported
+    /// readiness context. Never editable here — Social Climber only ever
+    /// displays it, never writes back to Locked In Fit's data.
+    private func readinessCard(_ readiness: SocialReadinessMode) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: readiness.isReduced ? "moon.zzz.fill" : "bolt.heart.fill")
+                .font(.subheadline)
+                .foregroundStyle(readiness.isReduced ? .orange : .secondary)
+            Text(readiness.summary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+            Text("Locked In Fit")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(SCTheme.cardBackground, in: RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous))
+    }
+
     private var prioritiesCard: some View {
         FormSectionCard("Today's Priorities", icon: "flag.fill") {
-            ForEach(strategy.nextMoves.prefix(4)) { suggestion in
+            ForEach(visibleNextMoves.prefix(isReadinessReduced ? 2 : 4)) { suggestion in
                 SuggestionRow(suggestion: suggestion)
             }
             NavigationLink { StrategyView() } label: {
@@ -355,7 +405,7 @@ struct DashboardView: View {
         FormSectionCard("Check In Soon", icon: "bubble.left.and.bubble.right.fill") {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    ForEach(checkInsDue.prefix(8)) { person in
+                    ForEach(checkInsDue.prefix(isReadinessReduced ? 3 : 8)) { person in
                         NavigationLink(value: person) {
                             PersonMiniCard(person: person)
                         }
@@ -415,7 +465,7 @@ struct DashboardView: View {
 
     private var quietCard: some View {
         FormSectionCard("People Going Cold", icon: "moon.zzz.fill") {
-            ForEach(quietPeople.prefix(4)) { person in
+            ForEach(quietPeople.prefix(isReadinessReduced ? 2 : 4)) { person in
                 NavigationLink(value: person) {
                     HStack {
                         PersonAvatarView(person: person, size: 36)

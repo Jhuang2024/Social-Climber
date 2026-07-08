@@ -112,6 +112,15 @@ struct EventDetailView: View {
                 Label(event.location, systemImage: "mappin.and.ellipse")
                     .font(.subheadline).foregroundStyle(.secondary)
             }
+            HStack(spacing: 6) {
+                TagPillView(text: event.eventKind.label, color: SCTheme.accent, icon: event.eventKind.icon)
+                if event.importance != .medium {
+                    TagPillView(text: "\(event.importance.label) importance", color: event.importance.color, icon: "star.fill")
+                }
+                if event.prepNeeded {
+                    TagPillView(text: "Prep needed", color: .purple, icon: "checklist")
+                }
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(20)

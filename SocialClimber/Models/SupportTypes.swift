@@ -346,6 +346,75 @@ enum GiftStatus: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// What kind of social occasion an `Event` is. Also used verbatim as the
+/// `eventType` field in the public context snapshot Social Climber publishes
+/// for Locked In Fit (see `CrossAppIntegrationManager`), so its raw values
+/// are a small external contract: don't rename cases without updating that
+/// consumer too.
+enum EventKind: String, Codable, CaseIterable, Identifiable {
+    case hangout
+    case dinner
+    case party
+    case networking
+    case date
+    case school
+    case other
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .hangout: "Hangout"
+        case .dinner: "Dinner"
+        case .party: "Party"
+        case .networking: "Networking"
+        case .date: "Date"
+        case .school: "School"
+        case .other: "Other"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .hangout: "figure.2.arms.open"
+        case .dinner: "fork.knife"
+        case .party: "party.popper.fill"
+        case .networking: "person.3.fill"
+        case .date: "heart.fill"
+        case .school: "graduationcap.fill"
+        case .other: "calendar"
+        }
+    }
+}
+
+/// A generic low/medium/high scale reused for an `Event`'s importance and
+/// social intensity. Also used verbatim in the public context snapshots
+/// exchanged with Locked In Fit (see `CrossAppIntegrationManager`), so its
+/// raw values are part of that small external contract.
+enum ImportanceLevel: String, Codable, CaseIterable, Identifiable {
+    case low
+    case medium
+    case high
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .low: "Low"
+        case .medium: "Medium"
+        case .high: "High"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .low: .gray
+        case .medium: .blue
+        case .high: .orange
+        }
+    }
+}
+
 struct ContactMethod: Codable, Hashable, Identifiable {
     var id: UUID = UUID()
     var label: String   // "Phone", "Email", "Instagram", ...

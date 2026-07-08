@@ -115,6 +115,10 @@ struct EventEditView: View {
     @State private var notes = ""
     @State private var attendees: [Person] = []
     @State private var showPeoplePicker = false
+    @State private var eventKind: EventKind = .hangout
+    @State private var importance: ImportanceLevel = .medium
+    @State private var socialIntensity: ImportanceLevel = .medium
+    @State private var prepNeeded = false
 
     // Fit Checker: event-prep assistance only. Never saved to the event or
     // to any person; purely local to this sheet's session.
@@ -138,6 +142,29 @@ struct EventEditView: View {
                         .lineLimit(1...3)
                     TextField("Notes", text: $notes, axis: .vertical)
                         .lineLimit(2...6)
+                }
+                Section {
+                    Picker("Type", selection: $eventKind) {
+                        ForEach(EventKind.allCases) { kind in
+                            Label(kind.label, systemImage: kind.icon).tag(kind)
+                        }
+                    }
+                    Picker("Importance", selection: $importance) {
+                        ForEach(ImportanceLevel.allCases) { level in
+                            Text(level.label).tag(level)
+                        }
+                    }
+                    Picker("Social Intensity", selection: $socialIntensity) {
+                        ForEach(ImportanceLevel.allCases) { level in
+                            Text(level.label).tag(level)
+                        }
+                    }
+                    Toggle("Needs prep", isOn: $prepNeeded)
+                        .tint(.green)
+                } header: {
+                    Text("Social Context")
+                } footer: {
+                    Text("Important, prep-needed events are shared with Locked In Fit (just the type, timing, and intensity) so it can suggest self-improvement prep on its own.")
                 }
                 Section("Attendees") {
                     if attendees.isEmpty {
@@ -255,6 +282,10 @@ struct EventEditView: View {
         purpose = event.purpose
         notes = event.notes
         attendees = event.attendees
+        eventKind = event.eventKind
+        importance = event.importance
+        socialIntensity = event.socialIntensity
+        prepNeeded = event.prepNeeded
     }
 
     private func save() {
@@ -266,9 +297,16 @@ struct EventEditView: View {
             event.purpose = purpose
             event.notes = notes
             event.attendees = attendees
+            event.eventKind = eventKind
+            event.importance = importance
+            event.socialIntensity = socialIntensity
+            event.prepNeeded = prepNeeded
             target = event
         } else {
-            let new = Event(name: name, date: date, location: location, purpose: purpose, notes: notes, attendees: attendees)
+            let new = Event(
+                name: name, date: date, location: location, purpose: purpose, notes: notes, attendees: attendees,
+                eventKind: eventKind, importance: importance, socialIntensity: socialIntensity, prepNeeded: prepNeeded
+            )
             context.insert(new)
             target = new
         }

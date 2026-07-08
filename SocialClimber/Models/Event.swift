@@ -17,6 +17,18 @@ final class Event {
     var notificationID: String?
     var createdAt: Date = Date()
 
+    // MARK: Social context
+    // Kept as plain attributes (not just UI state) because they're real
+    // properties of the event, and because `CrossAppIntegrationManager`
+    // publishes them, in stripped-down form, as event-prep context for
+    // Locked In Fit: no attendee names, location, purpose, or notes.
+    var eventKindRaw: String = EventKind.hangout.rawValue
+    var importanceRaw: String = ImportanceLevel.medium.rawValue
+    var socialIntensityRaw: String = ImportanceLevel.medium.rawValue
+    /// Whether this event is significant enough to warrant prep (an outfit
+    /// check, an early night, a workout) ahead of time.
+    var prepNeeded: Bool = false
+
     /// Inverse declared on `Person.events`, mirroring how `Interaction.people`
     /// pairs with `Person.interactions`.
     var attendees: [Person] = []
@@ -27,7 +39,11 @@ final class Event {
         location: String = "",
         purpose: String = "",
         notes: String = "",
-        attendees: [Person] = []
+        attendees: [Person] = [],
+        eventKind: EventKind = .hangout,
+        importance: ImportanceLevel = .medium,
+        socialIntensity: ImportanceLevel = .medium,
+        prepNeeded: Bool = false
     ) {
         self.name = name
         self.date = date
@@ -36,6 +52,25 @@ final class Event {
         self.notes = notes
         self.attendees = attendees
         self.createdAt = .now
+        self.eventKindRaw = eventKind.rawValue
+        self.importanceRaw = importance.rawValue
+        self.socialIntensityRaw = socialIntensity.rawValue
+        self.prepNeeded = prepNeeded
+    }
+
+    var eventKind: EventKind {
+        get { EventKind(rawValue: eventKindRaw) ?? .hangout }
+        set { eventKindRaw = newValue.rawValue }
+    }
+
+    var importance: ImportanceLevel {
+        get { ImportanceLevel(rawValue: importanceRaw) ?? .medium }
+        set { importanceRaw = newValue.rawValue }
+    }
+
+    var socialIntensity: ImportanceLevel {
+        get { ImportanceLevel(rawValue: socialIntensityRaw) ?? .medium }
+        set { socialIntensityRaw = newValue.rawValue }
     }
 
     var isPast: Bool { date < .now }
