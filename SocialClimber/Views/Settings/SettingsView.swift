@@ -34,13 +34,6 @@ struct SettingsView: View {
 
     private var googleCalendar: GoogleCalendarService { GoogleCalendarService.shared }
 
-    private var crossAppStatusText: String {
-        guard let context = CrossAppIntegrationManager.lockedInFitContext() else {
-            return "Not available"
-        }
-        return "Connected · updated \(context.updatedAt.relativeLabel)"
-    }
-
     var body: some View {
         NavigationStack {
             Form {
@@ -132,11 +125,14 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Locked In Fit") {
-                    LabeledContent("Readiness context", value: crossAppStatusText)
-                    Text("If Locked In Fit is installed and shares an App Group with Social Climber, its energy/recovery snapshot can quiet down low-priority check-ins on rough days. Social Climber only reads that one small file: it never opens Locked In Fit's database, and never edits its logs, workouts, or health data. In return, Social Climber publishes only today's social task titles and clean event context (type, timing, intensity) for important events; no notes, messages, or people details ever leave this app.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                Section {
+                    NavigationLink {
+                        LockedInFitSettingsView()
+                    } label: {
+                        Label("LockedInFit", systemImage: "dumbbell.fill")
+                    }
+                } footer: {
+                    Text("Optional, fail-safe context sharing with the LockedInFit app.")
                 }
 
                 Section("Import from Messages") {

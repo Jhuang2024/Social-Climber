@@ -1,91 +1,91 @@
 import Foundation
 
-/// The small public context snapshot Locked In Fit publishes about the
-/// user's readiness for the day. Social Climber only ever reads this file;
-/// it never opens Locked In Fit's real database and never writes back to
-/// this struct. Every field is optional because Locked In Fit's schema is
-/// out of Social Climber's control: a missing, renamed, or added field
-/// should degrade gracefully rather than fail the whole decode.
+/// The small public context snapshot LockedInFit publishes about the user's
+/// readiness for the day. Social Climber only ever reads this file: it
+/// never opens LockedInFit's real database and never writes back to this
+/// struct. Every field decodes defensively, since LockedInFit's schema
+/// evolving over time (a renamed field, a new one) should degrade
+/// gracefully rather than fail the whole decode.
 struct LockedInFitPublicContext: Codable, Equatable {
     var app: String
     var schemaVersion: Int
     var updatedAt: Date
     var today: Today
 
-    /// A low/medium/high scale used loosely across Locked In Fit's fields
-    /// below. Decoded field-by-field in `Today.init(from:)` with `try?`, so
-    /// an unrecognized raw value comes back `nil` for that one field
-    /// instead of throwing and losing the rest of the snapshot.
-    enum Level: String, Codable {
-        case low, medium, high
-    }
-
-    struct ImportantTask: Codable, Equatable {
+    struct ImportantHealthTask: Codable, Equatable {
         var id: String
         var title: String
+        var category: String?
         var priority: String?
     }
 
     struct Today: Codable, Equatable {
         var sleepScore: Int?
-        var energyLevel: Level?
-        var recoveryStatus: Level?
-        var workoutPlanned: Bool?
-        var workoutCompleted: Bool?
-        var nutritionStatus: Level?
-        var calorieStatus: Level?
+        var energyLevel: CrossAppLevel
+        var recoveryStatus: CrossAppLevel
+        var workoutPlannedToday: Bool?
+        var workoutCompletedToday: Bool?
+        var nutritionStatus: CrossAppLevel
+        var calorieStatus: CrossAppLevel
         /// 0...1 (or 0...100; both are tolerated) fraction of today's health
         /// checklist that's been completed.
-        var checklistCompletion: Double?
-        var importantTasksDue: [ImportantTask]?
+        var dailyChecklistCompletion: Double?
+        var importantHealthTasksDue: [ImportantHealthTask]?
 
         private enum CodingKeys: String, CodingKey {
-            case sleepScore, energyLevel, recoveryStatus, workoutPlanned, workoutCompleted
-            case nutritionStatus, calorieStatus, checklistCompletion, importantTasksDue
+            case sleepScore, energyLevel, recoveryStatus, workoutPlannedToday, workoutCompletedToday
+            case nutritionStatus, calorieStatus, dailyChecklistCompletion, importantHealthTasksDue
         }
 
         init(
             sleepScore: Int? = nil,
-            energyLevel: Level? = nil,
-            recoveryStatus: Level? = nil,
-            workoutPlanned: Bool? = nil,
-            workoutCompleted: Bool? = nil,
-            nutritionStatus: Level? = nil,
-            calorieStatus: Level? = nil,
-            checklistCompletion: Double? = nil,
-            importantTasksDue: [ImportantTask]? = nil
+            energyLevel: CrossAppLevel = .unknown,
+            recoveryStatus: CrossAppLevel = .unknown,
+            workoutPlannedToday: Bool? = nil,
+            workoutCompletedToday: Bool? = nil,
+            nutritionStatus: CrossAppLevel = .unknown,
+            calorieStatus: CrossAppLevel = .unknown,
+            dailyChecklistCompletion: Double? = nil,
+            importantHealthTasksDue: [ImportantHealthTask]? = nil
         ) {
             self.sleepScore = sleepScore
             self.energyLevel = energyLevel
             self.recoveryStatus = recoveryStatus
-            self.workoutPlanned = workoutPlanned
-            self.workoutCompleted = workoutCompleted
+            self.workoutPlannedToday = workoutPlannedToday
+            self.workoutCompletedToday = workoutCompletedToday
             self.nutritionStatus = nutritionStatus
             self.calorieStatus = calorieStatus
-            self.checklistCompletion = checklistCompletion
-            self.importantTasksDue = importantTasksDue
+            self.dailyChecklistCompletion = dailyChecklistCompletion
+            self.importantHealthTasksDue = importantHealthTasksDue
         }
 
-        /// Every field decoded independently with `try?` so one malformed
-        /// value (an unexpected type, an unrecognized enum case) just comes
-        /// back `nil` instead of failing every other field in the snapshot.
+        /// Every field decoded independently with `try?`, so one malformed
+        /// value (an unexpected type, a missing key) never fails the rest
+        /// of the snapshot. The four level fields fall back to `.unknown`,
+        /// via `CrossAppLevel.init(from:)`, whether the raw value is
+        /// unrecognized or the key is missing entirely.
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             sleepScore = try? c.decodeIfPresent(Int.self, forKey: .sleepScore)
-            energyLevel = try? c.decodeIfPresent(Level.self, forKey: .energyLevel)
-            recoveryStatus = try? c.decodeIfPresent(Level.self, forKey: .recoveryStatus)
-            workoutPlanned = try? c.decodeIfPresent(Bool.self, forKey: .workoutPlanned)
-            workoutCompleted = try? c.decodeIfPresent(Bool.self, forKey: .workoutCompleted)
-            nutritionStatus = try? c.decodeIfPresent(Level.self, forKey: .nutritionStatus)
-            calorieStatus = try? c.decodeIfPresent(Level.self, forKey: .calorieStatus)
-            checklistCompletion = try? c.decodeIfPresent(Double.self, forKey: .checklistCompletion)
-            importantTasksDue = try? c.decodeIfPresent([ImportantTask].self, forKey: .importantTasksDue)
+            energyLevel = Self.decodeLevel(c, .energyLevel)
+            recoveryStatus = Self.decodeLevel(c, .recoveryStatus)
+            workoutPlannedToday = try? c.decodeIfPresent(Bool.self, forKey: .workoutPlannedToday)
+            workoutCompletedToday = try? c.decodeIfPresent(Bool.self, forKey: .workoutCompletedToday)
+            nutritionStatus = Self.decodeLevel(c, .nutritionStatus)
+            calorieStatus = Self.decodeLevel(c, .calorieStatus)
+            dailyChecklistCompletion = try? c.decodeIfPresent(Double.self, forKey: .dailyChecklistCompletion)
+            importantHealthTasksDue = try? c.decodeIfPresent([ImportantHealthTask].self, forKey: .importantHealthTasksDue)
+        }
+
+        private static func decodeLevel(_ container: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys) -> CrossAppLevel {
+            guard let value = try? container.decodeIfPresent(CrossAppLevel.self, forKey: key) else { return .unknown }
+            return value ?? .unknown
         }
     }
 
     /// Decodes a snapshot, returning `nil` for anything missing, stale in
     /// shape, or corrupted rather than throwing. Callers should treat `nil`
-    /// exactly like "Locked In Fit isn't installed."
+    /// exactly like "LockedInFit isn't installed."
     static func decode(from data: Data) -> LockedInFitPublicContext? {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .flexibleISO8601
@@ -107,7 +107,7 @@ extension LockedInFitPublicContext.Today {
     /// heavy checklist day, per the same threshold Social Climber uses
     /// elsewhere for "a lot going on."
     private var hasHeavyChecklist: Bool {
-        (importantTasksDue?.count ?? 0) >= 3
+        (importantHealthTasksDue?.count ?? 0) >= 3
     }
 
     /// Whether today's readiness is low enough that Social Climber should
@@ -126,8 +126,10 @@ extension LockedInFitPublicContext.Today {
         if hasHeavyChecklist {
             return "Busy health checklist today. Showing fewer casual reminders."
         }
-        let energy = energyLevel?.rawValue ?? "normal"
-        return "Energy: \(energy). Showing normal social reminders."
+        if energyLevel != .unknown {
+            return "Energy: \(energyLevel.rawValue). Showing normal social reminders."
+        }
+        return "Showing normal social reminders."
     }
 }
 

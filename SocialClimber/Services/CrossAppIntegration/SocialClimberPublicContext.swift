@@ -1,40 +1,39 @@
 import Foundation
 import SwiftData
 
-/// The small public context snapshot Social Climber publishes for Locked In
-/// Fit to read. Deliberately shallow: today's actionable social tasks and
-/// upcoming event context, nothing else. No private notes, no message
-/// content, no closeness history, no AI drafts, no per-person detail beyond
-/// what's needed to say "something's due" or "something's coming up."
+/// The small public context snapshot Social Climber publishes for
+/// LockedInFit to read. Deliberately shallow: today's overall social load,
+/// clean event-prep context, and today's social task titles, nothing else.
+/// No guest lists, private notes, exact locations, or message content ever
+/// cross this boundary.
 struct SocialClimberPublicContext: Codable, Equatable {
-    struct SocialTask: Codable, Equatable {
-        enum Kind: String, Codable {
-            case reply
-            case checkIn = "check_in"
-            case followUp = "follow_up"
-            case eventPrep = "event_prep"
-            case logInteraction = "log_interaction"
-        }
-
-        var id: String
-        var title: String
-        var type: Kind
-        var priority: ImportanceLevel
+    enum EventType: String, Codable, Equatable {
+        case dinner
+        case party
+        case networking
+        case date
+        case hangout
+        case other
+        case unknown
     }
 
     struct UpcomingEvent: Codable, Equatable {
         var id: String
-        var title: String
-        var startDate: Date
-        var eventType: EventKind
-        var importance: ImportanceLevel
-        var socialIntensity: ImportanceLevel
+        var eventType: EventType
+        var importance: CrossAppLevel
+        var startTime: Date
         var prepNeeded: Bool
     }
 
+    struct SocialTask: Codable, Equatable {
+        var id: String
+        var title: String
+    }
+
     struct Today: Codable, Equatable {
-        var socialTasksDue: [SocialTask]
+        var socialIntensity: CrossAppLevel
         var upcomingEvents: [UpcomingEvent]
+        var socialTasksDueToday: [SocialTask]
     }
 
     var app: String = "SocialClimber"
@@ -50,8 +49,8 @@ extension SocialClimberPublicContext {
     /// file re-read on every launch, not an export, so it only ever needs
     /// enough to answer "what's due" and "what's coming up," not a full
     /// backlog.
-    private static let maxTasks = 20
     private static let maxUpcomingEvents = 20
+    private static let maxTasks = 20
 
     /// Builds the snapshot entirely from data Social Climber already
     /// queries elsewhere (reminders, events, the Share Extension inbox);
@@ -65,7 +64,7 @@ extension SocialClimberPublicContext {
         var tasks: [SocialTask] = []
 
         // A reminder tied to an archived person shouldn't surface as a
-        // social task Locked In Fit thinks still matters today.
+        // social task LockedInFit thinks still matters today.
         let dueReminders = reminders
             .filter { reminder in
                 guard !reminder.completed, reminder.dueDate.daysFromNow <= 0 else { return false }
@@ -75,9 +74,7 @@ extension SocialClimberPublicContext {
         for reminder in dueReminders {
             tasks.append(SocialTask(
                 id: stableID(reminder.persistentModelID),
-                title: reminder.title.isEmpty ? reminder.type.label : reminder.title,
-                type: SocialTask.Kind(reminderType: reminder.type),
-                priority: taskPriority(person: reminder.person, overdue: reminder.isOverdue)
+                title: reminder.title.isEmpty ? reminder.type.label : reminder.title
             ))
         }
 
@@ -85,43 +82,43 @@ extension SocialClimberPublicContext {
         for event in unloggedEvents {
             tasks.append(SocialTask(
                 id: stableID(event.persistentModelID),
-                title: "Log \(event.name.isEmpty ? "event" : event.name)",
-                type: .logInteraction,
-                priority: event.importance
+                title: "Log \(event.name.isEmpty ? "event" : event.name)"
             ))
         }
 
         for entry in pendingSharedImports {
             let snippet = entry.text.count > 40 ? "\(entry.text.prefix(40))…" : entry.text
-            tasks.append(SocialTask(
-                id: entry.id.uuidString,
-                title: "Reply: \(snippet)",
-                type: .reply,
-                priority: .medium
-            ))
+            tasks.append(SocialTask(id: entry.id.uuidString, title: "Reply: \(snippet)"))
         }
 
-        let upcomingEvents = events
+        let upcoming = events
             .filter(\.isUpcoming)
             .sorted { $0.date < $1.date }
             .prefix(maxUpcomingEvents)
-            .map { event in
-                UpcomingEvent(
-                    id: stableID(event.persistentModelID),
-                    title: event.name.isEmpty ? "Event" : event.name,
-                    startDate: event.date,
-                    eventType: event.eventKind,
-                    importance: event.importance,
-                    socialIntensity: event.socialIntensity,
-                    prepNeeded: event.prepNeeded
-                )
-            }
+        let upcomingEvents = upcoming.map { event in
+            UpcomingEvent(
+                id: stableID(event.persistentModelID),
+                eventType: EventType(event.eventKind),
+                importance: CrossAppLevel(event.importance),
+                startTime: event.date,
+                prepNeeded: event.prepNeeded
+            )
+        }
+
+        // A single "how intense does today look" value, taken from
+        // whichever event actually lands today; LockedInFit gets a coarse
+        // read on social load without needing the full event list.
+        let todaysIntensities = events
+            .filter { Calendar.current.isDateInToday($0.date) }
+            .map { CrossAppLevel($0.socialIntensity) }
+        let socialIntensity = CrossAppLevel.highest(of: todaysIntensities, defaultingTo: .low)
 
         return SocialClimberPublicContext(
             updatedAt: now,
             today: Today(
-                socialTasksDue: Array(tasks.prefix(maxTasks)),
-                upcomingEvents: Array(upcomingEvents)
+                socialIntensity: socialIntensity,
+                upcomingEvents: Array(upcomingEvents),
+                socialTasksDueToday: Array(tasks.prefix(maxTasks))
             )
         )
     }
@@ -131,36 +128,22 @@ extension SocialClimberPublicContext {
     private static func stableID(_ id: PersistentIdentifier) -> String {
         String(describing: id)
     }
-
-    private static func taskPriority(person: Person?, overdue: Bool) -> ImportanceLevel {
-        if overdue { return .high }
-        guard let person else { return .medium }
-        if person.priority >= 4 { return .high }
-        if person.priority <= 2 { return .low }
-        return .medium
-    }
 }
 
-private extension SocialClimberPublicContext.SocialTask.Kind {
-    /// Reminder types map onto the export's coarser task taxonomy; this
-    /// mapping lives here, isolated in the integration layer, rather than on
-    /// `ReminderType` itself, since it's an external contract, not a core
-    /// domain concept.
-    init(reminderType: ReminderType) {
-        switch reminderType {
-        case .checkIn, .birthday, .custom: self = .checkIn
-        case .followUp, .gift: self = .followUp
-        case .hangout: self = .eventPrep
+private extension SocialClimberPublicContext.EventType {
+    /// `EventKind` is a core domain concept with a `school` case
+    /// LockedInFit's schema doesn't model; it folds into `.other` here
+    /// rather than growing the shared wire vocabulary for one internal
+    /// category. Lives here, isolated in the integration layer, since it's
+    /// an external contract, not a core domain concept.
+    init(_ kind: EventKind) {
+        switch kind {
+        case .hangout: self = .hangout
+        case .dinner: self = .dinner
+        case .party: self = .party
+        case .networking: self = .networking
+        case .date: self = .date
+        case .school, .other: self = .other
         }
-    }
-}
-
-// MARK: - Encoding
-
-extension SocialClimberPublicContext {
-    func encoded() -> Data? {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        return try? encoder.encode(self)
     }
 }
