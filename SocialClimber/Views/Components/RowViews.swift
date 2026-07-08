@@ -54,7 +54,7 @@ struct ReminderRowView: View {
     }
 
     /// Completing a "hangout" or "check-in" reminder means the contact it
-    /// was for actually happened — log it as a real interaction so it
+    /// was for actually happened: log it as a real interaction so it
     /// automatically feeds the timeline, closeness, last-contacted date,
     /// and future cadence, the same as any other logged interaction,
     /// instead of requiring a second manual entry for the same event.

@@ -95,7 +95,7 @@ struct InteractionDetailView: View {
         .confirmationDialog("Delete this interaction?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
                 Haptics.warning()
-                // Capture before deleting — once the interaction is gone,
+                // Capture before deleting: once the interaction is gone,
                 // its `people` relationship is nullified along with it.
                 let people = interaction.people
                 // Undo this interaction's closeness impact before it's gone,

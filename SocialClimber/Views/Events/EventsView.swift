@@ -116,7 +116,7 @@ struct EventEditView: View {
     @State private var attendees: [Person] = []
     @State private var showPeoplePicker = false
 
-    // Fit Checker — event-prep assistance only. Never saved to the event or
+    // Fit Checker: event-prep assistance only. Never saved to the event or
     // to any person; purely local to this sheet's session.
     @State private var fitCheckImages: [UIImage] = []
     @State private var isCheckingFit = false
@@ -231,7 +231,7 @@ struct EventEditView: View {
         } header: {
             Text("Fit Checker")
         } footer: {
-            Text("Optional. Rates your outfit for this event using AI — the photo and result are never saved, and this never affects closeness, interactions, or relationship scores.")
+            Text("Optional. Rates your outfit for this event using AI; the photo and result are never saved, and this never affects closeness, interactions, or relationship scores.")
         }
     }
 
@@ -279,7 +279,7 @@ struct EventEditView: View {
 }
 
 /// Displays a `FitCheckResult`: a score ring, verdict, and the
-/// strengths/weak-points/improvements lists — used only inside
+/// strengths/weak-points/improvements lists, used only inside
 /// `EventEditView`'s Fit Checker section.
 private struct FitCheckResultCard: View {
     let result: FitCheckResult

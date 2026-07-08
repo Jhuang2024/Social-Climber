@@ -3,7 +3,7 @@ import SwiftData
 
 /// Edits an existing interaction's details. Quality changes are routed
 /// through `InteractionSaver.updateQuality`, which reverses the interaction's
-/// prior closeness impact and re-applies the new one — so closeness never
+/// prior closeness impact and re-applies the new one, so closeness never
 /// drifts or double-counts across edits.
 struct InteractionEditView: View {
     @Bindable var interaction: Interaction

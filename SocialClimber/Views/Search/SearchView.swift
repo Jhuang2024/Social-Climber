@@ -30,7 +30,7 @@ struct SearchView: View {
                     if query.trimmingCharacters(in: .whitespaces).count < 2 {
                         suggestionsView
                     } else if results.isEmpty {
-                        EmptyStateView(icon: "magnifyingglass", title: "Nothing found", message: "Try different words — search covers names, relationships, notes, interests, gifts, and interactions.")
+                        EmptyStateView(icon: "magnifyingglass", title: "Nothing found", message: "Try different words: search covers names, relationships, notes, interests, gifts, and interactions.")
                     } else {
                         resultsView
                     }

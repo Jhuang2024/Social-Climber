@@ -22,8 +22,8 @@ enum InteractionSaver {
 
     /// Applies `interaction`'s quality-based closeness delta to `people` via
     /// the centralized `ClosenessScoring`, and records what was *actually*
-    /// applied to each person (post-clamp) so it can be reversed exactly —
-    /// two attendees can absorb the same nominal delta differently if one
+    /// applied to each person (post-clamp) so it can be reversed exactly.
+    /// Two attendees can absorb the same nominal delta differently if one
     /// was already near the 1...5 ceiling/floor.
     static func applyClosenessImpact(of interaction: Interaction, to people: [Person]) {
         let nominal = ClosenessScoring.delta(forQuality: interaction.quality)

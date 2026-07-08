@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 /// more messages in Messages (or anything else offering plain text to the
 /// system share sheet) and taps Share → Social Climber. Pulls the shared
 /// text out, queues it via `SharedImportInbox` for the main app to pick up
-/// next time it's opened, and shows a brief confirmation before closing —
+/// next time it's opened, and shows a brief confirmation before closing;
 /// no compose UI, nothing to edit here (that happens in the app, where the
 /// existing paste-import review flow already lives).
 ///
@@ -75,7 +75,7 @@ final class ShareViewController: UIViewController {
         complete()
     }
 
-    /// Walks every attachment on every input item looking for plain text —
+    /// Walks every attachment on every input item looking for plain text:
     /// what Messages hands over when you multi-select bubbles and share.
     private func extractText() async -> String? {
         guard let items = extensionContext?.inputItems as? [NSExtensionItem] else { return nil }

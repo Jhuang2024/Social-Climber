@@ -20,7 +20,7 @@ struct SharedImportEntry: Codable, Identifiable, Equatable {
 /// same time. Both the extension and the app target compile this same
 /// file, sharing one App Group-scoped `UserDefaults` suite guarded by the
 /// App Group entitlement declared on both targets. Nothing here touches
-/// the network — it's purely on-device, inter-process handoff.
+/// the network; it's purely on-device, inter-process handoff.
 enum SharedImportInbox {
     private static let appGroupID = "group.com.jerryhuang.SocialClimber"
     private static let storageKey = "pendingSharedImports"

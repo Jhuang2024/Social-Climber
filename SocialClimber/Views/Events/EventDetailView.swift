@@ -209,7 +209,7 @@ struct EventLogView: View {
             messageSummary: summary
         )
         // `finalize`'s own follow-up scheduling is a no-op here since
-        // `followUpNeeded` is left false — attendees each get their own
+        // `followUpNeeded` is left false: attendees each get their own
         // reminder below instead of one shared one.
         InteractionSaver.finalize(interaction, people: people, context: context)
         // A follow-up reminder for each attendee, if requested.

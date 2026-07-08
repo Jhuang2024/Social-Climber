@@ -6,7 +6,7 @@ import Foundation
 /// same rule for suggestions/priorities).
 enum GiftIdeaEngine {
     /// A plain-text digest of everything Social Climber knows about a
-    /// person — the only material handed to the AI as grounding context.
+    /// person, the only material handed to the AI as grounding context.
     static func context(for person: Person) -> String {
         var lines: [String] = []
         lines.append("Name: \(person.displayName)")
@@ -40,7 +40,7 @@ enum GiftIdeaEngine {
             } else if !interaction.note.isEmpty {
                 parts.append(interaction.note)
             }
-            return parts.count > 1 ? parts.joined(separator: " — ") : nil
+            return parts.count > 1 ? parts.joined(separator: "; ") : nil
         }
         if !recentInteractions.isEmpty {
             lines.append("Recent interactions:\n" + recentInteractions.map { "- \($0)" }.joined(separator: "\n"))
@@ -67,7 +67,7 @@ enum GiftIdeaEngine {
     /// Tries the configured AI provider first; if it fails for any reason
     /// (missing/invalid key, rate limit, timeout, network, bad response),
     /// falls back to the deterministic local suggestions built from the
-    /// person's own logged interests rather than surfacing a raw error —
+    /// person's own logged interests rather than surfacing a raw error,
     /// same shape as `AIExtractionCoordinator.extract`.
     static func suggestions(for person: Person) async -> Outcome {
         let existingTitles = person.giftIdeas.map(\.title)

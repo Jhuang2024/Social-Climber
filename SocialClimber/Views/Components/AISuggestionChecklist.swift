@@ -1,14 +1,14 @@
 import SwiftUI
 
-/// A checklist of AI-suggested items — interests, gift ideas, reminders,
-/// important dates, personality notes — that the user can approve or
+/// A checklist of AI-suggested items (interests, gift ideas, reminders,
+/// important dates, personality notes) that the user can approve or
 /// reject individually before anything is written to a person's profile.
 /// Shared by every interaction-logging flow (manual notes, paste/screenshot
 /// import, voice notes) so a suggestion is never silently added, or
 /// silently dropped along with ones the user actually wanted, without a
 /// chance to review each one on its own.
 ///
-/// Starts fully checked (every suggestion pre-approved) — the user rejects
+/// Starts fully checked (every suggestion pre-approved); the user rejects
 /// what they don't want rather than having to opt into everything, keeping
 /// the common case (accept most of it) a single tap away.
 struct AISuggestionChecklist: View {

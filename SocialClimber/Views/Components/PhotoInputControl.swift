@@ -4,7 +4,7 @@ import UIKit
 
 /// A reusable "take or choose a photo" control shared by every feature that
 /// needs to hand a photo to a vision AI call (Fit Checker's outfit photo, How
-/// to Respond's conversation screenshots) — same camera + library affordance,
+/// to Respond's conversation screenshots), same camera + library affordance,
 /// loading/error handling, and card styling everywhere instead of each
 /// feature rolling its own. Not for the multi-select-then-OCR screenshot flow
 /// in `AddInteractionView`, which has its own on-device text pipeline.

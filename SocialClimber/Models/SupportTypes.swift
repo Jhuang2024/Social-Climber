@@ -148,7 +148,7 @@ enum InteractionType: String, Codable, CaseIterable, Identifiable {
 
 /// A four-level sentiment for an interaction. Backed by the existing 1–5
 /// `quality` integer so no data migration is needed and the relationship
-/// score keeps working — sentiment is just a friendlier face on quality.
+/// score keeps working; sentiment is just a friendlier face on quality.
 enum Sentiment: Int, CaseIterable, Identifiable {
     case bad = 1
     case neutral = 2

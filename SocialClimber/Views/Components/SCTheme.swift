@@ -6,7 +6,7 @@ enum SCTheme {
     static let controlRadius: CGFloat = 14
     static let pageSpacing: CGFloat = 16
     /// The larger radius used by a screen's single hero header card
-    /// (profile/detail headers) — deliberately bigger than `cardRadius` so
+    /// (profile/detail headers), deliberately bigger than `cardRadius` so
     /// the one "headline" card per screen reads as more prominent.
     static let heroCardRadius: CGFloat = 24
 
@@ -15,7 +15,7 @@ enum SCTheme {
     /// Deliberately not `Color.accentColor`: that static resolves against the
     /// current environment's `tint`, so anywhere a `.tint()` modifier sits
     /// above a view (e.g. RootTabView's monochrome tab bar tint) it silently
-    /// substitutes that tint instead of the real brand color — which is what
+    /// substitutes that tint instead of the real brand color, which is what
     /// made buttons that filled themselves with `Color.accentColor` render
     /// white-on-white. `Color("AccentColor")` reads the asset unconditionally.
     static var accent: Color {
@@ -82,7 +82,7 @@ struct SectionLinkButtonStyle: ButtonStyle {
 }
 
 /// A press-responsive style for the card-like tappable buttons scattered
-/// across the dashboard, empty states, and filter chips — gives every one
+/// across the dashboard, empty states, and filter chips, gives every one
 /// of them the same gentle scale/dim feedback instead of the dead flatness
 /// of `.plain`.
 struct PressableButtonStyle: ButtonStyle {
@@ -101,7 +101,7 @@ extension ButtonStyle where Self == PressableButtonStyle {
 }
 
 /// Imperative haptics for actions that dismiss their view immediately
-/// after (save/delete sheets) — `.sensoryFeedback` needs the view to stay
+/// after (save/delete sheets): `.sensoryFeedback` needs the view to stay
 /// mounted to observe the state change, which a dismissing sheet can't
 /// guarantee.
 enum Haptics {
@@ -219,7 +219,7 @@ extension View {
 }
 
 /// A row of filled/hollow dots used to visualize a 1-5 rating (closeness,
-/// priority) — replaces the earlier `"●●●○○"` string, which VoiceOver read
+/// priority), replaces the earlier `"●●●○○"` string, which VoiceOver read
 /// as a garble of bullet characters instead of a real value.
 struct DotsRow: View {
     let value: Int

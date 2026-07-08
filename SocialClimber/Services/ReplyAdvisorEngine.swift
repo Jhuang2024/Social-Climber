@@ -2,14 +2,14 @@ import UIKit
 
 /// Grounds a "How to Respond" request in everything Social Climber already
 /// knows about a specific person, and runs it through the configured AI
-/// provider. Like `FitCheckEngine`, there's no offline fallback — reading a
-/// screenshot needs a vision-capable model — so this only calls OpenRouter
+/// provider. Like `FitCheckEngine`, there's no offline fallback: reading a
+/// screenshot needs a vision-capable model, so this only calls OpenRouter
 /// and otherwise surfaces a clear notice. The screenshots and the resulting
 /// advice are never persisted here: this is a reply-drafting assist, not a
 /// logged interaction, and must never touch closeness or interaction history.
 enum ReplyAdvisorEngine {
     /// A plain-text digest of everything relevant to how the user should
-    /// talk to this person — their profile, closeness, notes, strategy, and
+    /// talk to this person: their profile, closeness, notes, strategy, and
     /// recent tone. Reuses `GiftIdeaEngine.context` for the shared facts
     /// (interests, notes, family, recent interactions, events) and layers on
     /// what a reply specifically needs: closeness, priority, and open loops.

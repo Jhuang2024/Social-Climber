@@ -13,7 +13,7 @@ struct GiftSuggestionsSheet: View {
     @State private var addedTitles: Set<String> = []
     @State private var isLoading = false
     /// Set when the shown suggestions are the local fallback rather than
-    /// AI-generated — informational only, never blocks the list. `GiftIdeaEngine.suggestions`
+    /// AI-generated: informational only, never blocks the list. `GiftIdeaEngine.suggestions`
     /// always returns *something* usable, so there's no separate error state.
     @State private var degradedNotice: String?
 
@@ -47,7 +47,7 @@ struct GiftSuggestionsSheet: View {
                             }
                         } else if person.giftSuggestionsAreStale {
                             Section {
-                                Label("New activity since these were generated — tap refresh for fresh ideas.", systemImage: "arrow.clockwise")
+                                Label("New activity since these were generated. Tap refresh for fresh ideas.", systemImage: "arrow.clockwise")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -77,14 +77,14 @@ struct GiftSuggestionsSheet: View {
         }
         .presentationDetents([.medium, .large])
         .task {
-            // Seed from what's already a real gift idea for this person —
+            // Seed from what's already a real gift idea for this person;
             // otherwise a suggestion added in an earlier session would show
             // its "+" re-enabled on reopen (reading from cache resets this
             // view's local `addedTitles`) and tapping it would create a
             // duplicate GiftIdea.
             addedTitles = Set(person.giftIdeas.map(\.title))
             // Show cached ideas instantly and only call the AI provider again
-            // when the user explicitly taps refresh — opening this sheet
+            // when the user explicitly taps refresh; opening this sheet
             // should never silently re-trigger an API call.
             let cached = person.cachedGiftSuggestions
             if !cached.isEmpty {

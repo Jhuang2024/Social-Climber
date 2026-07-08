@@ -54,7 +54,7 @@ struct VoiceCaptureView: View {
                         }
                         .overlay(alignment: .topLeading) {
                             if model.transcript.isEmpty {
-                                Text("Record the conversation as you're having it, or type what's being said — who you're with, what you're talking about.")
+                                Text("Record the conversation as you're having it, or type what's being said: who you're with, what you're talking about.")
                                     .font(.subheadline)
                                     .foregroundStyle(.tertiary)
                                     .padding(16)
@@ -231,7 +231,7 @@ struct ExtractionReviewView: View {
     /// anything.
     @State private var options: ExtractionApplier.Options
     /// Defaults to now (when this note was recorded/typed), but this is the
-    /// conversation's own date — editable so a note about something that
+    /// conversation's own date, editable so a note about something that
     /// happened days ago doesn't get logged as if it were today.
     @State private var date = Date.now
 
@@ -273,7 +273,7 @@ struct ExtractionReviewView: View {
 
                 if people.isEmpty {
                     Section {
-                        Label("No people selected — this will only be saved as a note.", systemImage: "exclamationmark.triangle")
+                        Label("No people selected. This will only be saved as a note.", systemImage: "exclamationmark.triangle")
                             .font(.subheadline)
                             .foregroundStyle(.orange)
                     }

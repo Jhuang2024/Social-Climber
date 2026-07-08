@@ -4,7 +4,7 @@ import PhotosUI
 import UIKit
 
 /// How an interaction's content is getting into the app. Plain manual entry,
-/// or an imported social-media message — pasted or scanned from a screenshot.
+/// or an imported social-media message: pasted or scanned from a screenshot.
 /// Import is a mode of logging an interaction, not a separate feature: it
 /// shares the same person picker, sentiment, follow-up, and save path.
 enum InteractionSource: String, CaseIterable, Identifiable {
@@ -36,12 +36,12 @@ struct AddInteractionView: View {
     @State private var isSaving = false
     @State private var showPeoplePicker = false
     @State private var message: String?
-    /// When true, tapping "OK" on the `message` alert dismisses this sheet —
+    /// When true, tapping "OK" on the `message` alert dismisses this sheet:
     /// used so a post-save notice (AI degraded, closeness impact) is
     /// actually visible instead of being torn down by an immediate dismiss.
     @State private var dismissAfterAlert = false
 
-    // Suggestion review — shown between "AI extraction produced something"
+    // Suggestion review: shown between "AI extraction produced something"
     // and actually writing anything, whenever there's at least one
     // interest/gift/reminder/date/personality note to approve or reject.
     @State private var showSuggestionReview = false
@@ -62,7 +62,7 @@ struct AddInteractionView: View {
 
     @Query(sort: \Person.name) private var allPeople: [Person]
 
-    /// `initialRawText` pre-fills the paste-import text field — used to hand
+    /// `initialRawText` pre-fills the paste-import text field: used to hand
     /// off text the Share Extension queued (e.g. selected Messages bubbles
     /// shared from outside the app). Forces paste mode so it's immediately
     /// visible; the user still explicitly taps "Detect summary" themselves,
@@ -119,11 +119,11 @@ struct AddInteractionView: View {
                             Label("Use detected date (\(detected.formatted(date: .abbreviated, time: .shortened)))", systemImage: "clock.arrow.circlepath")
                         }
                     } else if isImportMode, hasAnalyzed {
-                        // No reliable date in the pasted/scanned text — say so
+                        // No reliable date in the pasted/scanned text: say so
                         // explicitly instead of silently leaving the picker at
                         // whatever it defaulted to (now), which would make an
                         // old screenshot look like it happened today.
-                        Label("No date found in this — confirm the date above is right, it doesn't default to when the conversation happened.", systemImage: "exclamationmark.triangle")
+                        Label("No date found in this. Confirm the date above is right, it doesn't default to when the conversation happened.", systemImage: "exclamationmark.triangle")
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
@@ -196,7 +196,7 @@ struct AddInteractionView: View {
                     }
                 } footer: {
                     if isImportMode {
-                        Text("Uses the AI provider configured in Settings. Only the extracted/pasted text is sent to it — screenshots themselves are never uploaded.")
+                        Text("Uses the AI provider configured in Settings. Only the extracted/pasted text is sent to it. Screenshots themselves are never uploaded.")
                     }
                 }
             }
@@ -239,8 +239,8 @@ struct AddInteractionView: View {
             }
             .alert("Social Climber", isPresented: .init(get: { message != nil }, set: { isPresented in
                 guard !isPresented else { return }
-                // Fires however the alert closes — OK, swipe, or tap-outside
-                // — so a saved interaction never leaves the sheet open behind
+                // Fires however the alert closes (OK, swipe, or tap-outside),
+                // so a saved interaction never leaves the sheet open behind
                 // a dismissed alert (which risked a duplicate on re-tapping
                 // Save).
                 message = nil
@@ -367,7 +367,7 @@ struct AddInteractionView: View {
     /// Runs local on-device parsing (date/speaker detection) and, when
     /// enabled, sends the text to the configured AI provider (OpenRouter or
     /// Mock) to generate a real summary and extract topics/gifts/dates/
-    /// follow-ups — the same extraction pipeline manual note logging uses.
+    /// follow-ups, the same extraction pipeline manual note logging uses.
     private func analyzeImport(_ text: String) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -467,7 +467,7 @@ struct AddInteractionView: View {
                     beginReview(extraction, notice: nil)
                 } else {
                     // Nothing to approve/reject, but the AI did produce a
-                    // real summary — still attach it (ConversationSummary)
+                    // real summary: still attach it (ConversationSummary)
                     // instead of silently dropping it the way `approved: nil`
                     // would.
                     let closenessNotice = saveImportedInteraction(approved: (extraction, .allApproved(for: extraction)))
@@ -506,7 +506,7 @@ struct AddInteractionView: View {
             || !extraction.importantDates.isEmpty || !extraction.personalityNotes.isEmpty
     }
 
-    /// Pauses the save to let the user approve or reject each suggestion —
+    /// Pauses the save to let the user approve or reject each suggestion:
     /// everything starts checked, `confirmReview()` finishes the save once
     /// they tap Save in the review sheet.
     private func beginReview(_ extraction: AIExtraction, notice: String?) {
@@ -529,7 +529,7 @@ struct AddInteractionView: View {
 
     private func finishSave(aiNotice: String? = nil, closenessNotice: String?) {
         Haptics.success()
-        // Show both notices together rather than letting one silently win —
+        // Show both notices together rather than letting one silently win:
         // an AI degradation notice shouldn't hide that closeness also moved.
         let combined = [aiNotice, closenessNotice].compactMap { $0 }.joined(separator: "\n\n")
         if !combined.isEmpty {
@@ -540,7 +540,7 @@ struct AddInteractionView: View {
         }
     }
 
-    /// Applies an AI extraction to a manually-logged note (not an import) —
+    /// Applies an AI extraction to a manually-logged note (not an import):
     /// only the items in `options` get written; everything else is
     /// discarded, same as if the AI had never suggested it.
     @discardableResult
@@ -582,7 +582,7 @@ struct AddInteractionView: View {
     }
 
     /// A short, immediate confirmation of how this interaction moved
-    /// closeness — e.g. "Closeness -1 for Jordan." — so the impact of a
+    /// closeness (e.g. "Closeness -1 for Jordan.") so the impact of a
     /// poorly- or well-rated interaction is never a surprise you have to go
     /// looking for.
     private func closenessImpactMessage(for interaction: Interaction) -> String? {
@@ -636,7 +636,7 @@ struct AddInteractionView: View {
 
         // Apply whichever suggestions were approved (interests, gift ideas,
         // reminders, important dates, personality notes) without creating a
-        // second interaction — the one above already carries the import's
+        // second interaction: the one above already carries the import's
         // own fields (platform, raw text, edited summary).
         if let approved {
             var options = approved.options

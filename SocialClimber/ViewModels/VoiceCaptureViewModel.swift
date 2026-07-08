@@ -14,7 +14,7 @@ final class VoiceCaptureViewModel {
     var transcript = ""
     var extraction: AIExtraction?
     /// Set when the configured AI provider failed and `extraction` is the
-    /// deterministic local fallback instead — shown as an informational
+    /// deterministic local fallback instead, shown as an informational
     /// notice, never blocks review/apply.
     var errorMessage: String?
 
@@ -109,7 +109,7 @@ final class VoiceCaptureViewModel {
     /// insert an editable placeholder so the flow can still be completed.
     private func applyMockTranscript() {
         if transcript.isEmpty {
-            transcript = "(Transcription unavailable — edit this note.) Caught up today. "
+            transcript = "(Transcription unavailable; edit this note.) Caught up today. "
         }
         isTranscribing = false
     }

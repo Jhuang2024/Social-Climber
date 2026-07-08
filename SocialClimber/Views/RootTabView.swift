@@ -64,7 +64,7 @@ struct RootTabView: View {
         }
         // Deliberately no `.tint()` here: a tint set this high cascades to
         // every screen in every tab as the *ambient* tint, not just the tab
-        // bar — it's what was turning Toggles and destructive buttons grey
+        // bar; it's what was turning Toggles and destructive buttons grey
         // app-wide instead of their normal green/red (see SCTheme.accent's
         // doc comment for the same lesson learned the hard way once
         // already). Let each screen's controls use their real system/brand
@@ -82,8 +82,8 @@ struct RootTabView: View {
     }
 
     /// Pulls the next queued share off the inbox (if any) and presents it.
-    /// Removing it up front — rather than waiting for the sheet to be saved
-    /// — means cancelling out of the pre-filled form simply discards that
+    /// Removing it up front (rather than waiting for the sheet to be saved)
+    /// means cancelling out of the pre-filled form simply discards that
     /// one shared snippet instead of leaving it stuck re-appearing forever;
     /// re-sharing is one tap if that was a mistake. Called again as each
     /// sheet dismisses so multiple queued shares are worked through one at

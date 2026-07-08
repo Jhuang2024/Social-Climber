@@ -22,7 +22,7 @@ struct UpcomingView: View {
         let title: String
         let subtitle: String
         let person: Person?
-        /// Set only when this entry came from an `ImportantDate` — lets the
+        /// Set only when this entry came from an `ImportantDate`, which lets the
         /// row offer a delete swipe action straight back to the source
         /// record, since birthdays/reminders/calendar entries aren't
         /// standalone deletable records the same way.
