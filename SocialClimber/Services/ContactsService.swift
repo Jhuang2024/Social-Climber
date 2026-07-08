@@ -23,10 +23,10 @@ struct ContactPickerView: UIViewControllerRepresentable {
         let onPick: ([CNContact]) -> Void
         init(onPick: @escaping ([CNContact]) -> Void) { self.onPick = onPick }
 
-        /// Implementing the plural delegate method (rather than the
-        /// single-contact one) is what switches the system picker itself
-        /// into multi-select mode.
-        func contactPicker(_ picker: CNContactPickerViewController, didSelectContacts contacts: [CNContact]) {
+        /// Implementing the `[CNContact]` overload of `didSelect` (rather
+        /// than the single-`CNContact` one) is what switches the system
+        /// picker itself into multi-select mode.
+        func contactPicker(_ picker: CNContactPickerViewController, didSelect contacts: [CNContact]) {
             onPick(contacts)
         }
     }
