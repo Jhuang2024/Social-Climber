@@ -31,7 +31,7 @@ final class Person {
 
     // MARK: AI feature caches
     // Both caches persist so re-opening a contact never re-triggers an API
-    // call on its own — regeneration only happens when the user explicitly
+    // call on its own; regeneration only happens when the user explicitly
     // taps refresh.
 
     /// Suggestions from the last "Suggest with AI" run. Regenerated only on
@@ -106,7 +106,7 @@ final class Person {
     }
 
     /// Whether anything new (an interaction, a profile edit) has happened
-    /// since a given cached-insight timestamp — so the AI summary and gift
+    /// since a given cached-insight timestamp, so the AI summary and gift
     /// suggestion caches can flag themselves as "may be outdated" instead of
     /// silently going stale forever between explicit refreshes.
     private func hasNewActivity(since generatedAt: Date?) -> Bool {
@@ -124,7 +124,7 @@ final class Person {
     var giftSuggestionsAreStale: Bool { hasNewActivity(since: cachedGiftSuggestionsGeneratedAt) }
 
     /// Update the relevant "last..." fields for an interaction of the given type.
-    /// Only ever nudges forward — correct for logging a brand-new
+    /// Only ever nudges forward: correct for logging a brand-new
     /// interaction, but can't walk a field backward or drop it if the
     /// interaction responsible for the current value is later edited or
     /// deleted. Use `recomputeContactDates()` for those cases.
@@ -144,7 +144,7 @@ final class Person {
     }
 
     /// Recomputes the "last contacted" family of fields from every
-    /// currently-logged interaction, from scratch — unlike `markContacted`,
+    /// currently-logged interaction, from scratch, unlike `markContacted`,
     /// this can also move a field *earlier* or clear it entirely. Call this
     /// (instead of `markContacted`) whenever an existing interaction's date
     /// or type changes, or an interaction is deleted, so the People list's
@@ -177,7 +177,7 @@ final class Person {
     }
 
     /// Broad substring search across everything a person could plausibly be
-    /// found by — name, tags, interests, notes, and more — not just their
+    /// found by: name, tags, interests, notes, and more, not just their
     /// name. Shared by the People list's own search bar and the global
     /// Search tab so a person findable one way is findable the other.
     func matchesSearch(_ term: String) -> Bool {

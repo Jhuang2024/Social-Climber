@@ -9,7 +9,7 @@ import UIKit
 /// Bring-your-own OAuth client, same spirit as the OpenRouter AI key: you
 /// create a free "iOS" OAuth Client ID in Google Cloud Console (Calendar
 /// API enabled, bundle ID matching this app's) and paste it in Settings.
-/// No client secret is needed — sign-in uses the standard PKCE flow for
+/// No client secret is needed: sign-in uses the standard PKCE flow for
 /// native apps. Only a refresh token is stored, in the iOS Keychain;
 /// nothing else about your Google account touches this device's disk.
 @MainActor
@@ -181,7 +181,7 @@ final class GoogleCalendarService: NSObject {
     /// link, so pasting it can drag along a `http://` scheme and trailing
     /// `/` (e.g. `http://1234-abc.apps.googleusercontent.com/`). Left
     /// as-is, those stray characters end up inside the OAuth redirect
-    /// scheme built from the client ID, which isn't a valid URL scheme —
+    /// scheme built from the client ID, which isn't a valid URL scheme.
     /// `ASWebAuthenticationSession` then throws an uncatchable
     /// Objective-C exception and crashes the app. Strip it down to the
     /// bare `<id>.apps.googleusercontent.com` before it's ever used.
@@ -346,7 +346,7 @@ enum GoogleCalendarError: LocalizedError {
         case .missingClientID:
             "Add your Google OAuth Client ID in Settings first."
         case .invalidClientID:
-            "That doesn't look like a Google Client ID — it should end in \".apps.googleusercontent.com\"."
+            "That doesn't look like a Google Client ID. It should end in \".apps.googleusercontent.com\"."
         case .authCanceled:
             "Sign-in was canceled before it finished."
         case .tokenExchangeFailed:

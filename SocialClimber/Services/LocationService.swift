@@ -4,7 +4,7 @@ import CoreLocation
 /// Optional, on-demand location lookup: resolves the current city once per
 /// request so the dashboard can show which known people live nearby.
 /// Never tracks in the background, never stores a location, never leaves
-/// the device — only the resolved city name is kept, in memory, for the
+/// the device; only the resolved city name is kept, in memory, for the
 /// current session.
 @Observable
 final class LocationService: NSObject, CLLocationManagerDelegate {

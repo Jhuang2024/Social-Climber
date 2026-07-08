@@ -1,14 +1,14 @@
 import SwiftUI
 import SwiftData
 
-/// The global Strategy screen — a rule-based command center for who to reach
+/// The global Strategy screen: a rule-based command center for who to reach
 /// out to next. Pushed inside a NavigationStack that provides a
 /// `navigationDestination(for: Person.self)` (the Dashboard's).
 struct StrategyView: View {
     @Query(sort: \Person.name) private var people: [Person]
 
     /// Only contacts with at least one logged interaction have a basis for a
-    /// strategy — everyone else is excluded before anything is generated.
+    /// strategy; everyone else is excluded before anything is generated.
     private var eligiblePeople: [Person] {
         people.filter { !$0.isArchived && !$0.interactions.isEmpty }
     }

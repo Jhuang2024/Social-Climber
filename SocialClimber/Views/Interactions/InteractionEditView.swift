@@ -46,7 +46,7 @@ struct InteractionEditView: View {
                 }
 
                 Section("What") {
-                    // All cases, not just `.loggable` — an interaction
+                    // All cases, not just `.loggable`: an interaction
                     // originally logged as a voice note still needs its
                     // current type represented when editing.
                     Picker("Type", selection: $type) {
@@ -70,7 +70,7 @@ struct InteractionEditView: View {
                 Section {
                     SentimentPicker(sentiment: $sentiment)
                 } footer: {
-                    Text("Changing how this went adjusts \(interaction.peopleNames.isEmpty ? "their" : interaction.peopleNames + "'s") closeness — poor interactions cost points, great ones earn more.")
+                    Text("Changing how this went adjusts \(interaction.peopleNames.isEmpty ? "their" : interaction.peopleNames + "'s") closeness: poor interactions cost points, great ones earn more.")
                 }
 
                 Section("Follow-up") {
@@ -113,14 +113,14 @@ struct InteractionEditView: View {
         interaction.followUpDate = followUpNeeded ? followUpDate : nil
         interaction.nextMove = nextMove.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // Only schedule a new reminder when follow-up is newly turned on —
+        // Only schedule a new reminder when follow-up is newly turned on:
         // this interaction has no back-reference to a reminder it may have
         // already created, so re-scheduling on every edit would duplicate it.
         if followUpNeeded, !wasFollowUpNeeded {
             InteractionSaver.scheduleFollowUpIfNeeded(for: interaction, people: interaction.people, context: context)
         }
 
-        // Compare by Sentiment, not raw quality — `quality` values outside
+        // Compare by Sentiment, not raw quality: `quality` values outside
         // the four canonical ones (e.g. legacy/imported data) collapse onto
         // a Sentiment, so comparing ints here could see a "change" (and
         // silently rewrite + re-nudge closeness) on a save where the user
@@ -131,7 +131,7 @@ struct InteractionEditView: View {
 
         // The date/type just edited above may have moved a person's "last
         // contacted" fields earlier, later, or off this interaction
-        // entirely — markContacted only ever nudges forward, so recompute
+        // entirely; markContacted only ever nudges forward, so recompute
         // from scratch instead of leaving the People list showing a stale
         // date.
         for person in interaction.people {

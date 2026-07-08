@@ -9,7 +9,7 @@ enum ExtractionApplier {
     /// Which of an `AIExtraction`'s individual suggestions the user actually
     /// approved. Tracked per-item (not one flag per category) so rejecting a
     /// single bad gift idea doesn't also throw away the two good ones next
-    /// to it. `summary`/`topics` aren't gated here — they always flow onto
+    /// to it. `summary`/`topics` aren't gated here: they always flow onto
     /// the interaction itself, same as before; this only covers suggestions
     /// that create separate, standalone records (gifts, reminders, dates)
     /// or otherwise mutate the person's profile (interests, personality
@@ -22,7 +22,7 @@ enum ExtractionApplier {
         var selectedPersonalityNotes: Set<String> = []
         var createInteraction = true
 
-        /// Every suggestion in `extraction` pre-approved — for call sites
+        /// Every suggestion in `extraction` pre-approved: for call sites
         /// that skip a review step (nothing to review) or intentionally
         /// want everything applied without asking.
         static func allApproved(for extraction: AIExtraction, createInteraction: Bool = true) -> Options {
@@ -66,7 +66,7 @@ enum ExtractionApplier {
             for extracted in approvedReminders {
                 let reminder = Reminder(
                     title: extracted.title,
-                    // Anchored to *now*, not the interaction's own date —
+                    // Anchored to *now*, not the interaction's own date:
                     // for a past-dated interaction (a screenshot or voice
                     // note logged well after the fact), "follow up in 3
                     // days" has to mean 3 days from today, or a reminder
@@ -113,13 +113,13 @@ enum ExtractionApplier {
         interaction.people = people
         context.insert(interaction)
         // Only nudge closeness when this call is logging the interaction
-        // itself — when it's just applying extras onto an interaction that
+        // itself: when it's just applying extras onto an interaction that
         // InteractionSaver already finalized, that call already applied the
         // quality adjustment once.
         InteractionSaver.applyClosenessImpact(of: interaction, to: people)
 
         // The AI Summary card shows everything the AI actually found,
-        // approved or not — this is a record of what was extracted, not of
+        // approved or not; this is a record of what was extracted, not of
         // what was applied to the profile.
         let summary = ConversationSummary(extraction: extraction)
         summary.interaction = interaction

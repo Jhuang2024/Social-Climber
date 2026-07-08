@@ -7,14 +7,14 @@ import Foundation
 /// Always computes the deterministic version first from data already on
 /// disk, so the feature keeps working with zero network dependency. When
 /// the configured provider is OpenRouter, it's asked to write a nicer
-/// version grounded in that same deterministic digest — and on any failure
+/// version grounded in that same deterministic digest; on any failure
 /// (missing/invalid key, timeout, rate limit, network, bad response) this
 /// falls back to the deterministic text instead of showing an error.
 enum PersonSummaryEngine {
     struct Result {
         let text: String
         let isAIGenerated: Bool
-        /// Set only when an AI attempt was made and failed — a clean,
+        /// Set only when an AI attempt was made and failed: a clean,
         /// user-facing explanation, never a raw error.
         let notice: String?
     }
@@ -28,7 +28,7 @@ enum PersonSummaryEngine {
 
         do {
             let context = GiftIdeaEngine.context(for: person) + "\n\nDeterministic facts:\n" + deterministic
-            // No extra timeout wrap needed here — OpenRouterAIService already
+            // No extra timeout wrap needed here: OpenRouterAIService already
             // races every request against its own deadline internally.
             let text = try await OpenRouterAIService().summarizePerson(context: context)
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -50,7 +50,7 @@ enum PersonSummaryEngine {
 
         if let mostRecent = interactions.first {
             let preview = mostRecent.preview.isEmpty ? mostRecent.type.label : mostRecent.preview
-            lines.append("Most recent: \(mostRecent.date.relativeLabel) — \(preview)")
+            lines.append("Most recent: \(mostRecent.date.relativeLabel), \(preview)")
         } else {
             lines.append("No interactions logged yet.")
         }
@@ -78,7 +78,7 @@ enum PersonSummaryEngine {
         if bad == 0 && good == total {
             return "consistently positive"
         } else if bad > good {
-            return "rockier than usual — a few recent interactions went poorly"
+            return "rockier than usual: a few recent interactions went poorly"
         } else if bad > 0 {
             return "mostly positive, with at least one rough interaction"
         } else {
@@ -95,8 +95,8 @@ enum PersonSummaryEngine {
             return "Log your first interaction to start building a relationship history."
         }
         if let top = StrategyEngine.suggestions(for: person).first {
-            return "\(top.title) — \(top.detail)"
+            return "\(top.title): \(top.detail)"
         }
-        return "You're on track — no urgent action needed."
+        return "You're on track, no urgent action needed."
     }
 }

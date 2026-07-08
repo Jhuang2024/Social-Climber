@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Shown after AI analysis finds at least one interest, gift idea,
-/// reminder, important date, or personality note to suggest — lets the
+/// reminder, important date, or personality note to suggest: lets the
 /// user approve or reject each one individually before anything is
 /// actually written to a person's profile. Tapping "Back" just returns to
 /// the form underneath; nothing has been saved yet at this point.
@@ -16,7 +16,7 @@ struct SuggestionReviewSheet: View {
         NavigationStack {
             List {
                 Section {
-                    Text("Review what the AI found — anything left unchecked won't be added.")
+                    Text("Review what the AI found: anything left unchecked won't be added.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }

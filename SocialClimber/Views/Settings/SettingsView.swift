@@ -60,7 +60,7 @@ struct SettingsView: View {
                     Stepper("Top priority: every \(cadenceClose)d", value: $cadenceClose, in: 7...90, step: 7)
                     Stepper("Regular priority: every \(cadenceRegular)d", value: $cadenceRegular, in: 14...180, step: 7)
                     Stepper("Low priority: every \(cadenceDistant)d", value: $cadenceDistant, in: 30...365, step: 15)
-                    Text("Based on priority — how actively you want to invest in a relationship. Very close relationships automatically get extra slack on top of this, and people you already talk to often won't be flagged between those natural check-ins. Per-person cadence on a profile always overrides these.")
+                    Text("Based on priority: how actively you want to invest in a relationship. Very close relationships automatically get extra slack on top of this, and people you already talk to often won't be flagged between those natural check-ins. Per-person cadence on a profile always overrides these.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -90,11 +90,11 @@ struct SettingsView: View {
                                 UIApplication.shared.open(url)
                             }
                         } label: {
-                            Label("Notifications are off in iOS Settings — tap to open", systemImage: "gear")
+                            Label("Notifications are off in iOS Settings: tap to open", systemImage: "gear")
                         }
                         .font(.caption)
                     }
-                    Text("Birthdays, important dates, and events at 9 AM (events at their scheduled time), reminders on their due date. Everything fires locally — nothing is ever sent off this iPhone.")
+                    Text("Birthdays, important dates, and events at 9 AM (events at their scheduled time), reminders on their due date. Everything fires locally; nothing is ever sent off this iPhone.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -131,11 +131,11 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("1. In Messages, touch and hold a message, tap \"More…\", then tap each bubble you want to include.")
                         Text("2. Tap the share icon in the bottom-left, then choose Social Climber from the row of apps.")
-                        Text("3. Open Social Climber — the conversation is waiting for you to review, attach to a person, and log.")
+                        Text("3. Open Social Climber: the conversation is waiting for you to review, attach to a person, and log.")
                     }
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    Text("Only the messages you select are shared — Social Climber never reads your message history, and nothing leaves your device except when you explicitly analyze a note with an AI provider.")
+                    Text("Only the messages you select are shared; Social Climber never reads your message history, and nothing leaves your device except when you explicitly analyze a note with an AI provider.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -166,7 +166,7 @@ struct SettingsView: View {
                         }
                         .tint(.red)
                     }
-                    Text("Read-only. Create a free \"iOS\" OAuth Client ID in Google Cloud Console (enable the Google Calendar API, set the bundle ID to match this app's) and paste it above — no client secret needed. Only a refresh token is stored, in the iOS Keychain; events are fetched on demand and never saved.")
+                    Text("Read-only. Create a free \"iOS\" OAuth Client ID in Google Cloud Console (enable the Google Calendar API, set the bundle ID to match this app's) and paste it above; no client secret needed. Only a refresh token is stored, in the iOS Keychain; events are fetched on demand and never saved.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -200,7 +200,7 @@ struct SettingsView: View {
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .submitLabel(.done)
-                        Text("Default: \(OpenRouterDefaults.modelID). The API key is stored only in iOS Keychain and is never exported or logged. Fit Checker and How to Respond need a vision-capable model to read photos — check your model's capabilities on OpenRouter if those come back with an error.")
+                        Text("Default: \(OpenRouterDefaults.modelID). The API key is stored only in iOS Keychain and is never exported or logged. Fit Checker and How to Respond need a vision-capable model to read photos; check your model's capabilities on OpenRouter if those come back with an error.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {

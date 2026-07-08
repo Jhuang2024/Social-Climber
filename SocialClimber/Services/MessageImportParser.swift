@@ -11,7 +11,7 @@ struct ParsedMessage {
 }
 
 /// Purely local, on-device parsing of pasted/scanned message text. No AI, no
-/// network — just heuristics for stripping obvious junk and building a preview.
+/// network, just heuristics for stripping obvious junk and building a preview.
 enum MessageImportParser {
     private static let junkKeywords: Set<String> = [
         "delivered", "read", "sent", "seen", "today", "yesterday", "now",
@@ -70,7 +70,7 @@ enum MessageImportParser {
         guard words.count <= 3, name.count <= 32 else { return nil }
         guard !name.contains(where: \.isNumber) else { return nil }
         // "Me"/"Them" are OCRService's own bubble-color sender labels, not a
-        // real contact's name — leave them attached to the line (readable,
+        // real contact's name; leave them attached to the line (readable,
         // useful context for the AI summary) but never suggest them as a
         // new contact to create.
         guard !["http", "https", "www", "note", "info", "me", "them"].contains(name.lowercased()) else { return nil }
@@ -128,14 +128,14 @@ enum MessageImportParser {
         "august", "september", "october", "november", "december",
     ]
 
-    /// Finds the first *reliable* date in the text — one that names an
+    /// Finds the first *reliable* date in the text, one that names an
     /// actual day, not just a clock time.
     ///
     /// `NSDataDetector` happily matches a bare time like "3:45 PM" (nearly
     /// every message timestamp in a chat screenshot) and returns a `Date`
     /// for it by silently defaulting the day component to *today*. Trusting
     /// that blindly is exactly the "assume it happened today" mistake this
-    /// exists to avoid — a screenshot from three weeks ago would get logged
+    /// exists to avoid: a screenshot from three weeks ago would get logged
     /// as today just because it shows a time of day. Only a match whose
     /// matched text actually names a day (a numeric date, a month, a
     /// weekday, or a relative day word) is trusted.

@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 /// Screenshot a conversation, get a reply grounded in this person's real
-/// profile — closeness, notes, history, and current strategy read. Purely an
+/// profile: closeness, notes, history, and current strategy read. Purely an
 /// assist surface: the screenshots and the advice shown here are never
 /// saved, never logged as an `Interaction`, and never touch closeness or
 /// interaction history, unlike every other AI feature on this profile.
@@ -20,7 +20,7 @@ struct HowToRespondSheet: View {
             ScrollView {
                 VStack(spacing: 16) {
                     FormSectionCard("Screenshot", icon: "camera.viewfinder") {
-                        Text("Add a screenshot of the conversation with \(person.firstName). Used only to suggest a reply — never logged as an interaction, saved, or counted toward closeness.")
+                        Text("Add a screenshot of the conversation with \(person.firstName). Used only to suggest a reply; never logged as an interaction, saved, or counted toward closeness.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         PhotoInputControl(
@@ -94,7 +94,7 @@ struct HowToRespondSheet: View {
     }
 }
 
-/// Recommended reply, tone, rationale, and any risk warning — plus copyable
+/// Recommended reply, tone, rationale, and any risk warning, plus copyable
 /// alternates. Shown once `HowToRespondSheet` gets a `ReplyAdvice` back.
 private struct ReplyAdviceCard: View {
     let advice: ReplyAdvice

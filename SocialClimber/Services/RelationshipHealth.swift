@@ -5,14 +5,14 @@ enum RelationshipHealth {
     /// How often (in days) this person should be contacted, unless the
     /// person has an explicit cadence override.
     ///
-    /// The base tier comes from *priority* — how much you want to actively
-    /// invest in this relationship — not closeness, since a relationship
+    /// The base tier comes from *priority*: how much you want to actively
+    /// invest in this relationship, not closeness, since a relationship
     /// you're already close to tends to sustain itself. Closeness only ever
     /// loosens the cadence from there (a very close relationship should
     /// rarely need a nudge), it never tightens it. Finally, when there's
     /// enough real history to see how this person actually communicates,
     /// the cadence is stretched to comfortably outlast their own natural
-    /// rhythm — someone you already text every few days shouldn't be
+    /// rhythm: someone you already text every few days shouldn't be
     /// flagged as "due" between those texts. Anchor cadences are
     /// user-configurable in Settings.
     static func expectedCadenceDays(for person: Person) -> Int {
@@ -22,7 +22,7 @@ enum RelationshipHealth {
             let value = defaults.integer(forKey: key)
             return value > 0 ? Double(value) : fallback
         }
-        // Deliberately generous — the app should feel like it rarely
+        // Deliberately generous: the app should feel like it rarely
         // interrupts, not like another daily chore.
         let close = stored("defaultCadenceClose", 21)
         let regular = stored("defaultCadenceRegular", 60)
@@ -41,7 +41,7 @@ enum RelationshipHealth {
         var cadence = base * closenessFactor
 
         // Someone who naturally communicates often shouldn't "reappear" as
-        // due between their own normal beats — stretch the cadence to
+        // due between their own normal beats: stretch the cadence to
         // comfortably outlast their real rhythm.
         if let rhythm = naturalRhythmDays(for: person) {
             cadence = max(cadence, rhythm * 2.5)
@@ -50,8 +50,8 @@ enum RelationshipHealth {
         return max(10, Int(cadence))
     }
 
-    /// The typical number of days between this person's recent interactions
-    /// — how often they naturally come up, independent of the configured
+    /// The typical number of days between this person's recent interactions:
+    /// how often they naturally come up, independent of the configured
     /// cadence. `nil` when there isn't enough recent history to infer a
     /// rhythm (fewer than 3 interactions in the last year), so the
     /// priority/closeness-derived cadence is used as-is.

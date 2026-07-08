@@ -4,7 +4,7 @@ import SwiftData
 /// Small add sheets for gifts, reminders, and important dates.
 
 /// The "For / Person" picker shared by every add sheet that lets you
-/// optionally attach the new item to someone — a plain `Picker` including a
+/// optionally attach the new item to someone: a plain `Picker` including a
 /// "No one specific" option, backed by everyone not archived.
 struct OptionalPersonPicker: View {
     let label: String

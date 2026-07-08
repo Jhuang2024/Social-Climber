@@ -43,7 +43,7 @@ enum ScoreBand: String {
 
 /// A fully transparent 0–100 relationship score. Every point is attributable
 /// to a labeled factor so the user can always see *why* a contact sits where
-/// they do — nothing here is random or hidden.
+/// they do: nothing here is random or hidden.
 struct RelationshipScore {
     let total: Int
     let factors: [ScoreFactor]
@@ -82,9 +82,9 @@ struct RelationshipScore {
             case ..<2.0:
                 factors.append(ScoreFactor(label: "No contact in \(days) days", points: -8))
             case ..<4.0:
-                factors.append(ScoreFactor(label: "Overdue — \(days) days since contact", points: -16))
+                factors.append(ScoreFactor(label: "Overdue: \(days) days since contact", points: -16))
             default:
-                factors.append(ScoreFactor(label: "Gone quiet — \(days) days since contact", points: -24))
+                factors.append(ScoreFactor(label: "Gone quiet: \(days) days since contact", points: -24))
             }
         } else {
             factors.append(ScoreFactor(label: "No interactions logged yet", points: -12))
@@ -104,7 +104,7 @@ struct RelationshipScore {
             }
         }
 
-        // 3. Consistency — how many interactions in the last 90 days.
+        // 3. Consistency: how many interactions in the last 90 days.
         let recentCount = interactions.filter { $0.date.daysAgo <= 90 }.count
         switch recentCount {
         case 6...:
@@ -115,7 +115,7 @@ struct RelationshipScore {
             break
         }
 
-        // 4. Follow-through — completed follow-up reminders reward the loop.
+        // 4. Follow-through: completed follow-up reminders reward the loop.
         let completedFollowUps = person.reminders.filter {
             $0.completed && $0.type == .followUp && $0.dueDate.daysAgo <= 90
         }.count
@@ -138,7 +138,7 @@ struct RelationshipScore {
             factors.append(ScoreFactor(label: "\(openLoops) open follow-up loop\(openLoops == 1 ? "" : "s")", points: pts))
         }
 
-        // 7. High-priority decay — priority people are held to a stricter bar.
+        // 7. High-priority decay: priority people are held to a stricter bar.
         let status = person.status
         if person.priority >= 4 && (status == .goingQuiet || status == .dormant) {
             factors.append(ScoreFactor(label: "High-priority contact going cold", points: -8))

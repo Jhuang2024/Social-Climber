@@ -26,7 +26,7 @@ enum ReplyAdvisorEngine {
         }
 
         if let topSuggestion = StrategyEngine.suggestions(for: person).first {
-            lines.append("Current strategy read: \(topSuggestion.title) — \(topSuggestion.detail)")
+            lines.append("Current strategy read: \(topSuggestion.title); \(topSuggestion.detail)")
         }
 
         return lines.joined(separator: "\n")
@@ -40,7 +40,7 @@ enum ReplyAdvisorEngine {
 
     static func analyze(images: [UIImage], person: Person) async -> Outcome {
         guard AIProvider.currentCase == .openRouter else {
-            return Outcome(advice: nil, notice: "How to Respond needs a vision-capable AI — switch AI Provider to OpenRouter in Settings.")
+            return Outcome(advice: nil, notice: "How to Respond needs a vision-capable AI. Switch AI Provider to OpenRouter in Settings.")
         }
         guard KeychainService.hasOpenRouterAPIKey() else {
             let notice = AIServiceError.missingOpenRouterAPIKey.errorDescription

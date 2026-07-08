@@ -34,7 +34,7 @@ enum ChatBubbleSender: String {
 /// Vision is ever unavailable the call throws `.unsupported` cleanly.
 ///
 /// Each recognized line is also sampled for its bubble's background color and
-/// prefixed with "Me:" / "Them:" when that color is a confident match — solid
+/// prefixed with "Me:" / "Them:" when that color is a confident match: solid
 /// blue (iMessage/SMS) or a blue-to-purple gradient (Instagram) for the
 /// device owner, near-black/dark-gray for the other person on both. A line
 /// with no confident color read (plain backgrounds, status labels, system
@@ -99,15 +99,15 @@ enum OCRService {
 }
 
 #if canImport(Vision)
-/// Samples pixel colors just outside a recognized text line's bounding box —
+/// Samples pixel colors just outside a recognized text line's bounding box,
 /// inside its chat bubble, but avoiding the white/light text glyphs
-/// themselves — and classifies the result as the device owner's bubble or
+/// themselves, and classifies the result as the device owner's bubble or
 /// the other person's. Built once per image and reused across every line.
 private struct ChatBubbleColorSampler {
     private let width: Int
     private let height: Int
     // The context owns the backing buffer `data` points into, so it's kept
-    // alive alongside it for the sampler's whole lifetime — letting `context`
+    // alive alongside it for the sampler's whole lifetime: letting `context`
     // deallocate while still holding its raw pointer would be a use-after-free.
     private let context: CGContext
     private let data: UnsafeMutablePointer<UInt8>
@@ -181,12 +181,12 @@ private struct ChatBubbleColorSampler {
         UIColor(red: r, green: g, blue: b, alpha: 1).getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
         let degrees = hue * 360
 
-        // Near-black / dark gray bubble — the other person, on both
+        // Near-black / dark gray bubble: the other person, on both
         // Instagram and Messages/SMS.
         if brightness < 0.32, saturation < 0.35 {
             return .them
         }
-        // Blue through purple with real saturation — the device owner,
+        // Blue through purple with real saturation: the device owner,
         // covering iMessage/SMS's solid blue and Instagram's blue-to-purple
         // gradient. The brightness floor keeps a dark, low-saturation misread
         // from slipping in here instead of `.them`.

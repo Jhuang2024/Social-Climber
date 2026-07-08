@@ -1,9 +1,9 @@
 import Foundation
 
 /// Wraps note/message extraction so every call site gets the same
-/// reliability guarantees: a bounded timeout, and — if the configured AI
+/// reliability guarantees: a bounded timeout, and, if the configured AI
 /// provider fails for any reason (missing/invalid key, rate limit, timeout,
-/// network failure, malformed response) — a deterministic local fallback
+/// network failure, malformed response), a deterministic local fallback
 /// instead of an empty result or a blocked save.
 enum AIExtractionCoordinator {
     struct Outcome {

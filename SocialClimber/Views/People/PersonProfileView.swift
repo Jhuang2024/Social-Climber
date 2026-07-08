@@ -29,7 +29,7 @@ struct PersonProfileView: View {
     }
 
     /// The Strategy section is tied strictly to whether this specific contact has
-    /// at least one persisted interaction — the same source of truth as the
+    /// at least one persisted interaction: the same source of truth as the
     /// timeline. This keeps it hidden (no placeholder advice) for contacts with no
     /// logged history, even if they were marked "contacted", and makes it appear
     /// the moment an interaction is logged and stay visible thereafter.
@@ -302,7 +302,7 @@ struct PersonProfileView: View {
         }
     }
 
-    /// "Contacted" is a real logged interaction, not just a date bump — a
+    /// "Contacted" is a real logged interaction, not just a date bump: a
     /// neutral, no-follow-up entry through the same `InteractionSaver`
     /// pipeline every other interaction uses, so a quick tap still feeds the
     /// timeline, AI summary staleness, relationship score, and cadence the
@@ -329,7 +329,7 @@ struct PersonProfileView: View {
     }
 
     /// Screenshot-a-conversation reply assist. Deliberately shown for every
-    /// contact, even ones with no logged interactions yet — unlike Strategy
+    /// contact, even ones with no logged interactions yet: unlike Strategy
     /// and AI Summary, replying to an incoming message doesn't depend on
     /// history existing first. Analyzing a screenshot here never creates an
     /// interaction and never touches closeness.

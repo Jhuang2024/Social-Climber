@@ -15,17 +15,17 @@ final class Interaction {
     var followUpDate: Date?
     /// The concrete "next move" the user plans to make with this person.
     var nextMove: String = ""
-    /// A short, human-written or auto-generated summary of what was said —
+    /// A short, human-written or auto-generated summary of what was said:
     /// used for imported messages and quick timeline previews.
     var messageSummary: String = ""
     var createdAt: Date = Date()
 
     /// The closeness delta actually applied to each attached person when
     /// this interaction was saved, keyed by the person's stable
-    /// `persistentModelID` (never a name — names are user-editable, so a
+    /// `persistentModelID` (never a name; names are user-editable, so a
     /// rename would silently break the lookup and leave a permanent "ghost"
     /// adjustment behind). Tracked per-person, rather than as one shared
-    /// number, because `Person.adjustCloseness` clamps to 1...5 — two
+    /// number, because `Person.adjustCloseness` clamps to 1...5; two
     /// attendees can absorb the same nominal delta differently if one was
     /// already near the ceiling/floor. Editing or deleting the interaction
     /// reverses exactly what was applied to each person instead of guessing

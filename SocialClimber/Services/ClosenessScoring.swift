@@ -6,7 +6,7 @@ import Foundation
 /// reverse cleanly.
 enum ClosenessScoring {
     /// Poorly-rated interactions cost points, neutral ones are a no-op, good
-    /// ones earn a small bump, and great ones earn more — never the same flat
+    /// ones earn a small bump, and great ones earn more, never the same flat
     /// nudge regardless of how the interaction actually went.
     static func delta(for sentiment: Sentiment) -> Int {
         switch sentiment {

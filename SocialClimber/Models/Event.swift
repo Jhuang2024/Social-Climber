@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-/// A social opportunity — a party, dinner, meetup, conference — that links a
+/// A social opportunity (a party, dinner, meetup, conference) that links a
 /// set of people you plan to (or did) see together. After the event you can
 /// quickly log interactions for every attendee at once.
 @Model

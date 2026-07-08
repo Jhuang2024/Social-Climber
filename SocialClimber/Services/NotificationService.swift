@@ -13,7 +13,7 @@ final class NotificationService {
     }
 
     /// The real OS-level permission state, independent of the app's own
-    /// `notificationsEnabled` preference — lets the UI detect a user
+    /// `notificationsEnabled` preference; lets the UI detect a user
     /// revoking permission in iOS Settings after granting it here, instead
     /// of silently believing notifications are still on.
     func authorizationStatus() async -> UNAuthorizationStatus {
@@ -54,7 +54,7 @@ final class NotificationService {
 
         let content = UNMutableNotificationContent()
         content.title = "🎂 \(person.firstName)'s birthday today"
-        content.body = "Send them a message — it matters."
+        content.body = "Send them a message. It matters."
         content.sound = .default
 
         var comps = Calendar.current.dateComponents([.month, .day], from: birthday)
@@ -64,7 +64,7 @@ final class NotificationService {
     }
 
     /// Cancels a person's standing birthday notification without touching
-    /// anything else — used when a person is deleted or archived.
+    /// anything else; used when a person is deleted or archived.
     func cancelBirthday(for person: Person) {
         center.removePendingNotificationRequests(withIdentifiers: ["birthday-\(person.name)"])
     }
@@ -79,7 +79,7 @@ final class NotificationService {
 
         let content = UNMutableNotificationContent()
         content.title = "⭐ \(importantDate.title)"
-        content.body = importantDate.person.map { "\($0.firstName) — don't forget." } ?? "Today."
+        content.body = importantDate.person.map { "\($0.firstName), don't forget." } ?? "Today."
         content.sound = .default
 
         var comps = importantDate.repeatsYearly

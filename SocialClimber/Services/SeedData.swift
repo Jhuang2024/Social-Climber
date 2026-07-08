@@ -32,7 +32,7 @@ enum SeedData {
         alex.dislikes = ["Flaky plans", "Small talk"]
         alex.schoolOrWork = "SJSU, mechanical engineering"
         alex.location = "San Jose, CA"
-        alex.personalityNotes = "Dry humor, opens up one-on-one. Gets quiet when stressed about school — worth asking directly."
+        alex.personalityNotes = "Dry humor, opens up one-on-one. Gets quiet when stressed about school, worth asking directly."
         alex.notes = "Planning a Laguna Seca trip together this summer. He's saving for a sim rig."
         alex.tags = ["high school", "f1"]
         alex.lastContactedAt = daysAgo(5)
@@ -57,7 +57,7 @@ enum SeedData {
         maya.interests = ["K-dramas", "Boba", "Data science", "Badminton"]
         maya.schoolOrWork = "UCC, statistics"
         maya.location = "Dublin, Ireland"
-        maya.personalityNotes = "Quietly funny once comfortable. Great study partner — very organized."
+        maya.personalityNotes = "Quietly funny once comfortable. Great study partner, very organized."
         maya.notes = "Study group for the stats final. She's applying for data science internships for next summer."
         maya.tags = ["ucc", "study group"]
         maya.lastContactedAt = daysAgo(9)
@@ -102,7 +102,7 @@ enum SeedData {
         people.forEach { context.insert($0) }
 
         // Interactions
-        let i1 = Interaction(type: .call, date: daysAgo(2), note: "Sunday call with Mom. Garden planning is in full swing — she wants raised beds. Dad's knee is doing better after PT.", topics: ["Family", "Health"], quality: 4)
+        let i1 = Interaction(type: .call, date: daysAgo(2), note: "Sunday call with Mom. Garden planning is in full swing, she wants raised beds. Dad's knee is doing better after PT.", topics: ["Family", "Health"], quality: 4)
         i1.people = [mom]
 
         let i2 = Interaction(type: .inPerson, date: daysAgo(12), location: "Ippudo, San Jose", note: "Ramen with Alex. He's deep into F1 season predictions and started building a sim racing rig. Stressed about thermo midterm. He would love a Lando Norris cap for his birthday.", topics: ["Sports", "Food", "School"], quality: 5, followUpNeeded: true)
@@ -111,7 +111,7 @@ enum SeedData {
         let i3 = Interaction(type: .inPerson, date: daysAgo(1), location: "Apartment", note: "Cooked dinner with Dev, planned the December Tahoe cabin trip. He's trying to convince everyone to do a ski lesson day.", topics: ["Food", "Travel"], quality: 4)
         i3.people = [dev]
 
-        let i4 = Interaction(type: .message, date: daysAgo(9), note: "Maya asked about internship applications — she's targeting data science roles and wants to trade resume feedback. Talked about internships and the stats final.", topics: ["Career", "School"], quality: 3, followUpNeeded: true)
+        let i4 = Interaction(type: .message, date: daysAgo(9), note: "Maya asked about internship applications; she's targeting data science roles and wants to trade resume feedback. Talked about internships and the stats final.", topics: ["Career", "School"], quality: 3, followUpNeeded: true)
         i4.people = [maya]
 
         let i5 = Interaction(type: .inPerson, date: daysAgo(26), location: "Blue Bottle, Oakland", note: "Monthly coffee with Sarah. Discussed grad school timeline and which labs to look at. She recommended two papers to read before next time.", topics: ["Career", "School"], quality: 5, followUpNeeded: true)
@@ -131,11 +131,11 @@ enum SeedData {
 
         // Events
         let dinner = Event(name: "Apartment dinner party", date: daysAgo(3), location: "Our place", purpose: "Catch up before finals season", notes: "Dev cooked. Good chance to reconnect with the whole crew.", attendees: [dev, alex, maya])
-        let conf = Event(name: "Bay Area CS mixer", date: daysAhead(10), location: "SF, Salesforce Tower", purpose: "Networking — reconnect with Priya", notes: "Bring a few resume copies.", attendees: [priya, sarah])
+        let conf = Event(name: "Bay Area CS mixer", date: daysAhead(10), location: "SF, Salesforce Tower", purpose: "Networking: reconnect with Priya", notes: "Bring a few resume copies.", attendees: [priya, sarah])
         [dinner, conf].forEach { context.insert($0) }
 
         // Gift ideas
-        context.insert(GiftIdea(title: "Lando Norris cap", person: alex, notes: "Mentioned at ramen — check the official F1 store", priceRange: "$30–45", occasion: "Birthday (Mar 22)", status: .idea))
+        context.insert(GiftIdea(title: "Lando Norris cap", person: alex, notes: "Mentioned at ramen, check the official F1 store", priceRange: "$30–45", occasion: "Birthday (Mar 22)", status: .idea))
         context.insert(GiftIdea(title: "Raised garden bed kit", person: mom, notes: "For the backyard project", priceRange: "$80–120", occasion: "Mother's Day", status: .planned))
         context.insert(GiftIdea(title: "Nice chef's knife", person: dev, notes: "He keeps borrowing mine", priceRange: "$60–100", occasion: "Birthday (Jul 14)", status: .idea))
 

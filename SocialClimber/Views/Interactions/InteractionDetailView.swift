@@ -104,7 +104,7 @@ struct InteractionDetailView: View {
                 InteractionSaver.reverseClosenessImpact(of: interaction)
                 context.delete(interaction)
                 // The deleted interaction may have been the one holding a
-                // person's "last contacted" date — recompute from what's
+                // person's "last contacted" date: recompute from what's
                 // left instead of leaving it stale.
                 for person in people {
                     person.recomputeContactDates()

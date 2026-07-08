@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// A single rule-based suggestion. Everything here is derived locally from the
-/// person's own data — no AI, no network.
+/// person's own data: no AI, no network.
 struct Suggestion: Identifiable {
     let id = UUID()
     let icon: String
@@ -41,7 +41,7 @@ enum StrategyEngine {
     // MARK: Per-contact
 
     static func suggestions(for person: Person, now: Date = .now) -> [Suggestion] {
-        // No logged interactions means no basis for a strategy — don't fabricate
+        // No logged interactions means no basis for a strategy: don't fabricate
         // placeholder advice for a contact we know nothing about yet.
         guard !person.isArchived, !person.interactions.isEmpty else { return [] }
         var out: [Suggestion] = []
@@ -103,7 +103,7 @@ enum StrategyEngine {
             ))
         }
 
-        // Logged a favor — close the loop.
+        // Logged a favor: close the loop.
         if let favor = interactions.first(where: { $0.type == .favor && $0.date.daysAgo <= 30 }) {
             out.append(Suggestion(
                 icon: "hands.sparkles",
@@ -158,7 +158,7 @@ enum StrategyEngine {
     // MARK: Global
 
     static func global(people: [Person], now: Date = .now) -> GlobalStrategy {
-        // Contacts with no logged interactions have no basis for a strategy —
+        // Contacts with no logged interactions have no basis for a strategy:
         // exclude them from every bucket instead of surfacing placeholder rows.
         let active = people.filter { !$0.isArchived && !$0.interactions.isEmpty }
         var g = GlobalStrategy()

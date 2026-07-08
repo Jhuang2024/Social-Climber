@@ -37,7 +37,7 @@ struct GiftIdeasView: View {
 
             if filtered.isEmpty {
                 Section {
-                    EmptyStateView(icon: "gift", title: "No gift ideas", message: "Gift ideas you add — or that AI extracts from notes — show up here.", actionTitle: "Add Gift Idea") { showAdd = true }
+                    EmptyStateView(icon: "gift", title: "No gift ideas", message: "Gift ideas you add, or that AI extracts from notes, show up here.", actionTitle: "Add Gift Idea") { showAdd = true }
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                 }
