@@ -22,7 +22,6 @@ struct SettingsView: View {
     @State private var exportItem: ShareURL?
     @State private var showImporter = false
     @State private var showBackupRestore = false
-    @State private var showContactPicker = false
     @State private var confirmClear = false
     @State private var confirmImport = false
     @State private var pendingImportData: Data?
@@ -101,14 +100,6 @@ struct SettingsView: View {
                 }
 
                 Section("Integrations") {
-                    Button {
-                        showContactPicker = true
-                    } label: {
-                        Label("Import a contact…", systemImage: "person.crop.circle.badge.plus")
-                    }
-                    Text("Contacts are imported one at a time, only when you pick them. No mass import, ever.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                     Toggle("Location (\"Who's nearby\")", isOn: $locationEnabled)
                         .tint(.green)
                         .onChange(of: locationEnabled) {
@@ -292,13 +283,6 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showBackupRestore) {
                 BackupRestoreView(mode: .voluntary)
-            }
-            .sheet(isPresented: $showContactPicker) {
-                ContactPickerView { contact in
-                    let person = ContactsImporter.person(from: contact)
-                    context.insert(person)
-                    message = "Imported \(person.displayName). Open their profile to fill in the rest."
-                }
             }
             .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json]) { result in
                 switch result {

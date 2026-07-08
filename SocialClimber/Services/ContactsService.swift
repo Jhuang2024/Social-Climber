@@ -2,10 +2,12 @@ import SwiftUI
 import Contacts
 import ContactsUI
 
-/// Presents the system contact picker so single contacts can be imported
-/// deliberately. There is intentionally no bulk import.
+/// Presents the system contact picker with multi-select enabled (the
+/// picker shows its own checkbox/"Done" UI once more than one contact is
+/// selectable), so several contacts can be imported in a single pass
+/// instead of one sheet presentation per contact.
 struct ContactPickerView: UIViewControllerRepresentable {
-    var onPick: (CNContact) -> Void
+    var onPick: ([CNContact]) -> Void
 
     func makeUIViewController(context: Context) -> CNContactPickerViewController {
         let picker = CNContactPickerViewController()
@@ -18,11 +20,14 @@ struct ContactPickerView: UIViewControllerRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(onPick: onPick) }
 
     final class Coordinator: NSObject, CNContactPickerDelegate {
-        let onPick: (CNContact) -> Void
-        init(onPick: @escaping (CNContact) -> Void) { self.onPick = onPick }
+        let onPick: ([CNContact]) -> Void
+        init(onPick: @escaping ([CNContact]) -> Void) { self.onPick = onPick }
 
-        func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
-            onPick(contact)
+        /// Implementing the plural delegate method (rather than the
+        /// single-contact one) is what switches the system picker itself
+        /// into multi-select mode.
+        func contactPicker(_ picker: CNContactPickerViewController, didSelectContacts contacts: [CNContact]) {
+            onPick(contacts)
         }
     }
 }

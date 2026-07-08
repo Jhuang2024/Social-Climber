@@ -157,11 +157,16 @@ struct DashboardView: View {
             .sheet(isPresented: $showAddEvent) { EventEditView() }
             .sheet(isPresented: $showVoiceCapture) { VoiceCaptureView() }
             .sheet(isPresented: $showContactPicker) {
-                ContactPickerView { contact in
-                    let person = ContactsImporter.person(from: contact)
-                    context.insert(person)
+                ContactPickerView { contacts in
+                    guard !contacts.isEmpty else { return }
+                    let people = contacts.map(ContactsImporter.person(from:))
+                    people.forEach { context.insert($0) }
                     Haptics.success()
-                    message = "Imported \(person.displayName)."
+                    if let only = people.first, people.count == 1 {
+                        message = "Imported \(only.displayName)."
+                    } else {
+                        message = "Imported \(people.count) contacts."
+                    }
                 }
             }
             .alert("Social Climber", isPresented: .init(get: { message != nil }, set: { if !$0 { message = nil } })) {
@@ -281,6 +286,9 @@ struct DashboardView: View {
             }.buttonStyle(.pressable)
             Button { showAddPerson = true } label: {
                 QuickActionLabel(icon: "person.badge.plus", label: "Add Contact", color: .blue)
+            }.buttonStyle(.pressable)
+            Button { showContactPicker = true } label: {
+                QuickActionLabel(icon: "person.crop.circle.badge.plus", label: "Import Contacts", color: .teal)
             }.buttonStyle(.pressable)
             Button { showAddEvent = true } label: {
                 QuickActionLabel(icon: "calendar.badge.plus", label: "Event", color: .orange)
