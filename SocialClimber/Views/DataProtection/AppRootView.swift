@@ -38,15 +38,29 @@ struct AppRootView: View {
         }
     }
 
+    /// A zero count is only trusted after it's confirmed twice, a beat
+    /// apart. Showing the recovery screen is disruptive and scary, so a
+    /// single transient bad read (the store still settling right at
+    /// launch, a momentary race) must never be enough to trigger it on its
+    /// own; only a count that's *still* zero a moment later counts as real.
     private func runCheckIfNeeded() {
         guard !hasChecked else { return }
-        let currentCount = RecordCounts.total(in: context)
-        if let previous = DataLossGuard.checkForSuddenLoss(currentCount: currentCount) {
-            previousCountIfLossDetected = previous
-        } else {
-            DataLossGuard.recordCurrentCount(currentCount)
+        let firstReading = RecordCounts.total(in: context)
+        guard let previous = DataLossGuard.checkForSuddenLoss(currentCount: firstReading) else {
+            DataLossGuard.recordCurrentCount(firstReading)
+            hasChecked = true
+            return
         }
-        hasChecked = true
+        Task {
+            try? await Task.sleep(nanoseconds: 750_000_000)
+            let confirmedReading = RecordCounts.total(in: context)
+            if confirmedReading == 0 {
+                previousCountIfLossDetected = previous
+            } else {
+                DataLossGuard.recordCurrentCount(confirmedReading)
+            }
+            hasChecked = true
+        }
     }
 }
 

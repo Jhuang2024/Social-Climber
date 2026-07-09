@@ -25,9 +25,15 @@ enum AutoBackupObserver {
         }
     }
 
+    /// The scheduled work runs on the main actor deliberately: every other
+    /// place in this app touches a `ModelContext` only from the main
+    /// thread, and creating one concurrently on a background executor here
+    /// (as a bare, unisolated `Task` would) risked racing SwiftData's own
+    /// autosave on the same store instead of just reading a settled,
+    /// consistent snapshot of it.
     private static func scheduleBackup(container: ModelContainer) {
         pendingTask?.cancel()
-        pendingTask = Task {
+        pendingTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: debounceNanoseconds)
             guard !Task.isCancelled else { return }
             let context = ModelContext(container)
