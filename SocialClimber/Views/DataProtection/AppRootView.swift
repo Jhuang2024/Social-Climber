@@ -10,6 +10,7 @@ struct AppRootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var previousCountIfLossDetected: Int?
     @State private var hasChecked = false
+    @State private var periodicBackupTask: Task<Void, Never>?
 
     var body: some View {
         Group {
@@ -26,14 +27,34 @@ struct AppRootView: View {
         }
         .task {
             runCheckIfNeeded()
+            startPeriodicBackupLoop()
         }
         .onChange(of: scenePhase) { _, newPhase in
-            // Redundant with `AutoBackupObserver`'s per-save backup, on
-            // purpose: this also catches the app being backgrounded right
-            // before the exact kind of external event (a reinstall, a
-            // signing change) that this whole system exists to survive.
+            // Redundant with `AutoBackupObserver`'s per-save backup and the
+            // periodic loop below, on purpose: three independent triggers
+            // means no single one of them has to be perfectly reliable.
+            // This one also catches the app being backgrounded right before
+            // the exact kind of external event (a reinstall, a signing
+            // change) that this whole system exists to survive.
             if newPhase == .background {
                 BackupManager.createBackup(context: context, reason: "auto-background")
+            }
+        }
+    }
+
+    /// A steady, timing-independent pulse of backups (roughly once a
+    /// minute while the app is open) that doesn't depend on `didSave`
+    /// notifications ever firing the way `AutoBackupObserver` expects.
+    /// Belt-and-suspenders: even if that observer's trigger somehow never
+    /// fires for some interaction, this loop still keeps a fresh backup on
+    /// disk.
+    private func startPeriodicBackupLoop() {
+        guard periodicBackupTask == nil else { return }
+        periodicBackupTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 60_000_000_000)
+                guard !Task.isCancelled else { return }
+                BackupManager.createBackup(context: context, reason: "auto-periodic")
             }
         }
     }
