@@ -77,9 +77,31 @@ struct LockedInFitPublicContext: Codable, Equatable {
             importantHealthTasksDue = try? c.decodeIfPresent([ImportantHealthTask].self, forKey: .importantHealthTasksDue)
         }
 
+        /// `energyLevel` shares `CrossAppLevel`'s own low/medium/high
+        /// vocabulary directly, but LockedInFit's `RecoveryStatus` doesn't:
+        /// it encodes poor/okay/good/unknown. Decoding straight through
+        /// `CrossAppLevel`'s generic decoder would silently land every real
+        /// recovery reading on `.unknown` (poor/okay/good never match
+        /// low/medium/high), quietly disabling half of `isLowReadiness`
+        /// below — reading the raw string and mapping LockedInFit's actual
+        /// vocabulary explicitly avoids that. `nutritionStatus`/
+        /// `calorieStatus` use their own, different four/three-value
+        /// vocabularies too (currently unused by any logic here) and are
+        /// left decoding via the generic path — `.unknown` until someone
+        /// defines what they should mean here, rather than guessing a
+        /// mapping with no consumer to verify it against.
         private static func decodeLevel(_ container: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys) -> CrossAppLevel {
-            guard let value = try? container.decodeIfPresent(CrossAppLevel.self, forKey: key) else { return .unknown }
-            return value ?? .unknown
+            guard key == .energyLevel || key == .recoveryStatus else {
+                guard let value = try? container.decodeIfPresent(CrossAppLevel.self, forKey: key) else { return .unknown }
+                return value ?? .unknown
+            }
+            guard let raw = ((try? container.decodeIfPresent(String.self, forKey: key)) ?? nil) else { return .unknown }
+            switch raw.lowercased() {
+            case "low", "poor": return .low
+            case "medium", "okay": return .medium
+            case "high", "good": return .high
+            default: return .unknown
+            }
         }
     }
 

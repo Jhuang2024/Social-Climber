@@ -23,6 +23,7 @@ struct BackupRestoreView: View {
     @State private var backups: [BackupManager.BackupInfo] = []
     @State private var message: String?
     @State private var isRestoring = false
+    @State private var hasAutoRestored = false
     @State private var showFileImporter = false
     @State private var confirmContinueEmpty = false
 
@@ -65,7 +66,10 @@ struct BackupRestoreView: View {
                     }
                 }
             }
-            .onAppear { backups = BackupManager.listBackups() }
+            .onAppear {
+                backups = BackupManager.listBackups()
+                autoRestoreIfPossible()
+            }
             .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.json]) { result in
                 switch result {
                 case .success(let url):
@@ -165,6 +169,19 @@ struct BackupRestoreView: View {
             }
             .padding(.horizontal)
         }
+    }
+
+    /// Restores the newest automatic backup the instant this screen appears
+    /// in emergency mode, so a wipe never requires the user to notice this
+    /// screen and tap through it themselves — merge-only restore makes this
+    /// safe without confirmation. Never runs in `.voluntary` mode, where
+    /// picking a specific backup is the whole point of opening this screen.
+    /// The manual list stays visible underneath as a fallback for the rare
+    /// case nothing is available yet to auto-restore.
+    private func autoRestoreIfPossible() {
+        guard !hasAutoRestored, case .emergency = mode, let newest = backups.first else { return }
+        hasAutoRestored = true
+        restore(newest)
     }
 
     private func restore(_ backup: BackupManager.BackupInfo) {
