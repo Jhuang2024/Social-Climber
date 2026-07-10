@@ -172,6 +172,7 @@ struct CaptureDetailView: View {
     @State private var assignSelection: [Person] = []
     @State private var confirmUndo = false
     @State private var confirmDelete = false
+    @FocusState private var isEditedTextFocused: Bool
 
     private var interaction: Interaction? {
         CaptureProcessor.interaction(for: capture, context: context)
@@ -315,6 +316,16 @@ struct CaptureDetailView: View {
             if isEditingText {
                 TextField("Raw capture", text: $editedText, axis: .vertical)
                     .lineLimit(3...12)
+                    .focused($isEditedTextFocused)
+                    // A vertical-axis TextField's return key inserts a
+                    // newline instead of dismissing, so there's otherwise no
+                    // way to close the keyboard.
+                    .toolbar {
+                        ToolbarItemGroup(placement: .keyboard) {
+                            Spacer()
+                            Button("Done") { isEditedTextFocused = false }
+                        }
+                    }
                 HStack {
                     Button("Cancel") { isEditingText = false }
                         .font(.subheadline)

@@ -262,7 +262,9 @@ final class CapturedMemory {
     /// objects again.
     static func resolvePeople(ids: [UUID], in people: [Person]) -> [Person] {
         guard !ids.isEmpty else { return [] }
-        let byID = Dictionary(uniqueKeysWithValues: people.map { ($0.uuid, $0) })
+        // uniquingKeysWith rather than uniqueKeysWithValues: a duplicate
+        // `uuid` (see `PersonIdentityRepair`) must never crash this lookup.
+        let byID = Dictionary(people.map { ($0.uuid, $0) }, uniquingKeysWith: { first, _ in first })
         return ids.compactMap { byID[$0] }
     }
 }

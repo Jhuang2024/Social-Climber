@@ -546,7 +546,10 @@ enum ExportImportService {
         let archive = try decoder.decode(Archive.self, from: data)
 
         let existing = try context.fetch(FetchDescriptor<Person>())
-        var byName: [String: Person] = Dictionary(uniqueKeysWithValues: existing.map { ($0.name.lowercased(), $0) })
+        // uniquingKeysWith rather than uniqueKeysWithValues: two existing
+        // people can legitimately share a name, and that must never crash
+        // an import.
+        var byName: [String: Person] = Dictionary(existing.map { ($0.name.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
         var imported = 0
 
         for dto in archive.people {
@@ -705,7 +708,9 @@ enum ExportImportService {
         // far more precise than name+type+value, and correctly handles an
         // unattributed fact (no person) instead of colliding every
         // unattributed fact of the same type/value together.
-        let byUUID: [UUID: Person] = Dictionary(uniqueKeysWithValues: byName.values.map { ($0.uuid, $0) })
+        // uniquingKeysWith rather than uniqueKeysWithValues: a duplicate
+        // `uuid` (see `PersonIdentityRepair`) must never crash an import.
+        let byUUID: [UUID: Person] = Dictionary(byName.values.map { ($0.uuid, $0) }, uniquingKeysWith: { first, _ in first })
         let existingFacts = try context.fetch(FetchDescriptor<MemoryFact>())
         func factKey(sourceCaptureUUID: UUID?, personName: String?, type: String, value: String) -> String {
             if let sourceCaptureUUID {

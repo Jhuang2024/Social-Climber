@@ -71,7 +71,9 @@ enum PersonResolver {
         //    ever recorded (a defensive fallback, not the normal path).
         var matched: [PersonSnapshot] = []
         if !trustedIDs.isEmpty {
-            let byID = Dictionary(uniqueKeysWithValues: active.map { ($0.id, $0) })
+            // uniquingKeysWith rather than uniqueKeysWithValues: a duplicate
+            // id must never crash resolution.
+            let byID = Dictionary(active.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             for id in trustedIDs {
                 if let person = byID[id], !matched.contains(where: { $0.id == person.id }) {
                     matched.append(person)

@@ -162,6 +162,14 @@ struct QuickCaptureView: View {
             RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.07))
         }
+        // A vertical-axis TextField's return key inserts a newline instead
+        // of dismissing, so there's otherwise no way to close the keyboard.
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { isTextFocused = false }
+            }
+        }
     }
 
     private var recordingStatus: some View {

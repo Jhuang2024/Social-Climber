@@ -28,6 +28,10 @@ enum AppServices {
             // next launch (paired with `AppRootView`'s check) can catch
             // anything that quietly went wrong.
             SchemaVersionGuard.backupIfNeeded(container: container)
+            // Must run before anything else touches Person/Interaction:
+            // heals the duplicate-UUID migration bug (see its doc comment)
+            // before any code builds a dictionary keyed by `uuid`.
+            PersonIdentityRepair.run(context: ModelContext(container))
             AutoBackupObserver.start(container: container)
             return container
         }
