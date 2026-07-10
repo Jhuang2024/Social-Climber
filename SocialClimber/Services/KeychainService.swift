@@ -3,27 +3,27 @@ import Security
 
 enum KeychainService {
     private static let service = "com.jerryhuang.SocialClimber"
-    private static let openRouterAccount = "openrouter-api-key"
+    private static let bazaarLinkAccount = "bazaarlink-api-key"
     private static let googleRefreshTokenAccount = "google-calendar-refresh-token"
     private static let lastKnownRecordCountAccount = "last-known-record-count"
 
-    static func openRouterAPIKey() throws -> String {
-        guard let key = try read(account: openRouterAccount), !key.isEmpty else {
-            throw AIServiceError.missingOpenRouterAPIKey
+    static func bazaarLinkAPIKey() throws -> String {
+        guard let key = try read(account: bazaarLinkAccount), !key.isEmpty else {
+            throw AIServiceError.missingBazaarLinkAPIKey
         }
         return key
     }
 
-    static func hasOpenRouterAPIKey() -> Bool {
-        (try? openRouterAPIKey()) != nil
+    static func hasBazaarLinkAPIKey() -> Bool {
+        (try? bazaarLinkAPIKey()) != nil
     }
 
-    static func saveOpenRouterAPIKey(_ key: String) throws {
+    static func saveBazaarLinkAPIKey(_ key: String) throws {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            try delete(account: openRouterAccount)
+            try delete(account: bazaarLinkAccount)
         } else {
-            try save(trimmed, account: openRouterAccount)
+            try save(trimmed, account: bazaarLinkAccount)
         }
     }
 

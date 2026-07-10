@@ -3,7 +3,7 @@ import UIKit
 /// Grounds a "How to Respond" request in everything Social Climber already
 /// knows about a specific person, and runs it through the configured AI
 /// provider. Like `FitCheckEngine`, there's no offline fallback: reading a
-/// screenshot needs a vision-capable model, so this only calls OpenRouter
+/// screenshot needs a vision-capable model, so this only calls BazaarLink
 /// and otherwise surfaces a clear notice. The screenshots and the resulting
 /// advice are never persisted here: this is a reply-drafting assist, not a
 /// logged interaction, and must never touch closeness or interaction history.
@@ -39,16 +39,16 @@ enum ReplyAdvisorEngine {
     }
 
     static func analyze(images: [UIImage], person: Person) async -> Outcome {
-        guard AIProvider.currentCase == .openRouter else {
-            return Outcome(advice: nil, notice: "How to Respond needs a vision-capable AI. Switch AI Provider to OpenRouter in Settings.")
+        guard AIProvider.currentCase == .bazaarLink else {
+            return Outcome(advice: nil, notice: "How to Respond needs a vision-capable AI. Switch AI Provider to BazaarLink in Settings.")
         }
-        guard KeychainService.hasOpenRouterAPIKey() else {
-            let notice = AIServiceError.missingOpenRouterAPIKey.errorDescription
+        guard KeychainService.hasBazaarLinkAPIKey() else {
+            let notice = AIServiceError.missingBazaarLinkAPIKey.errorDescription
             return Outcome(advice: nil, notice: notice)
         }
         do {
             let personContext = context(for: person)
-            let advice = try await OpenRouterAIService().analyzeReply(images: images, personContext: personContext)
+            let advice = try await BazaarLinkAIService().analyzeReply(images: images, personContext: personContext)
             return Outcome(advice: advice, notice: nil)
         } catch {
             let mapped = AIServiceError.from(error)

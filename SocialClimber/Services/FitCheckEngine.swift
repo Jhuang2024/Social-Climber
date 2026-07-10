@@ -4,7 +4,7 @@ import UIKit
 /// Event flow, and runs it through the configured AI provider. Unlike gift
 /// ideas or the person summary, there's no deterministic offline fallback:
 /// rating a photo needs a vision-capable model, so this only ever calls
-/// OpenRouter and surfaces a clear notice otherwise. Nothing here is ever
+/// BazaarLink and surfaces a clear notice otherwise. Nothing here is ever
 /// written to a `Person` or `Interaction`; this is event-prep assistance
 /// only and must never influence closeness, cadence, or relationship scores.
 enum FitCheckEngine {
@@ -53,17 +53,17 @@ enum FitCheckEngine {
     }
 
     static func check(image: UIImage, context: EventContext) async -> Outcome {
-        guard AIProvider.currentCase == .openRouter else {
-            return Outcome(result: nil, notice: "Fit Checker needs a vision-capable AI. Switch AI Provider to OpenRouter in Settings.")
+        guard AIProvider.currentCase == .bazaarLink else {
+            return Outcome(result: nil, notice: "Fit Checker needs a vision-capable AI. Switch AI Provider to BazaarLink in Settings.")
         }
-        guard KeychainService.hasOpenRouterAPIKey() else {
-            let notice = AIServiceError.missingOpenRouterAPIKey.errorDescription
+        guard KeychainService.hasBazaarLinkAPIKey() else {
+            let notice = AIServiceError.missingBazaarLinkAPIKey.errorDescription
             return Outcome(result: nil, notice: notice)
         }
         do {
-            // No extra timeout wrap needed: OpenRouterAIService's own
+            // No extra timeout wrap needed: BazaarLinkAIService's own
             // `send()` already races the network call against its deadline.
-            let result = try await OpenRouterAIService().checkFit(image: image, eventContext: contextText(for: context))
+            let result = try await BazaarLinkAIService().checkFit(image: image, eventContext: contextText(for: context))
             return Outcome(result: result, notice: nil)
         } catch {
             let mapped = AIServiceError.from(error)

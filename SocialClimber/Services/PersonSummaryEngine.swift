@@ -6,7 +6,7 @@ import Foundation
 ///
 /// Always computes the deterministic version first from data already on
 /// disk, so the feature keeps working with zero network dependency. When
-/// the configured provider is OpenRouter, it's asked to write a nicer
+/// the configured provider is BazaarLink, it's asked to write a nicer
 /// version grounded in that same deterministic digest; on any failure
 /// (missing/invalid key, timeout, rate limit, network, bad response) this
 /// falls back to the deterministic text instead of showing an error.
@@ -22,15 +22,15 @@ enum PersonSummaryEngine {
     static func summary(for person: Person) async -> Result {
         let deterministic = deterministicSummary(for: person)
 
-        guard AIProvider.currentCase == .openRouter, KeychainService.hasOpenRouterAPIKey() else {
+        guard AIProvider.currentCase == .bazaarLink, KeychainService.hasBazaarLinkAPIKey() else {
             return Result(text: deterministic, isAIGenerated: false, notice: nil)
         }
 
         do {
             let context = GiftIdeaEngine.context(for: person) + "\n\nDeterministic facts:\n" + deterministic
-            // No extra timeout wrap needed here: OpenRouterAIService already
+            // No extra timeout wrap needed here: BazaarLinkAIService already
             // races every request against its own deadline internally.
-            let text = try await OpenRouterAIService().summarizePerson(context: context)
+            let text = try await BazaarLinkAIService().summarizePerson(context: context)
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 return Result(text: deterministic, isAIGenerated: false, notice: nil)
             }

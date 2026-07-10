@@ -249,26 +249,31 @@ protocol AIService {
 
 enum AIProvider: String, CaseIterable, Identifiable {
     case mock
-    case openRouter
+    case bazaarLink
 
     var id: String { rawValue }
     var label: String {
         switch self {
         case .mock: "Mock"
-        case .openRouter: "OpenRouter"
+        case .bazaarLink: "BazaarLink"
         }
     }
 
     var service: AIService {
         switch self {
         case .mock: MockAIService()
-        case .openRouter: OpenRouterAIService()
+        case .bazaarLink: BazaarLinkAIService()
         }
     }
 
-    /// The provider selected in Settings, defaulting to Mock.
+    /// The provider selected in Settings, defaulting to Mock. A stored
+    /// "openRouter" from before the BazaarLink migration maps to
+    /// .bazaarLink so existing users keep a real provider selected instead
+    /// of silently dropping back to Mock (they still need to paste their
+    /// new sk-bl- key; the missing-key error will say so).
     static var currentCase: AIProvider {
         let raw = UserDefaults.standard.string(forKey: "aiProvider") ?? AIProvider.mock.rawValue
+        if raw == "openRouter" { return .bazaarLink }
         return AIProvider(rawValue: raw) ?? .mock
     }
 
@@ -276,7 +281,7 @@ enum AIProvider: String, CaseIterable, Identifiable {
 }
 
 enum AIServiceError: LocalizedError {
-    case missingOpenRouterAPIKey
+    case missingBazaarLinkAPIKey
     case invalidAPIKey
     case rateLimited
     case timeout
@@ -287,12 +292,12 @@ enum AIServiceError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .missingOpenRouterAPIKey:
-            "Add your OpenRouter API key in Settings, or switch AI Provider to Mock."
+        case .missingBazaarLinkAPIKey:
+            "Add your BazaarLink API key in Settings, or switch AI Provider to Mock."
         case .invalidAPIKey:
-            "Your OpenRouter API key was rejected. Check it in Settings. Showing a local summary instead."
+            "Your BazaarLink API key was rejected. Check it in Settings. Showing a local summary instead."
         case .rateLimited:
-            "OpenRouter is rate-limiting requests right now. Try again in a bit. Showing a local summary instead."
+            "BazaarLink is rate-limiting requests right now. Try again in a bit. Showing a local summary instead."
         case .timeout:
             "The AI request took too long and timed out. Showing a local summary instead."
         case .networkFailure:
@@ -302,7 +307,7 @@ enum AIServiceError: LocalizedError {
         case .emptyResponse:
             "The AI provider returned an empty response."
         case .requestFailed(let status):
-            "OpenRouter request failed (HTTP \(status)). Check your API key and model in Settings."
+            "BazaarLink request failed (HTTP \(status)). Check your API key and model in Settings."
         }
     }
 
@@ -360,8 +365,8 @@ func withAITimeout<T: Sendable>(seconds: TimeInterval = 20, _ operation: @escapi
     }
 }
 
-final class OpenRouterAIService: AIService {
-    private let endpoint = URL(string: "https://openrouter.ai/api/v1/chat/completions")!
+final class BazaarLinkAIService: AIService {
+    private let endpoint = URL(string: "https://bazaarlink.ai/api/v1/chat/completions")!
     private let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -369,10 +374,10 @@ final class OpenRouterAIService: AIService {
     }()
 
     func extract(from text: String, knownPeople: [String]) async throws -> AIExtraction {
-        let apiKey = try KeychainService.openRouterAPIKey()
-        let model = UserDefaults.standard.string(forKey: "openRouterModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let requestBody = OpenRouterRequest(
-            model: model?.isEmpty == false ? model! : OpenRouterDefaults.modelID,
+        let apiKey = try KeychainService.bazaarLinkAPIKey()
+        let model = UserDefaults.standard.string(forKey: "bazaarLinkModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let requestBody = BazaarLinkRequest(
+            model: model?.isEmpty == false ? model! : BazaarLinkDefaults.modelID,
             messages: [
                 .init(role: "system", content: Self.systemPrompt),
                 .init(role: "user", content: Self.userPrompt(text: text, knownPeople: knownPeople)),
@@ -387,7 +392,7 @@ final class OpenRouterAIService: AIService {
 
     /// Runs one chat completion and returns the raw assistant message text.
     /// Centralizes the network call, timeout, and error classification so
-    /// every OpenRouter call site (extraction, gift ideas, person summary)
+    /// every BazaarLink call site (extraction, gift ideas, person summary)
     /// fails the same clean way instead of leaking raw network errors.
     private static func send<Body: Encodable>(
         _ requestBody: Body,
@@ -428,9 +433,9 @@ final class OpenRouterAIService: AIService {
             throw mapped
         }
 
-        let completion: OpenRouterResponse
+        let completion: BazaarLinkResponse
         do {
-            completion = try decoder.decode(OpenRouterResponse.self, from: data)
+            completion = try decoder.decode(BazaarLinkResponse.self, from: data)
         } catch {
             AIServiceError.invalidResponse.logForDeveloper(context: "decoding chat completion")
             throw AIServiceError.invalidResponse
@@ -484,10 +489,10 @@ final class OpenRouterAIService: AIService {
     }
 
     func suggestGiftIdeas(personContext: String, existingGiftTitles: [String]) async throws -> [GiftSuggestion] {
-        let apiKey = try KeychainService.openRouterAPIKey()
-        let model = UserDefaults.standard.string(forKey: "openRouterModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let requestBody = OpenRouterRequest(
-            model: model?.isEmpty == false ? model! : OpenRouterDefaults.modelID,
+        let apiKey = try KeychainService.bazaarLinkAPIKey()
+        let model = UserDefaults.standard.string(forKey: "bazaarLinkModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let requestBody = BazaarLinkRequest(
+            model: model?.isEmpty == false ? model! : BazaarLinkDefaults.modelID,
             messages: [
                 .init(role: "system", content: Self.giftSystemPrompt),
                 .init(role: "user", content: Self.giftUserPrompt(personContext: personContext, existingGiftTitles: existingGiftTitles)),
@@ -503,10 +508,10 @@ final class OpenRouterAIService: AIService {
     /// Plain-text relationship summary: no JSON schema, just a few honest
     /// sentences grounded in what's already logged for this person.
     func summarizePerson(context personContext: String) async throws -> String {
-        let apiKey = try KeychainService.openRouterAPIKey()
-        let model = UserDefaults.standard.string(forKey: "openRouterModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let requestBody = OpenRouterRequest(
-            model: model?.isEmpty == false ? model! : OpenRouterDefaults.modelID,
+        let apiKey = try KeychainService.bazaarLinkAPIKey()
+        let model = UserDefaults.standard.string(forKey: "bazaarLinkModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let requestBody = BazaarLinkRequest(
+            model: model?.isEmpty == false ? model! : BazaarLinkDefaults.modelID,
             messages: [
                 .init(role: "system", content: Self.summarySystemPrompt),
                 .init(role: "user", content: personContext),
@@ -527,11 +532,11 @@ final class OpenRouterAIService: AIService {
     /// to. Event-prep assistance only: the result is never persisted onto
     /// a `Person` or `Interaction`, so it can't touch closeness or history.
     func checkFit(image: UIImage, eventContext: String) async throws -> FitCheckResult {
-        let apiKey = try KeychainService.openRouterAPIKey()
+        let apiKey = try KeychainService.bazaarLinkAPIKey()
         guard let dataURL = ImageEncoding.dataURL(for: image) else { throw AIServiceError.invalidResponse }
-        let model = UserDefaults.standard.string(forKey: "openRouterModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let model = UserDefaults.standard.string(forKey: "bazaarLinkModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
         let requestBody = VisionRequest(
-            model: model?.isEmpty == false ? model! : OpenRouterDefaults.modelID,
+            model: model?.isEmpty == false ? model! : BazaarLinkDefaults.modelID,
             messages: [
                 VisionMessage(role: "system", content: [VisionContentPart.text(Self.fitCheckSystemPrompt)]),
                 VisionMessage(role: "user", content: [VisionContentPart.text(Self.fitCheckUserPrompt(eventContext: eventContext)), VisionContentPart.imageURL(dataURL)]),
@@ -571,14 +576,14 @@ final class OpenRouterAIService: AIService {
     /// person. Assist-only: never creates an `Interaction` or touches
     /// closeness; the caller must not persist the screenshots either.
     func analyzeReply(images: [UIImage], personContext: String) async throws -> ReplyAdvice {
-        let apiKey = try KeychainService.openRouterAPIKey()
+        let apiKey = try KeychainService.bazaarLinkAPIKey()
         let dataURLs = images.compactMap { ImageEncoding.dataURL(for: $0) }
         guard !dataURLs.isEmpty else { throw AIServiceError.invalidResponse }
-        let model = UserDefaults.standard.string(forKey: "openRouterModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let model = UserDefaults.standard.string(forKey: "bazaarLinkModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
         var userContent: [VisionContentPart] = [VisionContentPart.text(Self.replyUserPrompt(personContext: personContext))]
         userContent.append(contentsOf: dataURLs.map { VisionContentPart.imageURL($0) })
         let requestBody = VisionRequest(
-            model: model?.isEmpty == false ? model! : OpenRouterDefaults.modelID,
+            model: model?.isEmpty == false ? model! : BazaarLinkDefaults.modelID,
             messages: [
                 VisionMessage(role: "system", content: [VisionContentPart.text(Self.replySystemPrompt)]),
                 VisionMessage(role: "user", content: userContent),
@@ -670,7 +675,7 @@ final class OpenRouterAIService: AIService {
     }
 
     /// A chat completion request whose user message can include image parts:
-    /// the vision counterpart to `OpenRouterRequest`'s plain-string
+    /// the vision counterpart to `BazaarLinkRequest`'s plain-string
     /// messages, used only by the Fit Checker and How to Respond calls.
     private struct VisionRequest: Encodable {
         let model: String
@@ -700,7 +705,7 @@ final class OpenRouterAIService: AIService {
     }
 
     /// One part of a multipart vision message: either plain text or an
-    /// inline base64 image, matching OpenRouter/OpenAI's `content` array
+    /// inline base64 image, matching BazaarLink/OpenAI's `content` array
     /// shape for chat completions.
     private enum VisionContentPart: Encodable {
         case text(String)
@@ -725,7 +730,7 @@ final class OpenRouterAIService: AIService {
         }
     }
 
-    private struct OpenRouterRequest: Encodable {
+    private struct BazaarLinkRequest: Encodable {
         let model: String
         let messages: [Message]
         let temperature: Double
@@ -758,7 +763,7 @@ final class OpenRouterAIService: AIService {
         let type: String
     }
 
-    private struct OpenRouterResponse: Decodable {
+    private struct BazaarLinkResponse: Decodable {
         let choices: [Choice]
     }
 
@@ -767,8 +772,12 @@ final class OpenRouterAIService: AIService {
     }
 }
 
-enum OpenRouterDefaults {
-    static let modelID = "openrouter/free"
+enum BazaarLinkDefaults {
+    /// BazaarLink's special routing ID: automatically picks an available
+    /// free model. Free-tier models aren't guaranteed to be vision-capable,
+    /// so Fit Checker / How to Respond (photo features) may need a real
+    /// vision model ID set in Settings instead.
+    static let modelID = "auto:free"
 }
 
 // MARK: - Mock implementation
