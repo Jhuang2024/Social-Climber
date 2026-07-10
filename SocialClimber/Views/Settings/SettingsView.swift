@@ -28,6 +28,8 @@ struct SettingsView: View {
     @State private var pendingImportName = ""
     @State private var bazaarLinkAPIKey = ""
     @State private var hasBazaarLinkAPIKey = false
+    @State private var testingConnection = false
+    @State private var connectionTestResult: String?
     @State private var isConnectingGoogleCalendar = false
     @State private var notificationsAuthDenied = false
     @State private var message: String?
@@ -205,6 +207,21 @@ struct SettingsView: View {
                         Text("Default: \(BazaarLinkDefaults.modelID). The API key is stored only in iOS Keychain and is never exported or logged. Fit Checker and How to Respond need a vision-capable model to read photos; check your model's capabilities on BazaarLink if those come back with an error.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        Button {
+                            Task { await testBazaarLinkConnection() }
+                        } label: {
+                            if testingConnection {
+                                HStack { ProgressView(); Text("Testing…") }
+                            } else {
+                                Label("Test Connection", systemImage: "bolt.horizontal")
+                            }
+                        }
+                        .disabled(testingConnection || !hasBazaarLinkAPIKey)
+                        if let connectionTestResult {
+                            Text(connectionTestResult)
+                                .font(.caption)
+                                .foregroundStyle(connectionTestResult.hasPrefix("Connected") ? .green : .secondary)
+                        }
                     } else {
                         Text("Mock uses deterministic local heuristics and never sends notes off this iPhone. Fit Checker and How to Respond need real photo analysis, so both require BazaarLink.")
                             .font(.caption)
@@ -397,8 +414,19 @@ struct SettingsView: View {
             bazaarLinkAPIKey = ""
             refreshBazaarLinkKeyStatus()
             message = "BazaarLink API key saved."
+            connectionTestResult = nil
         } catch {
             message = "Could not save API key: \(error.localizedDescription)"
+        }
+    }
+
+    private func testBazaarLinkConnection() async {
+        testingConnection = true
+        defer { testingConnection = false }
+        do {
+            connectionTestResult = try await BazaarLinkAIService().testConnection()
+        } catch {
+            connectionTestResult = "Failed: \(error.localizedDescription)"
         }
     }
 
@@ -407,6 +435,7 @@ struct SettingsView: View {
             try KeychainService.saveBazaarLinkAPIKey("")
             refreshBazaarLinkKeyStatus()
             message = "BazaarLink API key removed."
+            connectionTestResult = nil
         } catch {
             message = "Could not remove API key: \(error.localizedDescription)"
         }

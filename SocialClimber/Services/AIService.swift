@@ -522,6 +522,24 @@ final class BazaarLinkAIService: AIService {
         return try await Self.send(requestBody, apiKey: apiKey, endpoint: endpoint, decoder: decoder)
     }
 
+    /// Verifies the saved key and model actually work, independent of any
+    /// real feature — used by Settings' "Test Connection" button so a bad
+    /// key or model ID surfaces immediately instead of only on the next
+    /// note extraction or gift-idea request.
+    func testConnection() async throws -> String {
+        let apiKey = try KeychainService.bazaarLinkAPIKey()
+        let model = UserDefaults.standard.string(forKey: "bazaarLinkModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedModel = model?.isEmpty == false ? model! : BazaarLinkDefaults.modelID
+        let requestBody = BazaarLinkRequest(
+            model: resolvedModel,
+            messages: [.init(role: "user", content: "Reply with the single word: ok")],
+            temperature: 0.2,
+            responseFormat: nil
+        )
+        let content = try await Self.send(requestBody, apiKey: apiKey, endpoint: endpoint, decoder: decoder)
+        return "Connected. \(resolvedModel) replied: \(content.trimmingCharacters(in: .whitespacesAndNewlines).prefix(40))"
+    }
+
     private static let summarySystemPrompt = """
     You write a short, honest relationship summary (3-5 sentences, plain text, no markdown) for a local-first iOS app, grounded strictly in the facts given. Mention how things have been going, the general tone, and one concrete suggested next move. Do not invent facts that aren't in the context.
     """
