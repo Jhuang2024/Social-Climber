@@ -59,6 +59,13 @@ struct SocialClimberApp: App {
     var body: some Scene {
         WindowGroup {
             AppRootView()
+                // Rounded design was previously reserved for the score ring
+                // and avatar initials; applying it once here at the root
+                // cascades it to every Text/Label in the app instead of 100%
+                // default system text everywhere else, for one consistent
+                // type identity (anything more local can still opt out with
+                // its own .fontDesign).
+                .fontDesign(.rounded)
         }
         .modelContainer(container)
     }

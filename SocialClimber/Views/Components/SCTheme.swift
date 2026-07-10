@@ -33,6 +33,25 @@ enum SCTheme {
     static var elevatedBackground: Color {
         Color(.tertiarySystemGroupedBackground)
     }
+
+    /// A small, curated set of tones for icons/cards that need to be
+    /// tell-apart-able in a grid but don't carry genuinely different
+    /// meaning on their own — used in place of grabbing whichever stock
+    /// SwiftUI color happens to look distinct from its neighbor (the
+    /// dashboard previously mixed blue/green/pink/orange/teal/purple/
+    /// indigo — seven unrelated hues with no relationship to each other or
+    /// to the brand accent, which reads as a template rather than one
+    /// designed product). Each tone also carries a loose meaning so the
+    /// choice is deliberate where it can be: `growth` for logging/activity,
+    /// `alert` for what needs attention, `warm` for closeness/celebration,
+    /// `cool` for neutral utility actions like import.
+    enum Accents {
+        static let primary = SCTheme.accent
+        static let warm = Color(hue: 0.94, saturation: 0.55, brightness: 0.92)
+        static let growth = Color(hue: 0.40, saturation: 0.45, brightness: 0.68)
+        static let alert = Color(hue: 0.08, saturation: 0.65, brightness: 0.92)
+        static let cool = Color(hue: 0.55, saturation: 0.45, brightness: 0.80)
+    }
 }
 
 struct PolishedPageBackground: ViewModifier {

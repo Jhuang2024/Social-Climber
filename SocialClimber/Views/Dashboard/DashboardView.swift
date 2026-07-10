@@ -240,10 +240,10 @@ struct DashboardView: View {
                     .multilineTextAlignment(.center)
             }
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                EmptyActionButton(icon: "person.badge.plus", title: "Add person", color: .blue) { showAddPerson = true }
-                EmptyActionButton(icon: "plus.bubble.fill", title: "Add interaction", color: .green) { showAddInteraction = true }
-                EmptyActionButton(icon: "square.and.arrow.down", title: "Import message", color: .pink) { showImport = true }
-                EmptyActionButton(icon: "person.crop.circle.badge.plus", title: "Import contact", color: .orange) { showContactPicker = true }
+                EmptyActionButton(icon: "person.badge.plus", title: "Add person", color: SCTheme.Accents.primary) { showAddPerson = true }
+                EmptyActionButton(icon: "plus.bubble.fill", title: "Add interaction", color: SCTheme.Accents.growth) { showAddInteraction = true }
+                EmptyActionButton(icon: "square.and.arrow.down", title: "Import message", color: SCTheme.Accents.cool) { showImport = true }
+                EmptyActionButton(icon: "person.crop.circle.badge.plus", title: "Import contact", color: SCTheme.Accents.cool) { showContactPicker = true }
             }
         }
         .padding(18)
@@ -258,18 +258,18 @@ struct DashboardView: View {
 
     private var statsStrip: some View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-            StatCard(title: "People", value: "\(people.count)", icon: "person.2.fill", color: .blue)
-            StatCard(title: "This Week", value: "\(interactionsThisWeek)", icon: "bubble.left.and.bubble.right.fill", color: .green)
-            StatCard(title: "Follow-ups Due", value: "\(followUpsDueCount)", icon: "bell.badge.fill", color: .orange)
+            StatCard(title: "People", value: "\(people.count)", icon: "person.2.fill", color: SCTheme.Accents.primary)
+            StatCard(title: "This Week", value: "\(interactionsThisWeek)", icon: "bubble.left.and.bubble.right.fill", color: SCTheme.Accents.growth)
+            StatCard(title: "Follow-ups Due", value: "\(followUpsDueCount)", icon: "bell.badge.fill", color: SCTheme.Accents.alert)
             if let strongest {
                 NavigationLink(value: strongest) {
-                    StatCard(title: "Strongest", value: strongest.firstName, icon: "flame.fill", color: .pink)
+                    StatCard(title: "Strongest", value: strongest.firstName, icon: "flame.fill", color: SCTheme.Accents.warm)
                 }
                 .buttonStyle(.pressable)
             }
             if let coldestHighPriority {
                 NavigationLink(value: coldestHighPriority) {
-                    StatCard(title: "Coldest Priority", value: coldestHighPriority.firstName, icon: "snowflake", color: .teal)
+                    StatCard(title: "Coldest Priority", value: coldestHighPriority.firstName, icon: "snowflake", color: SCTheme.Accents.alert)
                 }
                 .buttonStyle(.pressable)
             }
@@ -279,25 +279,25 @@ struct DashboardView: View {
     private var quickActions: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
             Button { showAddInteraction = true } label: {
-                QuickActionLabel(icon: "plus.bubble.fill", label: "Log", color: .green)
+                QuickActionLabel(icon: "plus.bubble.fill", label: "Log", color: SCTheme.Accents.growth)
             }.buttonStyle(.pressable)
             Button { showImport = true } label: {
-                QuickActionLabel(icon: "square.and.arrow.down", label: "Import", color: .pink)
+                QuickActionLabel(icon: "square.and.arrow.down", label: "Import", color: SCTheme.Accents.cool)
             }.buttonStyle(.pressable)
             Button { showAddPerson = true } label: {
-                QuickActionLabel(icon: "person.badge.plus", label: "Add Contact", color: .blue)
+                QuickActionLabel(icon: "person.badge.plus", label: "Add Contact", color: SCTheme.Accents.primary)
             }.buttonStyle(.pressable)
             Button { showContactPicker = true } label: {
-                QuickActionLabel(icon: "person.crop.circle.badge.plus", label: "Import Contacts", color: .teal)
+                QuickActionLabel(icon: "person.crop.circle.badge.plus", label: "Import Contacts", color: SCTheme.Accents.cool)
             }.buttonStyle(.pressable)
             Button { showAddEvent = true } label: {
-                QuickActionLabel(icon: "calendar.badge.plus", label: "Event", color: .orange)
+                QuickActionLabel(icon: "calendar.badge.plus", label: "Event", color: SCTheme.Accents.warm)
             }.buttonStyle(.pressable)
             NavigationLink { StrategyView() } label: {
-                QuickActionLabel(icon: "wand.and.stars", label: "Strategy", color: .purple)
+                QuickActionLabel(icon: "wand.and.stars", label: "Strategy", color: SCTheme.Accents.primary)
             }.buttonStyle(.pressable)
             Button { showVoiceCapture = true } label: {
-                QuickActionLabel(icon: "waveform", label: "Voice", color: .indigo)
+                QuickActionLabel(icon: "waveform", label: "Voice", color: SCTheme.Accents.cool)
             }.buttonStyle(.pressable)
         }
     }

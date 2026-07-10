@@ -69,6 +69,12 @@ struct RootTabView: View {
         // doc comment for the same lesson learned the hard way once
         // already). Let each screen's controls use their real system/brand
         // color instead.
+        //
+        // `.toolbarBackground` is unrelated to that bug (it only styles the
+        // bar's surface, not an ambient tint) — a frosted-glass bar instead
+        // of the fully opaque default reads as deliberately designed.
+        .toolbarBackground(.ultraThinMaterial, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
         .task {
             DemoDataCleanupService.removeBundledDemoContactsIfNeeded(context: context)
             checkForSharedImport()
