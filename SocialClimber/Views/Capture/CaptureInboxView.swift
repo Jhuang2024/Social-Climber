@@ -3,7 +3,7 @@ import SwiftData
 
 /// Every capture, newest first, grouped into Needs Context / Processing or
 /// Failed / Recent. This is where corrections happen *when the user
-/// chooses* — normal captures never force a review.
+/// chooses*; normal captures never force a review.
 struct CaptureInboxView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \CapturedMemory.capturedAt, order: .reverse) private var captures: [CapturedMemory]
@@ -23,7 +23,7 @@ struct CaptureInboxView: View {
                     EmptyStateView(
                         icon: "sparkles",
                         title: "Nothing captured yet",
-                        message: "Anything you tell Social Climber from Home — typed, spoken, or shared — lands here while it's organized for you."
+                        message: "Anything you tell Social Climber from Home, typed, spoken, or shared, lands here while it's organized for you."
                     )
                 } else {
                     if !needsContext.isEmpty {
@@ -156,8 +156,8 @@ struct CaptureRowView: View {
 // MARK: - Detail
 
 /// Everything about one capture: the raw text (editable), what it became,
-/// the facts it produced, and every corrective action — retry, assign,
-/// undo, delete — plus the optional path into the full detailed editor.
+/// the facts it produced, and every corrective action (retry, assign,
+/// undo, delete) plus the optional path into the full detailed editor.
 struct CaptureDetailView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -373,7 +373,7 @@ struct CaptureDetailView: View {
             ForEach(facts, id: \.persistentModelID) { fact in
                 MemoryFactRowView(fact: fact)
             }
-            Text("Reject anything wrong — rejected facts never come back, even if this capture is reprocessed.")
+            Text("Reject anything wrong. Rejected facts never come back, even if this capture is reprocessed.")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         }
@@ -416,7 +416,7 @@ struct CaptureDetailView: View {
     }
 
     /// Editing the raw text reverses what the old text produced, then
-    /// reprocesses from scratch — so a corrected capture never leaves the
+    /// reprocesses from scratch, so a corrected capture never leaves the
     /// stale interaction/facts from its first wording behind.
     private func applyTextEdit() {
         let newText = editedText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -480,7 +480,7 @@ struct CaptureCandidateChips: View {
 
 /// One evidence-linked fact with its type, confidence tier, and inline
 /// reject/restore controls. Every automatic fact stays inspectable and
-/// reversible — that's what removes the need for a mandatory review screen.
+/// reversible; that's what removes the need for a mandatory review screen.
 struct MemoryFactRowView: View {
     @Environment(\.modelContext) private var context
     @Bindable var fact: MemoryFact

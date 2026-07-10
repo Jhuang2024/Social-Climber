@@ -7,7 +7,7 @@ import UIKit
 /// main actor, so a slow OCR pass or a slow/hanging network request never
 /// ties up `CaptureProcessor`'s main-actor work.
 ///
-/// Everything in and out is a plain `Sendable` value type — `PersonSnapshot`
+/// Everything in and out is a plain `Sendable` value type: `PersonSnapshot`
 /// arrays and UUIDs, never a live `Person` or a `ModelContext`. The caller
 /// (`CaptureProcessor`, on the main actor) takes a snapshot of whatever it
 /// needs from SwiftData, awaits this actor, then does all mutation back on
@@ -113,7 +113,7 @@ actor CaptureEngine {
         // 6. Safety net: if the provider left a fact/reminder/date
         //    unattributed, make one local, best-effort attempt to find the
         //    sentence it came from and attribute it from there. Never
-        //    guesses beyond that — an item that still can't be traced back
+        //    guesses beyond that; an item that still can't be traced back
         //    to a specific sentence stays unattributed.
         extraction = Self.reattributeIfNeeded(extraction, rawText: effectiveText, knownPeople: knownPeopleNames)
 

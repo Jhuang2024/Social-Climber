@@ -8,7 +8,7 @@ struct ExtractedDate: Codable, Hashable, Sendable {
     var date: Date?
     var display: String
     /// Names of the people this date is about, as written/matched in the
-    /// source text. Empty means unattributed — never guessed, never
+    /// source text. Empty means unattributed: never guessed, never
     /// defaulted to "whoever was resolved first" for this capture.
     var personNames: [String] = []
 
@@ -58,7 +58,7 @@ struct ExtractedReminder: Codable, Hashable, Sendable {
 /// One extracted, attributable fact: a value (an interest, a school/work
 /// note, a gift idea, an implied follow-up…) plus the specific people it's
 /// about, matched by name against the text it came from. This is what
-/// replaces "attach every fact to whichever person happens to be first" —
+/// replaces "attach every fact to whichever person happens to be first";
 /// `personNames` is empty when the text didn't clearly name anyone, one
 /// name when it named exactly one person, and more than one when the text
 /// genuinely names several people sharing the same fact (e.g. "Daniel and
@@ -124,7 +124,7 @@ struct AIExtraction: Codable, Sendable {
     /// "importantDates", "people", "date", "type", "sentiment", …). Missing
     /// keys fall back to the overall `confidence`.
     var fieldConfidence: [String: Double] = [:]
-    /// Per-item, per-person-attributed facts — the mechanism the capture
+    /// Per-item, per-person-attributed facts: the mechanism the capture
     /// pipeline uses to create `MemoryFact`s correctly attributed to
     /// whichever specific person the source text actually names, instead of
     /// flattening every fact onto "whoever was resolved first". Populated
@@ -435,8 +435,8 @@ enum AIProvider: String, CaseIterable, Identifiable {
     }
 
     /// The provider selected in Settings, defaulting to Mock. `.bazaarLink`'s
-    /// raw value predates this app supporting two gateways — kept as-is so
-    /// an existing stored preference doesn't silently reset — but now means
+    /// raw value predates this app supporting two gateways, kept as-is so
+    /// an existing stored preference doesn't silently reset, but now means
     /// "real AI, tried via whichever gateway key works" rather than
     /// literally BazaarLink only (see AIGatewayProvider / BazaarLinkAIService).
     static var currentCase: AIProvider {
@@ -703,9 +703,9 @@ final class BazaarLinkAIService: AIService {
     - Extract only facts actually stated or strongly implied by the input. Never invent facts, names, or dates.
     - The narrator is the app's user ("I"/"me"). Everyone else mentioned is a contact. Facts, interests, and dislikes belong to the CONTACT they are about, never to the user. If the user describes their own interests or plans, do not report them as the contact's.
     - Distinguish explicit commands ("remind me Friday", "follow up next week about X") from merely implied follow-ups; explicit ones go in "reminders", implied ones in "impliedFollowUps".
-    - Resolve relative dates ("Friday", "tomorrow", "next Tuesday", "in two weeks") against the capture date and timezone provided. Use ISO-8601. If a date cannot be resolved with certainty, use null — never guess or invent a year, month, or day.
+    - Resolve relative dates ("Friday", "tomorrow", "next Tuesday", "in two weeks") against the capture date and timezone provided. Use ISO-8601. If a date cannot be resolved with certainty, use null; never guess or invent a year, month, or day.
     - Do not duplicate the same fact across multiple categories.
-    - Attribution matters: when more than one contact is named, each individual fact ("attributedFacts" entries, and each reminder/importantDate) must list exactly the person or people that specific fact is actually about in "personNames" — never all contacts mentioned anywhere in the memory. If a fact doesn't clearly belong to anyone in particular, leave "personNames" empty; do not guess by picking whichever person was mentioned first.
+    - Attribution matters: when more than one contact is named, each individual fact ("attributedFacts" entries, and each reminder/importantDate) must list exactly the person or people that specific fact is actually about in "personNames", never all contacts mentioned anywhere in the memory. If a fact doesn't clearly belong to anyone in particular, leave "personNames" empty; do not guess by picking whichever person was mentioned first.
     - Include a 0.0–1.0 confidence per category in "fieldConfidence" plus an overall "confidenceScore".
     """
 
@@ -816,7 +816,7 @@ final class BazaarLinkAIService: AIService {
         return result.content
     }
 
-    /// Verifies whichever gateway key actually works — used by Settings'
+    /// Verifies whichever gateway key actually works; used by Settings'
     /// "Test Connection" button so a bad key or model ID surfaces
     /// immediately instead of only on the next note extraction or
     /// gift-idea request.
@@ -1087,7 +1087,7 @@ enum BazaarLinkDefaults {
     /// The initial value shown in Settings' shared model-override field
     /// before the user types anything. Leaving the field blank (its usual
     /// state) makes each gateway resolve its own free-routing default
-    /// instead — see `AIGatewayProvider.defaultFreeModel`. Free-tier models
+    /// instead; see `AIGatewayProvider.defaultFreeModel`. Free-tier models
     /// aren't guaranteed to be vision-capable, so Fit Checker / How to
     /// Respond (photo features) may need a real vision model ID set here.
     static let modelID = "auto:free"
@@ -1164,7 +1164,7 @@ final class MockAIService: AIService {
 
         // Per-sentence attribution: which known people this specific
         // sentence names, so a fact never defaults to "whoever was resolved
-        // first" for the whole capture — see `ExtractedFact`.
+        // first" for the whole capture; see `ExtractedFact`.
         var attributed: [ExtractedFact] = []
 
         for sentence in sentences {

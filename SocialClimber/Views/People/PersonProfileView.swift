@@ -310,8 +310,8 @@ struct PersonProfileView: View {
     /// neutral, no-follow-up entry through the same `InteractionSaver`
     /// pipeline every other interaction uses, so a quick tap still feeds the
     /// timeline, AI summary staleness, relationship score, and cadence the
-    /// same way a fully-written-up interaction would. Saves immediately —
-    /// no alert, no form — and offers Undo / Add detail from a small toast.
+    /// same way a fully-written-up interaction would. Saves immediately,
+    /// no alert, no form, and offers Undo / Add detail from a small toast.
     private func logQuickContact(type: InteractionType = .message) {
         let interaction = Interaction(
             type: type,
@@ -339,8 +339,8 @@ struct PersonProfileView: View {
     }
 
     /// Opens the right system app for a contact method and remembers that
-    /// the user launched it, so returning to Social Climber can ask —
-    /// never assume — whether the contact happened. The app can't read
+    /// the user launched it, so returning to Social Climber can ask,
+    /// never assume, whether the contact happened. The app can't read
     /// call history or other apps' data; it only knows the button was tapped.
     private func openContactMethod(_ method: ContactMethod) {
         guard let target = ContactMethodLauncher.target(for: method) else { return }
@@ -549,7 +549,7 @@ struct PersonProfileView: View {
 
     /// Everything Social Climber learned automatically, each fact carrying
     /// its provenance and its own reject/correct/delete controls. Nothing
-    /// here required an approval screen at capture time — review happens
+    /// here required an approval screen at capture time; review happens
     /// when (and only when) the user wants to.
     private var memoryCard: some View {
         FormSectionCard("Learned Automatically", icon: "sparkles") {

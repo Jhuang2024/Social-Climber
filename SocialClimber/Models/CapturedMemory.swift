@@ -115,7 +115,7 @@ final class CapturedMemory {
     /// is simply dropped rather than silently misattributed.
     var trustedPersonIDs: [UUID] = []
     /// Cached display names for `trustedPersonIDs`, same order. Never
-    /// authoritative — used only for UI/AI-prompt display when a live
+    /// authoritative; used only for UI/AI-prompt display when a live
     /// `Person` lookup isn't convenient.
     var trustedPersonNames: [String] = []
     var eventName: String = ""
@@ -257,7 +257,7 @@ final class CapturedMemory {
 
     /// Resolves a list of stable person IDs against a live `people` list,
     /// preserving `ids`' order and silently dropping any ID that no longer
-    /// resolves (the person was deleted) — the graceful-degradation rule
+    /// resolves (the person was deleted), the graceful-degradation rule
     /// used everywhere a capture's stored IDs need to become real `Person`
     /// objects again.
     static func resolvePeople(ids: [UUID], in people: [Person]) -> [Person] {

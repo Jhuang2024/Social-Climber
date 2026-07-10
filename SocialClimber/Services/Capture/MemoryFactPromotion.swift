@@ -3,7 +3,7 @@ import SwiftData
 
 /// Explicit, user-confirmed promotions of a suggested `MemoryFact` into a
 /// real profile field or scheduled record. Automation never does any of
-/// this on its own — `CaptureProcessor` deliberately never writes to
+/// this on its own; `CaptureProcessor` deliberately never writes to
 /// `Person.birthday` or schedules a reminder with an invented date; these
 /// are the only paths that do, and every one of them requires a direct,
 /// explicit tap from the user.
@@ -48,7 +48,7 @@ enum MemoryFactPromotion {
         fact.markUserEdited()
     }
 
-    /// Assigns an unattributed fact to a person after the fact — the
+    /// Assigns an unattributed fact to a person after the fact: the
     /// correction path for "the user must be able to assign an
     /// unattributed fact later".
     static func assign(_ fact: MemoryFact, to person: Person) {

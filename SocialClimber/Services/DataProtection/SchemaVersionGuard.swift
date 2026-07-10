@@ -16,7 +16,7 @@ import SwiftData
 enum SchemaVersionGuard {
     /// Bump this whenever a `@Model` class's stored properties change
     /// shape (a field added, removed, or retyped).
-    /// v2: capture-first redesign — added `CapturedMemory` + `MemoryFact`
+    /// v2: capture-first redesign, added `CapturedMemory` + `MemoryFact`
     /// models, `sourceCaptureUUID` provenance on Interaction/Reminder/
     /// GiftIdea/ImportantDate, `memoryFacts` on Person, and event end/
     /// follow-up fields. All additive (lightweight migration).

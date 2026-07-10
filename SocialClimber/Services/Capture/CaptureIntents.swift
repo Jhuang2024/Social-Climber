@@ -95,7 +95,7 @@ struct OpenQuickCaptureIntent: AppIntent {
 
 struct RememberInteractionIntent: AppIntent, ForegroundContinuableIntent {
     static var title: LocalizedStringResource = "Remember Something"
-    static var description = IntentDescription("Saves a natural-language memory — Social Climber organizes the person, date, and follow-ups automatically.")
+    static var description = IntentDescription("Saves a natural-language memory. Social Climber organizes the person, date, and follow-ups automatically.")
     static var openAppWhenRun = false
 
     @Parameter(title: "Note", requestValueDialog: "What do you want to remember?")
@@ -148,7 +148,7 @@ struct RememberInteractionIntent: AppIntent, ForegroundContinuableIntent {
             typeHint: type?.interactionType
         )
         if CaptureProcessor.shared.persistNewCapture(capture) != nil {
-            return .result(dialog: "Couldn't save that — try again from the app.")
+            return .result(dialog: "Couldn't save that. Try again from the app.")
         }
         Task { await CaptureProcessor.shared.processQueued() }
         return .result(dialog: "Remembered.")

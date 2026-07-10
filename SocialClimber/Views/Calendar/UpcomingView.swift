@@ -159,7 +159,7 @@ struct UpcomingView: View {
         let known = people.filter { !$0.isArchived }
         calendarEvents = await GoogleCalendarService.shared.upcomingEvents(matching: known, days: windowDays)
         // Offer the same post-event "how did it go?" prompt for confidently
-        // matched calendar events. The prompt itself never logs anything —
+        // matched calendar events. The prompt itself never logs anything;
         // an event existing is not contact; it takes one explicit action.
         for event in calendarEvents {
             guard let end = event.endDate else { continue }

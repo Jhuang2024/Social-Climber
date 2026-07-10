@@ -26,7 +26,7 @@ enum CaptureParser {
 
     // MARK: Person-mention matching (shared attribution helper)
 
-    /// Which of `knownPeople` are actually named in `text` — by full name
+    /// Which of `knownPeople` are actually named in `text`, by full name
     /// or first name, at a word boundary so "Sam" never matches inside
     /// "Samantha". This is the single mechanism the capture pipeline uses
     /// to attribute an extracted fact, reminder, or date to a specific
@@ -97,7 +97,7 @@ enum CaptureParser {
 
     /// The interaction's own date when the text states one ("yesterday",
     /// "last night", "on Tuesday", "this morning"), resolved *backward*
-    /// against the capture date. Returns nil when the text says nothing —
+    /// against the capture date. Returns nil when the text says nothing;
     /// the capture timestamp is the right default then.
     static func inferInteractionDate(in text: String, reference: Date) -> Date? {
         let lower = text.lowercased()
@@ -112,11 +112,11 @@ enum CaptureParser {
         if lower.contains("last week") {
             return calendar.date(byAdding: .day, value: -7, to: reference)
         }
-        // "last tuesday" / "on tuesday" — the most recent such weekday
+        // "last tuesday" / "on tuesday": the most recent such weekday
         // strictly before the capture.
         for (name, weekday) in weekdays {
             guard lower.contains("last \(name)") || lower.contains("on \(name)") else { continue }
-            // "on Friday" can also be future ("remind me on Friday") — only
+            // "on Friday" can also be future ("remind me on Friday"); only
             // treat it as the interaction date with a past-tense cue nearby.
             if lower.contains("last \(name)") || lower.contains("met") || lower.contains("saw") || lower.contains("ran into") {
                 return previous(weekday: weekday, before: reference, calendar: calendar)
@@ -134,7 +134,7 @@ enum CaptureParser {
 
     /// Resolves the first future-pointing relative date phrase in `text`
     /// against `reference` ("Friday", "next Tuesday", "tomorrow", "next
-    /// week", "in 3 days"). Returns nil when nothing resolvable is present —
+    /// week", "in 3 days"). Returns nil when nothing resolvable is present;
     /// callers must treat that as "no date", never guess one.
     static func resolveRelativeDate(in text: String, reference: Date) -> Date? {
         let lower = text.lowercased()
@@ -226,7 +226,7 @@ enum CaptureParser {
     /// relative date resolved against the capture date and attributed to
     /// whichever known people are actually named in that sentence (empty
     /// when it names no one in particular). Sentences that only *imply* a
-    /// follow-up are deliberately excluded — those become suggestions, not
+    /// follow-up are deliberately excluded; those become suggestions, not
     /// scheduled reminders.
     static func explicitReminders(in text: String, reference: Date, knownPeople: [String] = []) -> [(title: String, dueDate: Date?, personNames: [String])] {
         sentences(in: text).compactMap { sentence in

@@ -162,7 +162,7 @@ struct ToastOverlay: View {
 
 /// Remembers that the user just launched a call/message/email to someone
 /// from inside Social Climber, so that when the app returns to the
-/// foreground it can ask — never assume — whether the contact happened.
+/// foreground it can ask, never assume, whether the contact happened.
 /// The app cannot (and does not claim to) read call history or other
 /// apps' data; this is purely "you tapped the button, did it work out?".
 struct PendingOutboundContact: Codable {

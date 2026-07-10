@@ -9,7 +9,7 @@ import UIKit
 /// sentence (typed, spoken, pasted, or a screenshot), one "Remember" button,
 /// zero required structured fields. The capture is persisted locally the
 /// instant it's submitted, the sheet dismisses immediately, and
-/// `CaptureProcessor` organizes it in the background — no review screen,
+/// `CaptureProcessor` organizes it in the background; no review screen,
 /// no loading state to stare at. Feels like sending yourself a message,
 /// not filling in a CRM form.
 struct QuickCaptureView: View {
@@ -31,7 +31,7 @@ struct QuickCaptureView: View {
     @State private var isSubmitting = false
     /// Set only when persisting the capture itself failed. The sheet stays
     /// open, no haptic/toast/enqueue happens, and the same "Remember" tap
-    /// retries — see `CaptureProcessor.persistNewCapture`.
+    /// retries; see `CaptureProcessor.persistNewCapture`.
     @State private var saveErrorMessage: String?
     @FocusState private var isTextFocused: Bool
 
@@ -313,13 +313,13 @@ struct QuickCaptureView: View {
     private func appendTranscript(_ transcript: String) {
         let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            recorder.errorMessage = "Couldn't hear anything — type it instead."
+            recorder.errorMessage = "Couldn't hear anything. Type it instead."
             isTextFocused = true
             return
         }
         transcribedText += (transcribedText.isEmpty ? "" : "\n") + trimmed
         text = text.isEmpty ? trimmed : text + "\n" + trimmed
-        // Debrief mode: opened straight into recording, nothing typed —
+        // Debrief mode: opened straight into recording, nothing typed;
         // submitting right away is the whole point (say it, done).
         if request.startRecording && text == transcribedText {
             Task { await submit() }
@@ -333,10 +333,10 @@ struct QuickCaptureView: View {
     /// Builds the capture and hands it to `CaptureProcessor.persistNewCapture`,
     /// which is the single source of truth for "is this actually durable
     /// yet". Only on a confirmed successful save do we give haptic
-    /// feedback, dismiss, show the toast, and enqueue processing — in that
+    /// feedback, dismiss, show the toast, and enqueue processing, in that
     /// exact order. On failure the sheet stays open, an inline error shows,
     /// no toast appears, nothing is enqueued, and the same button (now
-    /// reading "Retry") tries again with a fresh capture — the failed one
+    /// reading "Retry") tries again with a fresh capture; the failed one
     /// was already rolled back, so a retry can never create a duplicate.
     /// The same guarantee applies whether this came from typing, pasting,
     /// or a voice debrief, since they all funnel through this one method.
@@ -387,7 +387,7 @@ struct QuickCaptureView: View {
         )
 
         if let error = CaptureProcessor.shared.persistNewCapture(capture) {
-            // Not durable — the image files just written are now orphaned
+            // Not durable; the image files just written are now orphaned
             // (harmless, small, and cleaned up implicitly since nothing
             // references them); the capture itself was rolled back, so
             // retrying is always safe.
@@ -406,7 +406,7 @@ struct QuickCaptureView: View {
 
 /// A minimal record-then-transcribe helper for the quick voice debrief:
 /// record a short spoken sentence, transcribe it on-device, hand the text
-/// back, and delete the audio. No person picker, no Analyze & Review — this
+/// back, and delete the audio. No person picker, no Analyze & Review; this
 /// is a post-conversation debrief, not a covert recorder; the longer live
 /// recording flow still lives in `VoiceCaptureView` for those who want it.
 @MainActor
@@ -509,7 +509,7 @@ final class QuickCaptureRecorder {
         if let text, !text.isEmpty {
             onTranscript?(text)
         } else if unavailable {
-            errorMessage = "Speech recognition isn't available right now — type the note instead."
+            errorMessage = "Speech recognition isn't available right now. Type the note instead."
         } else {
             onTranscript?("")
         }

@@ -13,7 +13,7 @@ struct SocialClimberApp: App {
         UserDefaults.standard.register(defaults: ["crossAppSharingEnabled": true])
 
         // Editorial navigation titles: serif display type (New York), the
-        // signature of the app's luxury-editorial identity — deliberately
+        // signature of the app's luxury-editorial identity, deliberately
         // NOT the rounded "sporty" face its sibling app LockedInFit uses.
         // Serif for display (titles, names), default SF for body text, is
         // the classic premium-editorial pairing. UIKit appearance is the
@@ -39,8 +39,8 @@ struct SocialClimberApp: App {
     }
 
     /// The shared container now lives in `AppServices` (see its doc
-    /// comment) so App Intents and notification actions — which can run
-    /// without this scene — reach the exact same store. All the
+    /// comment) so App Intents and notification actions, which can run
+    /// without this scene, reach the exact same store. All the
     /// data-protection behavior (path-change logging, migration snapshot,
     /// auto-backup observer, quarantine-instead-of-reset) moved with it.
     let container = AppServices.container
@@ -49,7 +49,7 @@ struct SocialClimberApp: App {
         WindowGroup {
             // Body text stays default SF on purpose: the serif voice is
             // reserved for display type (nav titles, person names, hero
-            // numbers — see configureNavigationTitleTypography and
+            // numbers; see configureNavigationTitleTypography and
             // SCTheme.displayName). Serif display over sans body is the
             // premium-editorial pairing; serif everywhere would read as a
             // book, not an interface.

@@ -37,7 +37,7 @@ enum ExportImportService {
         }
 
         /// Every field decoded with a fallback to its default, so an older
-        /// export (from before `events` — or `captures`/`memoryFacts` —
+        /// export (from before `events`, or `captures`/`memoryFacts`,
         /// existed) still restores everything it originally had, instead of
         /// failing the whole file over one missing key.
         init(from decoder: Decoder) throws {
@@ -293,7 +293,7 @@ enum ExportImportService {
         }
 
         /// Every field here is required exactly as before except `uuid`,
-        /// added alongside the capture-first redesign — decoded
+        /// added alongside the capture-first redesign, decoded
         /// defensively so an export written before it existed still
         /// restores in full.
         init(from decoder: Decoder) throws {
@@ -554,7 +554,7 @@ enum ExportImportService {
             let person: Person
             if let found = byName[key] {
                 // An existing local person's `uuid` is never overwritten by
-                // an imported value — captures/facts already on this device
+                // an imported value; captures/facts already on this device
                 // point at it, and clobbering it would silently break that
                 // provenance.
                 person = found
@@ -686,7 +686,7 @@ enum ExportImportService {
             capture.candidatePersonIDs = dto.candidatePersonIDs
             capture.candidatePersonNames = dto.candidatePersonNames
             // Restored captures whose processing was mid-flight resume as
-            // queued; processed/dismissed ones stay exactly as they were —
+            // queued; processed/dismissed ones stay exactly as they were;
             // their created records restore separately, so re-processing
             // them would duplicate data.
             let status = CaptureStatus(rawValue: dto.status) ?? .queued
@@ -701,7 +701,7 @@ enum ExportImportService {
             context.insert(capture)
         }
 
-        // Memory facts: scoped to their source capture where one exists —
+        // Memory facts: scoped to their source capture where one exists;
         // far more precise than name+type+value, and correctly handles an
         // unattributed fact (no person) instead of colliding every
         // unattributed fact of the same type/value together.

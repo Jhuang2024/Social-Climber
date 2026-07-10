@@ -3,7 +3,7 @@ import SwiftData
 
 /// Everything about one automatically-learned fact: its source capture,
 /// the interaction it came from, the raw text it was extracted out of, who
-/// it's attributed to, its confidence, and its status — plus every
+/// it's attributed to, its confidence, and its status, plus every
 /// correction available: confirm, reject, restore, delete, reassign an
 /// unattributed fact to a person, and (for a reminder or date suggestion)
 /// promote it into a real scheduled record once the user supplies what the
@@ -104,7 +104,7 @@ struct MemoryFactDetailView: View {
 
                 if fact.type == .importantDate, fact.dateValue != nil, fact.person != nil, fact.status != .superseded {
                     FormSectionCard("Promote This Date", icon: "calendar") {
-                        Text("Automatic processing never sets a birthday or date on its own — confirm it here to add it to \(fact.person?.firstName ?? "their") profile.")
+                        Text("Automatic processing never sets a birthday or date on its own. Confirm it here to add it to \(fact.person?.firstName ?? "their") profile.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         if fact.value.localizedCaseInsensitiveContains("birthday"), fact.person?.birthday == nil {

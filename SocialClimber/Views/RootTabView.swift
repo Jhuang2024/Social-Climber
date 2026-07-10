@@ -19,7 +19,7 @@ struct RootTabView: View {
     /// The single presentation point for Quick Capture, shared by Home,
     /// person profiles, App Intents, and notification actions.
     @State private var captureRouter = QuickCaptureRouter.shared
-    /// "Did you reach Jimmy?" — set when the app returns to the foreground
+    /// "Did you reach Jimmy?", set when the app returns to the foreground
     /// within the plausible window after the user launched a call/message
     /// from a profile. Non-modal banner, never an alert.
     @State private var outboundPrompt: PendingOutboundContact?
@@ -90,7 +90,7 @@ struct RootTabView: View {
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
             // Shared payloads become durable capture records and process
-            // silently — never a modal, never "finish logging this".
+            // silently; never a modal, never "finish logging this".
             Task { await CaptureProcessor.shared.handleAppActivated() }
             checkOutboundReturn()
         }

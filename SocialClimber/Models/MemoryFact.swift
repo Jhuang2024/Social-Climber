@@ -103,9 +103,9 @@ enum MemoryFactOrigin: String, Codable {
 
 /// One evidence-linked fact Social Climber learned about a person from a
 /// capture ("applying to Stripe", "moving to New York in September").
-/// Unlike the old flow — which flattened AI suggestions directly into
+/// Unlike the old flow, which flattened AI suggestions directly into
 /// `Person.interests`/`personalityNotes` and therefore *required* a review
-/// screen — facts live beside the profile, keep their provenance (which
+/// screen, facts live beside the profile, keep their provenance (which
 /// capture and interaction produced them), and can be individually opened,
 /// rejected, corrected, or deleted at any time. High-confidence facts are
 /// `active` automatically; shakier ones stay `suggested`. Manually-entered
@@ -113,11 +113,11 @@ enum MemoryFactOrigin: String, Codable {
 ///
 /// Attribution: `person` is the one confidently-named person this fact is
 /// about, or `nil` when the capture's text didn't clearly name anyone (an
-/// "unattributed" fact — still linked to its capture/interaction, and
+/// "unattributed" fact, still linked to its capture/interaction, and
 /// assignable to a person later). A fact that applies to *several* named
 /// people is represented as separate `MemoryFact` rows, one per person
 /// (same value/type/source, different `person`), rather than a single
-/// fact fanned out across a list — this keeps `Person.memoryFacts` a
+/// fact fanned out across a list; this keeps `Person.memoryFacts` a
 /// simple, correct, queryable inverse relationship for every person it's
 /// about, with no separate multi-person schema needed.
 @Model

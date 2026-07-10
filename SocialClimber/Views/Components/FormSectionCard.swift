@@ -32,7 +32,7 @@ struct FormSectionCard<Content: View>: View {
             content
         }
         // Same lit-surface chrome as scCard (sheen + top-bright border), so
-        // the two card wrappers are visually indistinguishable — this one
+        // the two card wrappers are visually indistinguishable; this one
         // just adds the titled header.
         .scCard()
     }

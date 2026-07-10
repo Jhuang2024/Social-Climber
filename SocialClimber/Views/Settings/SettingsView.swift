@@ -184,7 +184,7 @@ struct SettingsView: View {
                         }
                     }
                     if aiProvider == AIProvider.bazaarLink.rawValue {
-                        Text("OpenRouter API Key — default")
+                        Text("OpenRouter API Key (default)")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
                         SecureField(hasOpenRouterAPIKey ? "OpenRouter API key saved" : "OpenRouter API key (sk-or-…)", text: $openRouterAPIKey)
@@ -206,7 +206,7 @@ struct SettingsView: View {
                             .tint(.red)
                         }
 
-                        Text("BazaarLink API Key — fallback")
+                        Text("BazaarLink API Key (fallback)")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
                         SecureField(hasBazaarLinkAPIKey ? "BazaarLink API key saved" : "BazaarLink API key (sk-bl-…)", text: $bazaarLinkAPIKey)

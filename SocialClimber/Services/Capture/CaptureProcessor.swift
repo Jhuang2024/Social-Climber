@@ -4,7 +4,7 @@ import SwiftData
 /// The central "organize it for me" pipeline. Captures are already safely
 /// persisted (`CapturedMemory`, status `.queued`) before this ever runs;
 /// this turns each one into exactly one interaction plus reminders, dates,
-/// gift ideas, and evidence-linked `MemoryFact`s — or parks it in
+/// gift ideas, and evidence-linked `MemoryFact`s, or parks it in
 /// Needs Context when the person can't be resolved confidently.
 ///
 /// Concurrency: this class is deliberately NOT globally `@MainActor`. Only
@@ -16,7 +16,7 @@ import SwiftData
 /// needs on the main actor, `await`s `CaptureEngine` (which genuinely runs
 /// off the main actor), then does every mutation back on the main actor
 /// with the returned IDs. An in-flight set plus status transitions make
-/// processing idempotent across re-entry, retries, and relaunches —
+/// processing idempotent across re-entry, retries, and relaunches;
 /// processing the same capture twice never duplicates data.
 final class CaptureProcessor {
     static let shared = CaptureProcessor()
@@ -33,7 +33,7 @@ final class CaptureProcessor {
 
     /// Inserts and saves a brand-new capture. Returns `nil` on success, or
     /// a clean user-facing message on failure. The capture is only ever
-    /// durable once this returns `nil` — every call site (Quick Capture,
+    /// durable once this returns `nil`; every call site (Quick Capture,
     /// voice, App Intents, share-extension import) must check this before
     /// giving haptic/dismiss/toast feedback or enqueuing processing; on
     /// failure the half-inserted object is rolled back so a retry can
@@ -120,7 +120,7 @@ final class CaptureProcessor {
         capture.attempts += 1
         save()
 
-        // Gather everything CaptureEngine needs as plain Sendable values —
+        // Gather everything CaptureEngine needs as plain Sendable values;
         // no live Person, no ModelContext crosses into it.
         let allPeople = (try? context.fetch(FetchDescriptor<Person>())) ?? []
         let snapshots = allPeople.map { person in
@@ -184,7 +184,7 @@ final class CaptureProcessor {
         let people = CapturedMemory.resolvePeople(ids: output.resolution.matchedIDs, in: allPeople)
         guard !people.isEmpty else {
             // Every matched ID resolved to a person that's since been
-            // deleted — treat exactly like no match at all.
+            // deleted; treat exactly like no match at all.
             capture.resolvedPersonIDs = []
             capture.resolvedPersonNames = []
             capture.status = .needsContext
@@ -205,7 +205,7 @@ final class CaptureProcessor {
         )
 
         // Explicit reminders (scheduled or unscheduled-suggestion),
-        // evidence-linked facts, gift ideas, important dates — every one
+        // evidence-linked facts, gift ideas, important dates: every one
         // individually attributed, never defaulted to `people.first`.
         var createdReminderDates: [Date] = []
         applyReminders(from: extraction, localParse: localParse, capture: capture, interaction: interaction, people: people, createdDueDates: &createdReminderDates)
@@ -294,7 +294,7 @@ final class CaptureProcessor {
     // MARK: Attribution
 
     /// Matches AI/local-reported names against THIS capture's own resolved
-    /// people — never the whole database — so an item is attached to
+    /// people, never the whole database, so an item is attached to
     /// exactly the person(s) actually named for it. Zero matches means
     /// unattributed; more than one means the fact genuinely names several
     /// people together.
@@ -334,7 +334,7 @@ final class CaptureProcessor {
         let existingReminders = Self.reminders(for: capture, context: context)
         let existingSuggestions = Self.facts(for: capture, context: context).filter { $0.type == .reminderSuggestion }
         // Tracks titles inserted during THIS run too, not just what's
-        // already in the database — guards against the extraction itself
+        // already in the database; guards against the extraction itself
         // (an AI response, in particular) containing a repeated item in a
         // single pass, which a DB-only check taken once up front wouldn't catch.
         var insertedReminderTitles = Set(existingReminders.map { $0.title.lowercased() })
@@ -399,7 +399,7 @@ final class CaptureProcessor {
         }
     }
 
-    /// A reminder already exists somewhere with this exact open title —
+    /// A reminder already exists somewhere with this exact open title;
     /// belt-and-suspenders against creating a near-duplicate reminder the
     /// user (or a different capture) already has pending.
     private func anyOpenReminderDuplicate(title: String, context: ModelContext) -> Bool {
@@ -440,9 +440,9 @@ final class CaptureProcessor {
 
     /// Inserts a fact for each attributed person (fanning out when several
     /// people are confidently named together), or a single unattributed
-    /// fact when no one is named — never `people.first`. Skips a value
+    /// fact when no one is named, never `people.first`. Skips a value
     /// that already exists for this capture with the same type and
-    /// attribution (any status — a rejected or reassigned fact must never
+    /// attribution (any status: a rejected or reassigned fact must never
     /// resurrect on reprocessing), and skips one that duplicates a
     /// manually-entered profile field. `existing` is `inout` and updated
     /// with every fact this call inserts, so a second item in the same
@@ -561,7 +561,7 @@ final class CaptureProcessor {
             }
 
             // Birthdays NEVER write directly to `Person.birthday` from
-            // automation, regardless of confidence — always a fact the
+            // automation, regardless of confidence; always a fact the
             // user explicitly promotes later (see `MemoryFactPromotion`).
             // Ambiguous attribution (0 or 2+ people) or low confidence for
             // a non-birthday date also stays a suggestion rather than
@@ -620,7 +620,7 @@ final class CaptureProcessor {
 
     /// Reverses everything this capture produced: the interaction (and its
     /// closeness/last-contacted effects), reminders, important dates, gift
-    /// ideas, and memory facts — found by their explicit `sourceCaptureUUID`
+    /// ideas, and memory facts, found by their explicit `sourceCaptureUUID`
     /// stamp, never by guessing from titles or dates. Idempotent: calling
     /// this twice (or after the records are already gone) is a safe no-op.
     /// Never touches `Person.birthday` because automated processing never
@@ -660,7 +660,7 @@ final class CaptureProcessor {
     }
 
     /// Deletes the capture record itself (leaving anything it created in
-    /// place — use `undo` first for a full reversal) plus its image files.
+    /// place; use `undo` first for a full reversal) plus its image files.
     @MainActor
     func delete(_ capture: CapturedMemory) {
         for url in capture.imageURLs() {

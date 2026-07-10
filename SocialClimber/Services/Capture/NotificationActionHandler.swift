@@ -3,11 +3,11 @@ import SwiftData
 import UserNotifications
 
 /// Handles the post-event "how did it go?" notification actions:
-///   • Log it   — one neutral event interaction for the known attendees,
-///                created right here with no form;
-///   • Add note — deep-links into Quick Capture with the event's attendees,
-///                date, and location supplied as trusted context;
-///   • Skip     — marks the prompt dismissed and never re-asks.
+///   • Log it: one neutral event interaction for the known attendees,
+///     created right here with no form;
+///   • Add note: deep-links into Quick Capture with the event's attendees,
+///     date, and location supplied as trusted context;
+///   • Skip: marks the prompt dismissed and never re-asks.
 /// Every action is idempotent: a re-delivered or double-tapped action can
 /// never create a second interaction.
 final class NotificationActionHandler: NSObject, UNUserNotificationCenterDelegate {

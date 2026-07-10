@@ -74,7 +74,7 @@ struct DashboardView: View {
             .min { RelationshipScore.compute(for: $0).total < RelationshipScore.compute(for: $1).total }
     }
 
-    // MARK: Capture feed slices — exception-driven, small, never an inbox.
+    // MARK: Capture feed slices: exception-driven, small, never an inbox.
 
     private var capturesNeedingContext: [CapturedMemory] {
         captures.filter { $0.status == .needsContext }
@@ -235,7 +235,7 @@ struct DashboardView: View {
         HStack(spacing: 12) {
             BrandLogoView(size: 38)
             VStack(alignment: .leading, spacing: 1) {
-                // The masthead — set in the serif display face like a
+                // The masthead: set in the serif display face like a
                 // publication's nameplate.
                 Text("Social Climber")
                     .font(SCTheme.displayFont(19, weight: .bold))
@@ -263,7 +263,7 @@ struct DashboardView: View {
             VStack(spacing: 6) {
                 Text("Start with one real relationship")
                     .font(.title3.weight(.semibold))
-                Text("Add a person, then just tell Social Climber what happened — \"Had coffee with Jimmy…\" — and it organizes the rest.")
+                Text("Add a person, then just tell Social Climber what happened, like \"Had coffee with Jimmy…\", and it organizes the rest.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -353,7 +353,7 @@ struct DashboardView: View {
                             }
                             .buttonStyle(.pressable)
                         }
-                        Text("One sentence is enough — people, dates, and follow-ups sort themselves.")
+                        Text("One sentence is enough. People, dates, and follow-ups sort themselves.")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                             .lineLimit(2)

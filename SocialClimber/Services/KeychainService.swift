@@ -48,7 +48,7 @@ enum KeychainService {
         }
     }
 
-    /// Whether AI features have anything to work with at all — either key
+    /// Whether AI features have anything to work with at all: either key
     /// alone is enough (see AIGatewayProvider / BazaarLinkAIService, which
     /// tries OpenRouter first and falls back to BazaarLink).
     static func hasAnyAIKey() -> Bool {

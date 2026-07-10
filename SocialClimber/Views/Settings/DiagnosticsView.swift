@@ -55,7 +55,7 @@ struct DiagnosticsView: View {
             } header: {
                 Text("Capture Pipeline Integrity")
             } footer: {
-                Text("Creates and fully removes its own throwaway test people/captures — never touches real data. Exercises undo completeness, idempotent reprocessing, no-invented-dates, and multi-person attribution against the real pipeline.")
+                Text("Creates and fully removes its own throwaway test people/captures. Never touches real data. Exercises undo completeness, idempotent reprocessing, no-invented-dates, and multi-person attribution against the real pipeline.")
             }
 
             Section("Persistence") {

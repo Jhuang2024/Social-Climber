@@ -146,7 +146,7 @@ final class NotificationService {
 
     /// Schedules a local "how did it go?" prompt shortly after the event
     /// ends (its explicit end time when set). One tap on "Log it" then
-    /// creates one neutral event interaction for the attendees — no form.
+    /// creates one neutral event interaction for the attendees, no form.
     /// Never fires for events with no attendees, already-logged events, or
     /// ones whose prompt the user skipped.
     func scheduleFollowUp(for event: Event) {
@@ -180,7 +180,7 @@ final class NotificationService {
     }
 
     /// Same prompt for confidently-matched Google Calendar events. Never
-    /// creates an interaction on its own — an event merely existing is not
+    /// creates an interaction on its own; an event merely existing is not
     /// contact; it takes one explicit notification action. Deduplicated by
     /// the calendar event's own id, which also makes rescheduling on every
     /// refresh idempotent.

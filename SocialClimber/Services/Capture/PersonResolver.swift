@@ -2,7 +2,7 @@ import Foundation
 
 /// An immutable, `Sendable` snapshot of exactly what `PersonResolver` needs
 /// from a `Person`. Resolution runs off the main actor (see
-/// `CaptureEngine`), so it can never touch live SwiftData model objects —
+/// `CaptureEngine`), so it can never touch live SwiftData model objects;
 /// only these plain value-type copies, taken on the main actor right before
 /// handing off.
 struct PersonSnapshot: Sendable, Hashable {
@@ -90,7 +90,7 @@ enum PersonResolver {
             resolution.confidence = 1.0
             // Trusted context doesn't stop additional confident text matches
             // (e.g. "Met Daniel and Priya" from an event with both trusted
-            // plus a third person named in text) — fall through and merge.
+            // plus a third person named in text): fall through and merge.
         }
 
         // 2. Score every person against the text.

@@ -83,11 +83,11 @@ struct LockedInFitPublicContext: Codable, Equatable {
         /// `CrossAppLevel`'s generic decoder would silently land every real
         /// recovery reading on `.unknown` (poor/okay/good never match
         /// low/medium/high), quietly disabling half of `isLowReadiness`
-        /// below — reading the raw string and mapping LockedInFit's actual
+        /// below; reading the raw string and mapping LockedInFit's actual
         /// vocabulary explicitly avoids that. `nutritionStatus`/
         /// `calorieStatus` use their own, different four/three-value
         /// vocabularies too (currently unused by any logic here) and are
-        /// left decoding via the generic path — `.unknown` until someone
+        /// left decoding via the generic path: `.unknown` until someone
         /// defines what they should mean here, rather than guessing a
         /// mapping with no consumer to verify it against.
         private static func decodeLevel(_ container: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys) -> CrossAppLevel {

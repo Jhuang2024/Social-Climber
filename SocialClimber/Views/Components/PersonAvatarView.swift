@@ -31,7 +31,7 @@ struct PersonAvatarView: View {
             } else {
                 gradient.overlay(
                     // Serif initials, matching the app's editorial display
-                    // type (see SocialClimberApp's nav-title typography) —
+                    // type (see SocialClimberApp's nav-title typography):
                     // the monogram treatment of a luxury label rather than
                     // a generic app avatar.
                     Text(initials)

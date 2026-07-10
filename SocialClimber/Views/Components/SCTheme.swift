@@ -34,7 +34,7 @@ enum SCTheme {
         Color(.tertiarySystemGroupedBackground)
     }
 
-    /// The app's editorial display face — serif (New York), matching the
+    /// The app's editorial display face: serif (New York), matching the
     /// nav-title typography set in SocialClimberApp. Reserved for display
     /// moments: person names, hero numbers, score digits. Body text stays
     /// default SF; the contrast between the two is the identity.
@@ -44,10 +44,10 @@ enum SCTheme {
 
     /// A small, curated set of tones for icons/cards that need to be
     /// tell-apart-able in a grid but don't carry genuinely different
-    /// meaning on their own — used in place of grabbing whichever stock
+    /// meaning on their own; used in place of grabbing whichever stock
     /// SwiftUI color happens to look distinct from its neighbor (the
     /// dashboard previously mixed blue/green/pink/orange/teal/purple/
-    /// indigo — seven unrelated hues with no relationship to each other or
+    /// indigo, seven unrelated hues with no relationship to each other or
     /// to the brand accent, which reads as a template rather than one
     /// designed product). Each tone also carries a loose meaning so the
     /// choice is deliberate where it can be: `growth` for logging/activity,
@@ -67,7 +67,7 @@ struct PolishedPageBackground: ViewModifier {
         content
             .scrollContentBackground(.hidden)
             // A faint brand glow bleeding down from the top instead of a
-            // flat fill — on the app's committed dark look (see
+            // flat fill; on the app's committed dark look (see
             // INFOPLIST_KEY_UIUserInterfaceStyle) this gives every page an
             // ambient light source the cards sit under, rather than gray
             // boxes floating on plain black.
@@ -248,8 +248,8 @@ struct SectionHeader<Trailing: View>: View {
 extension View {
     /// Wraps any content in the app's standard card: thin material with a
     /// faint top-edge "sheen" so each card reads as a lit surface with
-    /// depth rather than a flat gray rectangle — the single biggest tell
-    /// separating premium dark UIs from default dark-mode grays — plus a
+    /// depth rather than a flat gray rectangle (the single biggest tell
+    /// separating premium dark UIs from default dark-mode grays), plus a
     /// border whose top edge is slightly brighter than its sides, the way
     /// light actually falls on a raised surface.
     func scCard(padding: CGFloat = 16) -> some View {

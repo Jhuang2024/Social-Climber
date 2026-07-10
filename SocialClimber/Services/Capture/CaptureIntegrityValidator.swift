@@ -3,9 +3,9 @@ import Foundation
 import SwiftData
 
 /// Explicit, on-device validation of the capture pipeline's correctness
-/// invariants — undo completeness, idempotent reprocessing, no invented
+/// invariants: undo completeness, idempotent reprocessing, no invented
 /// reminder dates, no automatic birthday mutation, and multi-person
-/// attribution — run against the REAL `CaptureProcessor` and the real
+/// attribution, run against the REAL `CaptureProcessor` and the real
 /// store. DEBUG-only, manually triggered from Diagnostics (never runs on
 /// its own): it creates its own clearly-marked throwaway people/captures
 /// and fully removes everything it created afterward, so it never pollutes
@@ -140,7 +140,7 @@ enum CaptureIntegrityValidator {
         await CaptureProcessor.shared.process(impliedCapture)
         check("Implied follow-up creates no scheduled reminder", CaptureProcessor.reminders(for: impliedCapture, context: context).isEmpty)
 
-        // MARK: 7. Multi-person attribution — a fact about one named person
+        // MARK: 7. Multi-person attribution: a fact about one named person
         //          in a multi-person capture must not attach to the other.
 
         let attributionCapture = CapturedMemory(

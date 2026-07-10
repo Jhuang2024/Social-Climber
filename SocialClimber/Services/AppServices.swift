@@ -2,8 +2,8 @@ import Foundation
 import SwiftData
 
 /// The single shared `ModelContainer`, owned here (rather than inside
-/// `SocialClimberApp`) so App Intents and the notification-action handler —
-/// which can run before or without the SwiftUI scene — always reach the
+/// `SocialClimberApp`) so App Intents and the notification-action handler,
+/// which can run before or without the SwiftUI scene, always reach the
 /// same store the UI uses. Creation preserves every existing data-protection
 /// behavior: path-change logging, post-migration snapshot, per-save backup
 /// observation, and quarantine-then-retry instead of a destructive reset.
