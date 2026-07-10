@@ -23,21 +23,17 @@ struct FormSectionCard<Content: View>: View {
                         .background(SCTheme.accent.gradient, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 }
                 Text(title)
-                    .font(.footnote.weight(.bold))
+                    .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
-                    .tracking(0.8)
+                    .tracking(1.4)
                 Spacer()
             }
             content
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.055))
-        }
-        .cardShadow()
+        // Same lit-surface chrome as scCard (sheen + top-bright border), so
+        // the two card wrappers are visually indistinguishable — this one
+        // just adds the titled header.
+        .scCard()
     }
 }

@@ -92,7 +92,7 @@ struct GiftIdeaRowView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(gift.title)
-                    .font(.body.weight(.medium))
+                    .font(SCTheme.displayFont(16, weight: .medium))
                 if !giftSubtitle.isEmpty {
                     Text(giftSubtitle)
                         .font(.caption)
@@ -148,7 +148,7 @@ struct TimelineRowView: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
                     Text(showPeople && !interaction.people.isEmpty ? interaction.peopleNames : interaction.type.label)
-                        .font(.subheadline.weight(.semibold))
+                        .font(SCTheme.displayFont(15, weight: .semibold))
                     Spacer()
                     Text(interaction.date.relativeLabel)
                         .font(.caption)

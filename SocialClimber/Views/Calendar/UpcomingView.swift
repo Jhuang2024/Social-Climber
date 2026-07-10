@@ -90,7 +90,7 @@ struct UpcomingView: View {
                     }
                 }
             }
-            .listStyle(.plain)
+            .listStyle(.insetGrouped)
             .socialClimberPageBackground()
             .navigationTitle("Upcoming")
             .refreshable { await loadCalendar() }

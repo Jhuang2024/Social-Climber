@@ -74,7 +74,7 @@ struct PeopleListView: View {
                                 )
                             }
                         }
-                        .listStyle(.plain)
+                        .listStyle(.insetGrouped)
                         .scrollContentBackground(.hidden)
                         .scrollDismissesKeyboard(.immediately)
                         .searchable(text: $searchText, prompt: "Name, interest, tag, note…")

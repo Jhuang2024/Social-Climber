@@ -56,7 +56,7 @@ struct GiftSuggestionsSheet: View {
                             suggestionRow(suggestion)
                         }
                     }
-                    .listStyle(.plain)
+                    .listStyle(.insetGrouped)
                 }
             }
             .navigationTitle("Gift Ideas for \(person.firstName)")

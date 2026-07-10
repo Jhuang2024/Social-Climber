@@ -56,7 +56,7 @@ struct GiftIdeasView: View {
                 }
             }
         }
-        .listStyle(.plain)
+        .listStyle(.insetGrouped)
         .animation(.snappy(duration: 0.25), value: filtered.map(\.persistentModelID))
         .socialClimberPageBackground()
         .navigationTitle("Gift Ideas")

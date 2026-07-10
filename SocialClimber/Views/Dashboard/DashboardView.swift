@@ -208,8 +208,10 @@ struct DashboardView: View {
         HStack(spacing: 12) {
             BrandLogoView(size: 38)
             VStack(alignment: .leading, spacing: 1) {
+                // The masthead — set in the serif display face like a
+                // publication's nameplate.
                 Text("Social Climber")
-                    .font(.headline.weight(.semibold))
+                    .font(SCTheme.displayFont(19, weight: .bold))
                 Text("Local-first relationship memory")
                     .font(.caption)
                     .foregroundStyle(.secondary)

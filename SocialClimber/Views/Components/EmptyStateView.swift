@@ -11,14 +11,22 @@ struct EmptyStateView: View {
         VStack(spacing: 14) {
             BrandLogoView(size: 42)
                 .padding(.bottom, 2)
+            // Circular badge with the same soft accent halo the avatars
+            // wear, so even an empty screen speaks the app's jewellery
+            // language instead of a generic rounded square.
             Image(systemName: icon)
-                .font(.system(size: 34, weight: .semibold))
+                .font(.system(size: 30, weight: .semibold))
                 .foregroundStyle(SCTheme.accent)
                 .frame(width: 64, height: 64)
-                .background(SCTheme.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .background(SCTheme.accent.opacity(0.12), in: Circle())
+                .background {
+                    Circle()
+                        .stroke(SCTheme.accent.opacity(0.30), lineWidth: 2)
+                        .padding(-5)
+                }
                 .padding(.bottom, 4)
             Text(title)
-                .font(.title3.weight(.semibold))
+                .font(SCTheme.displayFont(21, weight: .semibold))
             Text(message)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)

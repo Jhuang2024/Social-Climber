@@ -63,7 +63,7 @@ struct RemindersView: View {
                 }
             }
         }
-        .listStyle(.plain)
+        .listStyle(.insetGrouped)
         .socialClimberPageBackground()
         .navigationTitle("Reminders")
         .toolbar {
