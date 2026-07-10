@@ -568,7 +568,7 @@ private struct PersonMiniCard: View {
         VStack(spacing: 8) {
             PersonAvatarView(person: person, size: 52)
             Text(person.firstName)
-                .font(.subheadline.weight(.medium))
+                .font(SCTheme.displayFont(15, weight: .semibold))
                 .foregroundStyle(.primary)
             if let days = RelationshipHealth.daysSinceContact(for: person) {
                 Text("\(days)d ago")
@@ -596,7 +596,7 @@ private struct StatCard: View {
                 .frame(width: 28, height: 28)
                 .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
             Text(value)
-                .font(.title3.weight(.bold))
+                .font(SCTheme.displayFont(24, weight: .bold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .contentTransition(.numericText())

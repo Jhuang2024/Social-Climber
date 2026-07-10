@@ -34,6 +34,14 @@ enum SCTheme {
         Color(.tertiarySystemGroupedBackground)
     }
 
+    /// The app's editorial display face — serif (New York), matching the
+    /// nav-title typography set in SocialClimberApp. Reserved for display
+    /// moments: person names, hero numbers, score digits. Body text stays
+    /// default SF; the contrast between the two is the identity.
+    static func displayFont(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
+        .system(size: size, weight: weight, design: .serif)
+    }
+
     /// A small, curated set of tones for icons/cards that need to be
     /// tell-apart-able in a grid but don't carry genuinely different
     /// meaning on their own — used in place of grabbing whichever stock

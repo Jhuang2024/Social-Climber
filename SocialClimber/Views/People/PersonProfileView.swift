@@ -148,10 +148,10 @@ struct PersonProfileView: View {
             PersonAvatarView(person: person, size: 92)
             VStack(spacing: 4) {
                 Text(person.displayName)
-                    .font(.title2.weight(.bold))
+                    .font(SCTheme.displayFont(26, weight: .bold))
                 if !person.nickname.isEmpty && person.nickname != person.name {
                     Text("“\(person.nickname)”")
-                        .font(.subheadline)
+                        .font(SCTheme.displayFont(15))
                         .foregroundStyle(.secondary)
                 }
                 if !person.relationshipToMe.isEmpty {

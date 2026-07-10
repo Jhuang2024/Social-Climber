@@ -187,7 +187,7 @@ struct PersonRowView: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(person.displayName)
-                        .font(.body.weight(.semibold))
+                        .font(SCTheme.displayFont(17, weight: .semibold))
                     if !person.nickname.isEmpty && person.nickname != person.name {
                         Text("“\(person.nickname)”")
                             .font(.caption)

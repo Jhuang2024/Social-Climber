@@ -11,23 +11,24 @@ struct SocialClimberApp: App {
         // screen has ever set it explicitly.
         UserDefaults.standard.register(defaults: ["crossAppSharingEnabled": true])
 
-        // Editorial navigation titles: heavy rounded display type matched
-        // to the root-level .fontDesign(.rounded), so screen titles read as
-        // part of one designed type system instead of stock chrome sitting
-        // on top of it. UIKit appearance is the only lever for nav-title
-        // fonts; SwiftUI exposes none.
+        // Editorial navigation titles: serif display type (New York), the
+        // signature of the app's luxury-editorial identity — deliberately
+        // NOT the rounded "sporty" face its sibling app LockedInFit uses.
+        // Serif for display (titles, names), default SF for body text, is
+        // the classic premium-editorial pairing. UIKit appearance is the
+        // only lever for nav-title fonts; SwiftUI exposes none.
         Self.configureNavigationTitleTypography()
     }
 
     private static func configureNavigationTitleTypography() {
-        func rounded(size: CGFloat, weight: UIFont.Weight) -> UIFont {
+        func serif(size: CGFloat, weight: UIFont.Weight) -> UIFont {
             let base = UIFont.systemFont(ofSize: size, weight: weight)
-            guard let descriptor = base.fontDescriptor.withDesign(.rounded) else { return base }
+            guard let descriptor = base.fontDescriptor.withDesign(.serif) else { return base }
             return UIFont(descriptor: descriptor, size: size)
         }
         let appearance = UINavigationBar.appearance()
-        appearance.largeTitleTextAttributes = [.font: rounded(size: 34, weight: .heavy)]
-        appearance.titleTextAttributes = [.font: rounded(size: 17, weight: .bold)]
+        appearance.largeTitleTextAttributes = [.font: serif(size: 34, weight: .bold)]
+        appearance.titleTextAttributes = [.font: serif(size: 17, weight: .semibold)]
     }
 
     let container: ModelContainer = {
@@ -77,14 +78,13 @@ struct SocialClimberApp: App {
 
     var body: some Scene {
         WindowGroup {
+            // Body text stays default SF on purpose: the serif voice is
+            // reserved for display type (nav titles, person names, hero
+            // numbers — see configureNavigationTitleTypography and
+            // SCTheme.displayName). Serif display over sans body is the
+            // premium-editorial pairing; serif everywhere would read as a
+            // book, not an interface.
             AppRootView()
-                // Rounded design was previously reserved for the score ring
-                // and avatar initials; applying it once here at the root
-                // cascades it to every Text/Label in the app instead of 100%
-                // default system text everywhere else, for one consistent
-                // type identity (anything more local can still opt out with
-                // its own .fontDesign).
-                .fontDesign(.rounded)
         }
         .modelContainer(container)
     }

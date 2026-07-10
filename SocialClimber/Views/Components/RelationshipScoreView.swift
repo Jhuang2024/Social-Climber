@@ -45,27 +45,32 @@ struct RelationshipScoreCard: View {
     }
 }
 
-/// A circular progress ring displaying the 0–100 score.
+/// A circular progress ring displaying the 0–100 score. Sweeps in from
+/// zero on first appear rather than materializing pre-filled, and shows
+/// its digits in the app's serif display face.
 struct ScoreRing: View {
     let score: Int
     var color: Color = SCTheme.accent
     var size: CGFloat = 62
+    @State private var appeared = false
 
     var body: some View {
         ZStack {
             Circle()
                 .stroke(color.opacity(0.15), lineWidth: 6)
             Circle()
-                .trim(from: 0, to: CGFloat(score) / 100)
+                .trim(from: 0, to: appeared ? CGFloat(score) / 100 : 0)
                 .stroke(color.gradient, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                 .rotationEffect(.degrees(-90))
+                .animation(.easeOut(duration: 0.8), value: appeared)
                 .animation(.snappy, value: score)
             Text("\(score)")
-                .font(.system(size: size * 0.32, weight: .bold, design: .rounded))
+                .font(SCTheme.displayFont(size * 0.34, weight: .bold))
                 .monospacedDigit()
                 .contentTransition(.numericText())
         }
         .frame(width: size, height: size)
+        .onAppear { appeared = true }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Relationship score \(score) out of 100")
     }
