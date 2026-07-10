@@ -8,6 +8,9 @@ final class ImportantDate {
     var repeatsYearly: Bool = true
     var notes: String = ""
     var notificationID: String?
+    /// UUID of the `CapturedMemory` that automatically created this date,
+    /// if any (see `Interaction.sourceCaptureUUID`).
+    var sourceCaptureUUID: UUID?
     var createdAt: Date = Date()
 
     var person: Person?

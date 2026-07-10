@@ -12,14 +12,24 @@ enum GiftIdeaEngine {
         lines.append("Name: \(person.displayName)")
         if !person.relationshipToMe.isEmpty { lines.append("Relationship: \(person.relationshipToMe)") }
         lines.append("Category: \(person.category.label)")
-        if !person.interests.isEmpty { lines.append("Interests: \(person.interests.joined(separator: ", "))") }
-        if !person.dislikes.isEmpty { lines.append("Dislikes: \(person.dislikes.joined(separator: ", "))") }
+        // Combined = manually entered + actively learned (MemoryFact), so
+        // gift ideas, summaries, and briefs all ground themselves in
+        // everything the app actually knows.
+        if !person.combinedInterests.isEmpty { lines.append("Interests: \(person.combinedInterests.joined(separator: ", "))") }
+        if !person.combinedDislikes.isEmpty { lines.append("Dislikes: \(person.combinedDislikes.joined(separator: ", "))") }
         if !person.personalityNotes.isEmpty { lines.append("Personality notes: \(person.personalityNotes)") }
         if !person.notes.isEmpty { lines.append("General notes: \(person.notes)") }
         if !person.tags.isEmpty { lines.append("Tags: \(person.tags.joined(separator: ", "))") }
         if !person.familyMembers.isEmpty { lines.append("Family: \(person.familyMembers.joined(separator: ", "))") }
         if !person.schoolOrWork.isEmpty { lines.append("School / Work: \(person.schoolOrWork)") }
         if !person.location.isEmpty { lines.append("Location: \(person.location)") }
+        let learnedFacts = person.visibleFacts
+            .filter { $0.type != .interest && $0.type != .dislike }
+            .prefix(10)
+            .map { "\($0.type.label): \($0.value)" }
+        if !learnedFacts.isEmpty {
+            lines.append("Learned from conversations:\n" + learnedFacts.map { "- \($0)" }.joined(separator: "\n"))
+        }
 
         if let birthday = person.nextBirthday {
             lines.append("Upcoming birthday: \(birthday.formatted(.dateTime.month(.wide).day()))")

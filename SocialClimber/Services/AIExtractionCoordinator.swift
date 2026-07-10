@@ -16,15 +16,23 @@ enum AIExtractionCoordinator {
         let notice: String?
     }
 
-    static func extract(from text: String, knownPeople: [String]) async -> Outcome {
+    /// `context` carries whatever the caller already trusts about the
+    /// capture (its timestamp for relative-date resolution, confirmed
+    /// people, the event, existing facts). Call sites without a capture
+    /// pipeline can omit it and get the previous behavior.
+    static func extract(
+        from text: String,
+        knownPeople: [String],
+        context: AIExtractionContext = AIExtractionContext()
+    ) async -> Outcome {
         let provider = AIProvider.current
         do {
-            let result = try await provider.extract(from: text, knownPeople: knownPeople)
+            let result = try await provider.extract(from: text, knownPeople: knownPeople, context: context)
             return Outcome(extraction: result, degraded: false, notice: nil)
         } catch {
             let mapped = AIServiceError.from(error)
             mapped.logForDeveloper(context: "note extraction")
-            let fallback = (try? await MockAIService().extract(from: text, knownPeople: knownPeople))
+            let fallback = (try? await MockAIService().extract(from: text, knownPeople: knownPeople, context: context))
                 ?? AIExtraction(summary: text)
             return Outcome(extraction: fallback, degraded: true, notice: mapped.errorDescription)
         }

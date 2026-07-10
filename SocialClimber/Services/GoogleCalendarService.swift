@@ -89,6 +89,9 @@ final class GoogleCalendarService: NSObject {
         let id: String
         let title: String
         let date: Date
+        /// The event's end time, when Google provided one; used to time the
+        /// post-event follow-up prompt.
+        let endDate: Date?
         let people: [Person]
     }
 
@@ -131,7 +134,7 @@ final class GoogleCalendarService: NSObject {
                 !person.firstName.isEmpty && haystack.contains(person.firstName.lowercased())
             }
             guard !matched.isEmpty else { return nil }
-            return MatchedEvent(id: event.id ?? UUID().uuidString, title: event.summary ?? "Event", date: date, people: matched)
+            return MatchedEvent(id: event.id ?? UUID().uuidString, title: event.summary ?? "Event", date: date, endDate: event.endDate, people: matched)
         }
         .sorted { $0.date < $1.date }
     }
@@ -275,6 +278,7 @@ final class GoogleCalendarService: NSObject {
         let id: String?
         let summary: String?
         let start: EventDateTime?
+        let end: EventDateTime?
         let attendees: [Attendee]?
 
         struct EventDateTime: Decodable {
@@ -293,6 +297,16 @@ final class GoogleCalendarService: NSObject {
             }
             if let date = start?.date {
                 return GoogleEvent.dayFormatter.date(from: date)
+            }
+            return nil
+        }
+
+        /// The event's end, retained so post-event follow-up prompts can
+        /// fire at the right time. All-day "end dates" (exclusive day
+        /// strings) are ignored rather than misread as a time.
+        var endDate: Date? {
+            if let dateTime = end?.dateTime {
+                return GoogleEvent.isoWithFractional.date(from: dateTime) ?? GoogleEvent.iso.date(from: dateTime)
             }
             return nil
         }

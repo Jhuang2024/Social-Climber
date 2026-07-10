@@ -41,6 +41,12 @@ final class Interaction {
     /// The raw, unedited text captured from paste or OCR. Preserved verbatim.
     var rawImportText: String = ""
 
+    /// UUID of the `CapturedMemory` that automatically created this
+    /// interaction, if any. Explicit provenance so a capture's undo can
+    /// find and reverse exactly this record instead of guessing by
+    /// title or date.
+    var sourceCaptureUUID: UUID?
+
     var people: [Person] = []
 
     @Relationship(deleteRule: .cascade, inverse: \ConversationSummary.interaction)

@@ -22,22 +22,24 @@ enum ExportImportService {
     // MARK: DTOs
 
     struct Archive: Codable {
-        var version = 2
+        var version = 3
         var exportedAt = Date()
         var people: [PersonDTO] = []
         var interactions: [InteractionDTO] = []
         var events: [EventDTO] = []
+        var captures: [CaptureDTO] = []
+        var memoryFacts: [FactDTO] = []
 
         init() {}
 
         private enum CodingKeys: String, CodingKey {
-            case version, exportedAt, people, interactions, events
+            case version, exportedAt, people, interactions, events, captures, memoryFacts
         }
 
         /// Every field decoded with a fallback to its default, so an older
-        /// export (from before `events` existed) still restores everything
-        /// it originally had, instead of failing the whole file over one
-        /// missing key.
+        /// export (from before `events` — or `captures`/`memoryFacts` —
+        /// existed) still restores everything it originally had, instead of
+        /// failing the whole file over one missing key.
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             version = decodeOrDefault(c, .version, 1)
@@ -45,7 +47,45 @@ enum ExportImportService {
             people = decodeOrDefault(c, .people, [])
             interactions = decodeOrDefault(c, .interactions, [])
             events = decodeOrDefault(c, .events, [])
+            captures = decodeOrDefault(c, .captures, [])
+            memoryFacts = decodeOrDefault(c, .memoryFacts, [])
         }
+    }
+
+    struct CaptureDTO: Codable {
+        var uuid: UUID
+        var rawText: String
+        var transcript: String
+        var ocrText: String
+        var source: String
+        var capturedAt: Date
+        var trustedPersonNames: [String]
+        var resolvedPersonNames: [String]
+        var candidatePersonNames: [String]
+        var eventName: String
+        var eventDate: Date?
+        var eventLocation: String
+        var typeHint: String
+        var status: String
+        var attempts: Int
+        var errorMessage: String
+        var inferenceConfidence: Double
+        var usedLocalFallback: Bool
+        var title: String
+        var detail: String
+        var createdAt: Date
+    }
+
+    struct FactDTO: Codable {
+        var type: String
+        var value: String
+        var dateValue: Date?
+        var confidence: Double
+        var status: String
+        var personName: String?
+        var sourceCaptureUUID: UUID?
+        var createdAt: Date
+        var rejectedAt: Date?
     }
 
     struct PersonDTO: Codable {
@@ -83,6 +123,8 @@ enum ExportImportService {
         var priceRange: String
         var occasion: String
         var status: String
+        /// Optional so pre-capture exports (v1/v2) still decode.
+        var sourceCaptureUUID: UUID?
     }
 
     struct ReminderDTO: Codable {
@@ -91,6 +133,7 @@ enum ExportImportService {
         var type: String
         var completed: Bool
         var notes: String
+        var sourceCaptureUUID: UUID?
     }
 
     struct DateDTO: Codable {
@@ -98,6 +141,7 @@ enum ExportImportService {
         var date: Date
         var repeatsYearly: Bool
         var notes: String
+        var sourceCaptureUUID: UUID?
     }
 
     struct InteractionDTO: Codable {
@@ -115,12 +159,14 @@ enum ExportImportService {
         var isImported: Bool
         var platform: String?
         var rawImportText: String
+        var sourceCaptureUUID: UUID?
 
         init(
             type: String, date: Date, location: String, note: String, topics: [String],
             quality: Int, followUpNeeded: Bool, peopleNames: [String],
             followUpDate: Date? = nil, nextMove: String = "", messageSummary: String = "",
-            isImported: Bool = false, platform: String? = nil, rawImportText: String = ""
+            isImported: Bool = false, platform: String? = nil, rawImportText: String = "",
+            sourceCaptureUUID: UUID? = nil
         ) {
             self.type = type
             self.date = date
@@ -136,11 +182,13 @@ enum ExportImportService {
             self.isImported = isImported
             self.platform = platform
             self.rawImportText = rawImportText
+            self.sourceCaptureUUID = sourceCaptureUUID
         }
 
         private enum CodingKeys: String, CodingKey {
             case type, date, location, note, topics, quality, followUpNeeded, peopleNames
             case followUpDate, nextMove, messageSummary, isImported, platform, rawImportText
+            case sourceCaptureUUID
         }
 
         /// The original fields are required (every export ever written has
@@ -162,6 +210,7 @@ enum ExportImportService {
             isImported = decodeOrDefault(c, .isImported, false)
             platform = (try? c.decodeIfPresent(String.self, forKey: .platform)) ?? nil
             rawImportText = decodeOrDefault(c, .rawImportText, "")
+            sourceCaptureUUID = (try? c.decodeIfPresent(UUID.self, forKey: .sourceCaptureUUID)) ?? nil
         }
     }
 
@@ -184,6 +233,8 @@ enum ExportImportService {
         let people = try context.fetch(FetchDescriptor<Person>())
         let interactions = try context.fetch(FetchDescriptor<Interaction>())
         let events = try context.fetch(FetchDescriptor<Event>())
+        let captures = try context.fetch(FetchDescriptor<CapturedMemory>())
+        let facts = try context.fetch(FetchDescriptor<MemoryFact>())
 
         var archive = Archive()
         archive.people = people.map { p in
@@ -197,9 +248,9 @@ enum ExportImportService {
                 interests: p.interests, dislikes: p.dislikes, familyMembers: p.familyMembers,
                 schoolOrWork: p.schoolOrWork, location: p.location,
                 contactMethods: p.contactMethods, tags: p.tags, avatarData: p.avatarData,
-                giftIdeas: p.giftIdeas.map { GiftDTO(title: $0.title, notes: $0.notes, priceRange: $0.priceRange, occasion: $0.occasion, status: $0.statusRaw) },
-                reminders: p.reminders.map { ReminderDTO(title: $0.title, dueDate: $0.dueDate, type: $0.typeRaw, completed: $0.completed, notes: $0.notes) },
-                importantDates: p.importantDates.map { DateDTO(title: $0.title, date: $0.date, repeatsYearly: $0.repeatsYearly, notes: $0.notes) }
+                giftIdeas: p.giftIdeas.map { GiftDTO(title: $0.title, notes: $0.notes, priceRange: $0.priceRange, occasion: $0.occasion, status: $0.statusRaw, sourceCaptureUUID: $0.sourceCaptureUUID) },
+                reminders: p.reminders.map { ReminderDTO(title: $0.title, dueDate: $0.dueDate, type: $0.typeRaw, completed: $0.completed, notes: $0.notes, sourceCaptureUUID: $0.sourceCaptureUUID) },
+                importantDates: p.importantDates.map { DateDTO(title: $0.title, date: $0.date, repeatsYearly: $0.repeatsYearly, notes: $0.notes, sourceCaptureUUID: $0.sourceCaptureUUID) }
             )
         }
         archive.interactions = interactions.map { i in
@@ -209,7 +260,7 @@ enum ExportImportService {
                 peopleNames: i.people.map(\.name),
                 followUpDate: i.followUpDate, nextMove: i.nextMove, messageSummary: i.messageSummary,
                 isImported: i.isImported, platform: i.platformRaw.isEmpty ? nil : i.platformRaw,
-                rawImportText: i.rawImportText
+                rawImportText: i.rawImportText, sourceCaptureUUID: i.sourceCaptureUUID
             )
         }
         archive.events = events.map { e in
@@ -217,6 +268,27 @@ enum ExportImportService {
                 name: e.name, date: e.date, location: e.location, purpose: e.purpose, notes: e.notes,
                 eventKind: e.eventKindRaw, importance: e.importanceRaw, socialIntensity: e.socialIntensityRaw,
                 prepNeeded: e.prepNeeded, attendeeNames: e.attendees.map(\.name)
+            )
+        }
+        archive.captures = captures.map { c in
+            CaptureDTO(
+                uuid: c.uuid, rawText: c.rawText, transcript: c.transcript, ocrText: c.ocrText,
+                source: c.sourceRaw, capturedAt: c.capturedAt,
+                trustedPersonNames: c.trustedPersonNames, resolvedPersonNames: c.resolvedPersonNames,
+                candidatePersonNames: c.candidatePersonNames,
+                eventName: c.eventName, eventDate: c.eventDate, eventLocation: c.eventLocation,
+                typeHint: c.typeHintRaw, status: c.statusRaw, attempts: c.attempts,
+                errorMessage: c.errorMessage, inferenceConfidence: c.inferenceConfidence,
+                usedLocalFallback: c.usedLocalFallback, title: c.title, detail: c.detail,
+                createdAt: c.createdAt
+            )
+        }
+        archive.memoryFacts = facts.map { f in
+            FactDTO(
+                type: f.typeRaw, value: f.value, dateValue: f.dateValue,
+                confidence: f.confidence, status: f.statusRaw,
+                personName: f.person?.name, sourceCaptureUUID: f.sourceCaptureUUID,
+                createdAt: f.createdAt, rejectedAt: f.rejectedAt
             )
         }
 
@@ -242,6 +314,7 @@ enum ExportImportService {
         decoder.dateDecodingStrategy = .iso8601
         guard let archive = try? decoder.decode(Archive.self, from: data) else { return nil }
         return archive.people.count + archive.interactions.count + archive.events.count
+            + archive.captures.count + archive.memoryFacts.count
     }
 
     // MARK: Import
@@ -301,16 +374,20 @@ enum ExportImportService {
                 context.delete($0)
             }
             for gift in dto.giftIdeas {
-                context.insert(GiftIdea(title: gift.title, person: person, notes: gift.notes, priceRange: gift.priceRange, occasion: gift.occasion, status: GiftStatus(rawValue: gift.status) ?? .idea))
+                let record = GiftIdea(title: gift.title, person: person, notes: gift.notes, priceRange: gift.priceRange, occasion: gift.occasion, status: GiftStatus(rawValue: gift.status) ?? .idea)
+                record.sourceCaptureUUID = gift.sourceCaptureUUID
+                context.insert(record)
             }
             for reminder in dto.reminders {
                 let record = Reminder(title: reminder.title, dueDate: reminder.dueDate, type: ReminderType(rawValue: reminder.type) ?? .custom, person: person, notes: reminder.notes)
                 record.completed = reminder.completed
+                record.sourceCaptureUUID = reminder.sourceCaptureUUID
                 context.insert(record)
                 NotificationService.shared.schedule(reminder: record)
             }
             for date in dto.importantDates {
                 let record = ImportantDate(title: date.title, date: date.date, repeatsYearly: date.repeatsYearly, person: person, notes: date.notes)
+                record.sourceCaptureUUID = date.sourceCaptureUUID
                 context.insert(record)
                 NotificationService.shared.schedule(importantDate: record)
             }
@@ -331,6 +408,7 @@ enum ExportImportService {
             interaction.isImported = dto.isImported
             interaction.platformRaw = dto.platform ?? ""
             interaction.rawImportText = dto.rawImportText
+            interaction.sourceCaptureUUID = dto.sourceCaptureUUID
             interaction.people = dto.peopleNames.compactMap { byName[$0.lowercased()] }
             context.insert(interaction)
         }
@@ -351,6 +429,64 @@ enum ExportImportService {
                 prepNeeded: dto.prepNeeded
             )
             context.insert(event)
+        }
+
+        // Captures: skip duplicates by their stable UUID; restoring can
+        // therefore never re-run or double-import a capture.
+        let existingCaptures = try context.fetch(FetchDescriptor<CapturedMemory>())
+        let seenCaptureUUIDs = Set(existingCaptures.map(\.uuid))
+        for dto in archive.captures {
+            guard !seenCaptureUUIDs.contains(dto.uuid) else { continue }
+            let capture = CapturedMemory(
+                rawText: dto.rawText,
+                source: CaptureSource(rawValue: dto.source) ?? .text,
+                transcript: dto.transcript,
+                capturedAt: dto.capturedAt,
+                trustedPersonNames: dto.trustedPersonNames,
+                eventName: dto.eventName,
+                eventDate: dto.eventDate,
+                eventLocation: dto.eventLocation,
+                typeHint: dto.typeHint.isEmpty ? nil : InteractionType(rawValue: dto.typeHint)
+            )
+            capture.uuid = dto.uuid
+            capture.ocrText = dto.ocrText
+            capture.resolvedPersonNames = dto.resolvedPersonNames
+            capture.candidatePersonNames = dto.candidatePersonNames
+            // Restored captures whose processing was mid-flight resume as
+            // queued; processed/dismissed ones stay exactly as they were —
+            // their created records restore separately, so re-processing
+            // them would duplicate data.
+            let status = CaptureStatus(rawValue: dto.status) ?? .queued
+            capture.statusRaw = (status == .processing ? CaptureStatus.queued : status).rawValue
+            capture.attempts = dto.attempts
+            capture.errorMessage = dto.errorMessage
+            capture.inferenceConfidence = dto.inferenceConfidence
+            capture.usedLocalFallback = dto.usedLocalFallback
+            capture.title = dto.title
+            capture.detail = dto.detail
+            capture.createdAt = dto.createdAt
+            context.insert(capture)
+        }
+
+        // Memory facts: skip duplicates by person + type + value.
+        let existingFacts = try context.fetch(FetchDescriptor<MemoryFact>())
+        let seenFacts = Set(existingFacts.map { "\(($0.person?.name ?? "").lowercased())|\($0.typeRaw)|\($0.value.lowercased())" })
+        for dto in archive.memoryFacts {
+            let key = "\((dto.personName ?? "").lowercased())|\(dto.type)|\(dto.value.lowercased())"
+            guard !seenFacts.contains(key) else { continue }
+            let person = dto.personName.flatMap { byName[$0.lowercased()] }
+            let fact = MemoryFact(
+                type: MemoryFactType(rawValue: dto.type) ?? .general,
+                value: dto.value,
+                person: person,
+                confidence: dto.confidence,
+                status: MemoryFactStatus(rawValue: dto.status) ?? .suggested,
+                dateValue: dto.dateValue,
+                sourceCaptureUUID: dto.sourceCaptureUUID
+            )
+            fact.createdAt = dto.createdAt
+            fact.rejectedAt = dto.rejectedAt
+            context.insert(fact)
         }
 
         try context.save()

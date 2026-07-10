@@ -74,8 +74,8 @@ enum SearchService {
 
         // "who likes X" / "who is into X" / "who enjoys X"
         if let subject = subject(of: query, markers: ["who likes ", "who is into ", "who enjoys ", "who loves ", "who's into "]) {
-            for person in people where matches(person.interests, subject) {
-                results.people.append(PersonHit(person: person, reason: "Likes \(matchedTerm(person.interests, subject) ?? subject)"))
+            for person in people where matches(person.combinedInterests, subject) {
+                results.people.append(PersonHit(person: person, reason: "Likes \(matchedTerm(person.combinedInterests, subject) ?? subject)"))
             }
             if !results.people.isEmpty { return results }
         }
@@ -101,9 +101,9 @@ enum SearchService {
                 reason = person.relationshipToMe.isEmpty ? person.category.label : person.relationshipToMe
             } else if person.relationshipToMe.lowercased().contains(term) {
                 reason = person.relationshipToMe
-            } else if let match = matchedTerm(person.interests, term) {
+            } else if let match = matchedTerm(person.combinedInterests, term) {
                 reason = "Likes \(match)"
-            } else if let match = matchedTerm(person.dislikes, term) {
+            } else if let match = matchedTerm(person.combinedDislikes, term) {
                 reason = "Dislikes \(match)"
             } else if let match = matchedTerm(person.tags, term) {
                 reason = "Tagged \(match)"
@@ -113,6 +113,8 @@ enum SearchService {
                 reason = person.schoolOrWork
             } else if person.location.lowercased().contains(term) {
                 reason = person.location
+            } else if let fact = person.visibleFacts.first(where: { $0.value.lowercased().contains(term) }) {
+                reason = fact.value
             }
             if let reason {
                 results.people.append(PersonHit(person: person, reason: reason))

@@ -79,8 +79,11 @@ struct PersonProfileView: View {
                     }
                 }
                 keyFactsCard
-                if !person.interests.isEmpty || !person.dislikes.isEmpty {
+                if !person.combinedInterests.isEmpty || !person.combinedDislikes.isEmpty {
                     interestsCard
+                }
+                if !person.visibleFacts.isEmpty {
+                    memoryCard
                 }
                 if !person.personalityNotes.isEmpty {
                     FormSectionCard("Personality", icon: "brain.head.profile") {
@@ -104,6 +107,7 @@ struct PersonProfileView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button { showEdit = true } label: { Label("Edit", systemImage: "pencil") }
+                    Button { showAddInteraction = true } label: { Label("Log manually", systemImage: "plus.bubble") }
                     Button { showImport = true } label: { Label("Import message", systemImage: "square.and.arrow.down") }
                     Button {
                         person.isArchived.toggle()
@@ -200,29 +204,29 @@ struct PersonProfileView: View {
 
     private var actionsRow: some View {
         VStack(spacing: 10) {
+            // The default journey: one sentence, zero structured fields.
+            // The full manual form stays available from the toolbar menu.
             Button {
-                showAddInteraction = true
+                QuickCaptureRouter.shared.open(person: person)
             } label: {
-                Label("Log Interaction", systemImage: "plus.bubble")
+                Label("Remember", systemImage: "sparkles")
             }
             .buttonStyle(.primaryCTA)
 
             HStack(spacing: 10) {
+                Button {
+                    logQuickContact()
+                } label: {
+                    Label("Contacted", systemImage: "checkmark")
+                }
+                .buttonStyle(.secondaryCTA(.green))
+
                 Button {
                     showImport = true
                 } label: {
                     Label("Import", systemImage: "square.and.arrow.down")
                 }
                 .buttonStyle(.secondaryCTA)
-
-                Button {
-                    logQuickContact()
-                    Haptics.success()
-                } label: {
-                    Label("Contacted", systemImage: "checkmark")
-                }
-                .buttonStyle(.secondaryCTA(.green))
-                .sensoryFeedback(.success, trigger: person.lastContactedAt)
             }
         }
     }
@@ -306,15 +310,42 @@ struct PersonProfileView: View {
     /// neutral, no-follow-up entry through the same `InteractionSaver`
     /// pipeline every other interaction uses, so a quick tap still feeds the
     /// timeline, AI summary staleness, relationship score, and cadence the
-    /// same way a fully-written-up interaction would.
-    private func logQuickContact() {
+    /// same way a fully-written-up interaction would. Saves immediately —
+    /// no alert, no form — and offers Undo / Add detail from a small toast.
+    private func logQuickContact(type: InteractionType = .message) {
         let interaction = Interaction(
-            type: .message,
+            type: type,
             date: .now,
             quality: 3,
             messageSummary: "Marked as contacted"
         )
         InteractionSaver.finalize(interaction, people: [person], context: context)
+        Haptics.success()
+        let targetPerson = person
+        let modelContext = context
+        ToastCenter.shared.show(
+            "Logged contact with \(person.firstName)",
+            actions: [
+                ToastAction(title: "Undo") {
+                    InteractionSaver.reverseClosenessImpact(of: interaction)
+                    modelContext.delete(interaction)
+                    targetPerson.recomputeContactDates()
+                },
+                ToastAction(title: "Add detail") {
+                    QuickCaptureRouter.shared.open(person: targetPerson, typeHint: type)
+                },
+            ]
+        )
+    }
+
+    /// Opens the right system app for a contact method and remembers that
+    /// the user launched it, so returning to Social Climber can ask —
+    /// never assume — whether the contact happened. The app can't read
+    /// call history or other apps' data; it only knows the button was tapped.
+    private func openContactMethod(_ method: ContactMethod) {
+        guard let target = ContactMethodLauncher.target(for: method) else { return }
+        OutboundContactStore.record(personName: person.name, type: target.interactionType)
+        UIApplication.shared.open(target.url)
     }
 
     private func generateSummary() async {
@@ -458,7 +489,32 @@ struct PersonProfileView: View {
                 factRow("figure.2.and.child.holdinghands", "Family", person.familyMembers.joined(separator: ", "))
             }
             ForEach(person.contactMethods) { method in
-                factRow("phone", method.label, method.value)
+                if let target = ContactMethodLauncher.target(for: method) {
+                    Button {
+                        openContactMethod(method)
+                    } label: {
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: target.icon)
+                                .font(.subheadline)
+                                .foregroundStyle(SCTheme.accent)
+                                .frame(width: 20)
+                            Text(method.label)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(method.value)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(SCTheme.accent)
+                                .multilineTextAlignment(.trailing)
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    factRow("phone", method.label, method.value)
+                }
             }
             factRow("clock.arrow.circlepath", "Check-in cadence", "Every \(RelationshipHealth.expectedCadenceDays(for: person)) days")
         }
@@ -482,11 +538,28 @@ struct PersonProfileView: View {
 
     private var interestsCard: some View {
         FormSectionCard("Interests & Dislikes", icon: "heart") {
-            if !person.interests.isEmpty {
-                TagCloudView(tags: person.interests, color: .green)
+            if !person.combinedInterests.isEmpty {
+                TagCloudView(tags: person.combinedInterests, color: .green)
             }
-            if !person.dislikes.isEmpty {
-                TagCloudView(tags: person.dislikes, color: .red)
+            if !person.combinedDislikes.isEmpty {
+                TagCloudView(tags: person.combinedDislikes, color: .red)
+            }
+        }
+    }
+
+    /// Everything Social Climber learned automatically, each fact carrying
+    /// its provenance and its own reject/correct/delete controls. Nothing
+    /// here required an approval screen at capture time — review happens
+    /// when (and only when) the user wants to.
+    private var memoryCard: some View {
+        FormSectionCard("Learned Automatically", icon: "sparkles") {
+            ForEach(person.visibleFacts.prefix(8), id: \.persistentModelID) { fact in
+                MemoryFactRowView(fact: fact)
+            }
+            if person.visibleFacts.count > 8 {
+                Text("+ \(person.visibleFacts.count - 8) more")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
         }
     }

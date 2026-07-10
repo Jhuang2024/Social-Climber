@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UserNotifications
 import UIKit
 
 @main
@@ -18,6 +19,12 @@ struct SocialClimberApp: App {
         // the classic premium-editorial pairing. UIKit appearance is the
         // only lever for nav-title fonts; SwiftUI exposes none.
         Self.configureNavigationTitleTypography()
+
+        // Post-event follow-up prompts ("Log it" / "Add note" / "Skip")
+        // need their category registered and their actions routed before
+        // the first notification could ever arrive.
+        NotificationService.shared.registerNotificationCategories()
+        UNUserNotificationCenter.current().delegate = NotificationActionHandler.shared
     }
 
     private static func configureNavigationTitleTypography() {
@@ -31,50 +38,12 @@ struct SocialClimberApp: App {
         appearance.titleTextAttributes = [.font: serif(size: 17, weight: .semibold)]
     }
 
-    let container: ModelContainer = {
-        let schema = Schema([
-            Person.self, Interaction.self, GiftIdea.self, Reminder.self,
-            ImportantDate.self, VoiceNote.self, ConversationSummary.self,
-            Event.self,
-        ])
-        // Resolved the same way `ModelContainer(for: schema)` resolves it
-        // internally, so this reflects the real store location even before
-        // the container itself opens.
-        let storeURL = ModelConfiguration().url
-        PersistenceGuard.checkAndLogPathChange(currentPath: storeURL.path)
-
-        func open() throws -> ModelContainer {
-            let container = try ModelContainer(for: schema)
-            // Never a silent destructive reset: this just snapshots data
-            // once a migration has succeeded (`SchemaVersionGuard`), and
-            // watches for every future save (`AutoBackupObserver`), so the
-            // next launch (paired with `AppRootView`'s check) can catch
-            // anything that quietly went wrong.
-            SchemaVersionGuard.backupIfNeeded(container: container)
-            AutoBackupObserver.start(container: container)
-            return container
-        }
-
-        do {
-            return try open()
-        } catch {
-            // The store exists but SwiftData can't open it at all
-            // (corruption, an interrupted write, an unreconcilable
-            // migration). Crashing on every subsequent launch is exactly
-            // what an unrecoverable crash loop looks like from the
-            // outside, and it's strictly worse than recovering: quarantine
-            // (never delete) the unreadable files and try once more with a
-            // fresh store. `AppRootView`'s data-loss check then surfaces
-            // the recovery screen on this very next launch instead of this
-            // happening silently.
-            PersistenceRecovery.quarantineUnreadableStore(at: storeURL)
-            do {
-                return try open()
-            } catch {
-                fatalError("Could not create ModelContainer even after quarantining the existing store: \(error)")
-            }
-        }
-    }()
+    /// The shared container now lives in `AppServices` (see its doc
+    /// comment) so App Intents and notification actions — which can run
+    /// without this scene — reach the exact same store. All the
+    /// data-protection behavior (path-change logging, migration snapshot,
+    /// auto-backup observer, quarantine-instead-of-reset) moved with it.
+    let container = AppServices.container
 
     var body: some Scene {
         WindowGroup {

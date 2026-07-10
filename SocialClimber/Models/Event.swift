@@ -15,6 +15,15 @@ final class Event {
     /// can nudge you about events you attended but never logged.
     var loggedAt: Date?
     var notificationID: String?
+    /// Optional explicit end time. When set, the post-event follow-up
+    /// prompt fires shortly after this instead of a guessed duration.
+    var endDate: Date?
+    /// Pending "how did it go?" follow-up notification, so it can be
+    /// cancelled/rescheduled when the event changes.
+    var followUpNotificationID: String?
+    /// Set when the user tapped "Skip" on the follow-up prompt, so it is
+    /// never offered again for this event.
+    var followUpDismissedAt: Date?
     var createdAt: Date = Date()
 
     // MARK: Social context
@@ -36,6 +45,7 @@ final class Event {
     init(
         name: String = "",
         date: Date = .now,
+        endDate: Date? = nil,
         location: String = "",
         purpose: String = "",
         notes: String = "",
@@ -47,6 +57,7 @@ final class Event {
     ) {
         self.name = name
         self.date = date
+        self.endDate = endDate
         self.location = location
         self.purpose = purpose
         self.notes = notes
@@ -71,6 +82,12 @@ final class Event {
     var socialIntensity: ImportanceLevel {
         get { ImportanceLevel(rawValue: socialIntensityRaw) ?? .medium }
         set { socialIntensityRaw = newValue.rawValue }
+    }
+
+    /// When the event is considered over: the explicit end time when set,
+    /// otherwise a conservative two hours after it starts.
+    var effectiveEndDate: Date {
+        endDate ?? date.addingTimeInterval(2 * 3600)
     }
 
     var isPast: Bool { date < .now }

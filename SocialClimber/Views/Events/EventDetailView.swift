@@ -16,10 +16,16 @@ struct EventDetailView: View {
                 header
 
                 if event.needsLogging {
+                    Button {
+                        QuickCaptureRouter.shared.open(event: event)
+                    } label: {
+                        Label("Remember how it went", systemImage: "sparkles")
+                    }
+                    .buttonStyle(.primaryCTA)
                     Button { showLog = true } label: {
                         Label("Log interactions for attendees", systemImage: "square.and.pencil")
                     }
-                    .buttonStyle(.primaryCTA)
+                    .buttonStyle(.secondaryCTA)
                 } else if event.loggedAt != nil {
                     Label("Interactions logged \(event.loggedAt!.relativeLabel)", systemImage: "checkmark.seal.fill")
                         .font(.subheadline.weight(.medium))

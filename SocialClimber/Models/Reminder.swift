@@ -13,6 +13,9 @@ final class Reminder {
     /// (see `ReminderRowView`), so toggling it complete/incomplete/complete
     /// again never logs a duplicate.
     var autoLoggedInteraction: Bool = false
+    /// UUID of the `CapturedMemory` that automatically created this
+    /// reminder, if any (see `Interaction.sourceCaptureUUID`).
+    var sourceCaptureUUID: UUID?
     var createdAt: Date = Date()
 
     var person: Person?

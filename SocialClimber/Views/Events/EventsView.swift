@@ -110,6 +110,8 @@ struct EventEditView: View {
 
     @State private var name = ""
     @State private var date = Date.now
+    @State private var hasEndTime = false
+    @State private var endDate = Date.now.addingTimeInterval(2 * 3600)
     @State private var location = ""
     @State private var purpose = ""
     @State private var notes = ""
@@ -134,6 +136,11 @@ struct EventEditView: View {
                     TextField("Name (e.g. Dinner party)", text: $name)
                         .submitLabel(.done)
                     DatePicker("When", selection: $date, displayedComponents: [.date, .hourAndMinute])
+                    Toggle("Has an end time", isOn: $hasEndTime.animation(.snappy))
+                        .tint(.green)
+                    if hasEndTime {
+                        DatePicker("Ends", selection: $endDate, in: date..., displayedComponents: [.date, .hourAndMinute])
+                    }
                     TextField("Location", text: $location)
                         .submitLabel(.done)
                 }
@@ -278,6 +285,10 @@ struct EventEditView: View {
         guard let event else { return }
         name = event.name
         date = event.date
+        if let end = event.endDate {
+            hasEndTime = true
+            endDate = end
+        }
         location = event.location
         purpose = event.purpose
         notes = event.notes
@@ -293,6 +304,7 @@ struct EventEditView: View {
         if let event {
             event.name = name
             event.date = date
+            event.endDate = hasEndTime ? max(endDate, date) : nil
             event.location = location
             event.purpose = purpose
             event.notes = notes
@@ -304,13 +316,16 @@ struct EventEditView: View {
             target = event
         } else {
             let new = Event(
-                name: name, date: date, location: location, purpose: purpose, notes: notes, attendees: attendees,
+                name: name, date: date, endDate: hasEndTime ? max(endDate, date) : nil,
+                location: location, purpose: purpose, notes: notes, attendees: attendees,
                 eventKind: eventKind, importance: importance, socialIntensity: socialIntensity, prepNeeded: prepNeeded
             )
             context.insert(new)
             target = new
         }
         NotificationService.shared.schedule(event: target)
+        // The post-event "how did it go?" prompt, timed off the end date.
+        NotificationService.shared.scheduleFollowUp(for: target)
         Haptics.success()
         dismiss()
     }

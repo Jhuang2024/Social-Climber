@@ -10,6 +10,8 @@ struct DashboardView: View {
     @Query private var importantDates: [ImportantDate]
     @Query(sort: \Event.date, order: .reverse) private var events: [Event]
 
+    @Query(sort: \CapturedMemory.capturedAt, order: .reverse) private var captures: [CapturedMemory]
+
     @AppStorage("locationEnabled") private var locationEnabled = false
 
     @State private var showAddPerson = false
@@ -72,6 +74,27 @@ struct DashboardView: View {
             .min { RelationshipScore.compute(for: $0).total < RelationshipScore.compute(for: $1).total }
     }
 
+    // MARK: Capture feed slices — exception-driven, small, never an inbox.
+
+    private var capturesNeedingContext: [CapturedMemory] {
+        captures.filter { $0.status == .needsContext }
+    }
+
+    private var failedCaptures: [CapturedMemory] {
+        captures.filter { $0.status == .failed }
+    }
+
+    private var recentCaptures: [CapturedMemory] {
+        captures.filter { $0.status == .processed || $0.status == .queued || $0.status == .processing }
+    }
+
+    private var recentCaptureAvatars: [Person] {
+        people.filter { $0.lastContactedAt != nil }
+            .sorted { ($0.lastContactedAt ?? .distantPast) > ($1.lastContactedAt ?? .distantPast) }
+            .prefix(4)
+            .map { $0 }
+    }
+
     private var eventsNeedingLog: [Event] { events.filter(\.needsLogging) }
     private var upcomingEvents: [Event] {
         events.filter { $0.isUpcoming }.sorted { $0.date < $1.date }
@@ -120,12 +143,16 @@ struct DashboardView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     brandHeader
+                    captureHero
                     if people.isEmpty {
                         emptyDashboard
                     } else {
+                        if !capturesNeedingContext.isEmpty { needsContextCard }
+                        if !failedCaptures.isEmpty { failedCapturesCard }
                         statsStrip
                         if let readiness { readinessCard(readiness) }
-                        quickActions
+                        secondaryActions
+                        if !recentCaptures.isEmpty { recentCapturesCard }
                         if !visibleNextMoves.isEmpty { prioritiesCard }
                         if !overdueReminders.isEmpty { overdueCard }
                         if !upcomingFollowUps.isEmpty { followUpsCard }
@@ -236,14 +263,14 @@ struct DashboardView: View {
             VStack(spacing: 6) {
                 Text("Start with one real relationship")
                     .font(.title3.weight(.semibold))
-                Text("Social Climber is ready when you add a person, log a memory, import a message, or record a live conversation.")
+                Text("Add a person, then just tell Social Climber what happened — \"Had coffee with Jimmy…\" — and it organizes the rest.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                 EmptyActionButton(icon: "person.badge.plus", title: "Add person", color: SCTheme.Accents.primary) { showAddPerson = true }
-                EmptyActionButton(icon: "plus.bubble.fill", title: "Add interaction", color: SCTheme.Accents.growth) { showAddInteraction = true }
+                EmptyActionButton(icon: "sparkles", title: "Remember something", color: SCTheme.Accents.growth) { QuickCaptureRouter.shared.open() }
                 EmptyActionButton(icon: "square.and.arrow.down", title: "Import message", color: SCTheme.Accents.cool) { showImport = true }
                 EmptyActionButton(icon: "person.crop.circle.badge.plus", title: "Import contact", color: SCTheme.Accents.cool) { showContactPicker = true }
             }
@@ -278,19 +305,87 @@ struct DashboardView: View {
         }
     }
 
-    private var quickActions: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            Button { showAddInteraction = true } label: {
-                QuickActionLabel(icon: "plus.bubble.fill", label: "Log", color: SCTheme.Accents.growth)
-            }.buttonStyle(.pressable)
-            Button { showImport = true } label: {
-                QuickActionLabel(icon: "square.and.arrow.down", label: "Import", color: SCTheme.Accents.cool)
-            }.buttonStyle(.pressable)
+    /// The one dominant capture surface. Tapping the body opens Quick
+    /// Capture; the mic opens it already recording; the photo icon opens it
+    /// ready for a screenshot. Everything else on Home is secondary.
+    private var captureHero: some View {
+        Button {
+            QuickCaptureRouter.shared.open()
+        } label: {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    Image(systemName: "text.cursor")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(SCTheme.accent)
+                    Text("Remember something…")
+                        .font(SCTheme.displayFont(17, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    // Deliberately separate tap targets layered on the card.
+                    Button {
+                        QuickCaptureRouter.shared.open(QuickCaptureRequest(startRecording: true))
+                    } label: {
+                        Image(systemName: "mic.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(SCTheme.accent)
+                            .frame(width: 36, height: 36)
+                            .background(SCTheme.accent.opacity(0.12), in: Circle())
+                    }
+                    .buttonStyle(.pressable)
+                    Button {
+                        QuickCaptureRouter.shared.open()
+                    } label: {
+                        Image(systemName: "photo")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(SCTheme.accent)
+                            .frame(width: 36, height: 36)
+                            .background(SCTheme.accent.opacity(0.12), in: Circle())
+                    }
+                    .buttonStyle(.pressable)
+                }
+                if !recentCaptureAvatars.isEmpty {
+                    HStack(spacing: 6) {
+                        ForEach(recentCaptureAvatars) { person in
+                            Button {
+                                QuickCaptureRouter.shared.open(person: person)
+                            } label: {
+                                PersonAvatarView(person: person, size: 26)
+                            }
+                            .buttonStyle(.pressable)
+                        }
+                        Text("One sentence is enough — people, dates, and follow-ups sort themselves.")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(2)
+                            .padding(.leading, 4)
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                let shape = RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous)
+                ZStack {
+                    shape.fill(.thinMaterial)
+                    shape.fill(LinearGradient(colors: [SCTheme.accent.opacity(0.10), .clear],
+                                              startPoint: .topLeading, endPoint: .bottomTrailing))
+                }
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous)
+                    .strokeBorder(SCTheme.accent.opacity(0.22))
+            }
+            .cardShadow()
+        }
+        .buttonStyle(.pressable)
+    }
+
+    /// Less-frequent actions, deliberately quieter than the capture hero.
+    private var secondaryActions: some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
             Button { showAddPerson = true } label: {
-                QuickActionLabel(icon: "person.badge.plus", label: "Add Contact", color: SCTheme.Accents.primary)
-            }.buttonStyle(.pressable)
-            Button { showContactPicker = true } label: {
-                QuickActionLabel(icon: "person.crop.circle.badge.plus", label: "Import Contacts", color: SCTheme.Accents.cool)
+                QuickActionLabel(icon: "person.badge.plus", label: "Contact", color: SCTheme.Accents.primary)
             }.buttonStyle(.pressable)
             Button { showAddEvent = true } label: {
                 QuickActionLabel(icon: "calendar.badge.plus", label: "Event", color: SCTheme.Accents.warm)
@@ -298,9 +393,70 @@ struct DashboardView: View {
             NavigationLink { StrategyView() } label: {
                 QuickActionLabel(icon: "wand.and.stars", label: "Strategy", color: SCTheme.Accents.primary)
             }.buttonStyle(.pressable)
-            Button { showVoiceCapture = true } label: {
-                QuickActionLabel(icon: "waveform", label: "Voice", color: SCTheme.Accents.cool)
-            }.buttonStyle(.pressable)
+            Menu {
+                Button { showContactPicker = true } label: {
+                    Label("Import Contacts", systemImage: "person.crop.circle.badge.plus")
+                }
+                Button { showImport = true } label: {
+                    Label("Import a Message", systemImage: "square.and.arrow.down")
+                }
+                Button { showAddInteraction = true } label: {
+                    Label("Detailed Log", systemImage: "plus.bubble")
+                }
+                Button { showVoiceCapture = true } label: {
+                    Label("Long Voice Note", systemImage: "waveform")
+                }
+            } label: {
+                QuickActionLabel(icon: "ellipsis", label: "More", color: SCTheme.Accents.cool)
+            }
+        }
+    }
+
+    /// Shown only while unresolved captures exist: small, exception-driven.
+    private var needsContextCard: some View {
+        FormSectionCard("Needs Context", icon: "person.fill.questionmark") {
+            ForEach(capturesNeedingContext.prefix(2), id: \.persistentModelID) { capture in
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("“\(capture.preview)”")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                    CaptureCandidateChips(capture: capture)
+                }
+            }
+            if capturesNeedingContext.count > 2 {
+                NavigationLink { CaptureInboxView() } label: {
+                    Label("All unresolved (\(capturesNeedingContext.count))", systemImage: "arrow.right")
+                        .font(.subheadline.weight(.medium))
+                }
+            }
+        }
+    }
+
+    /// Shown only when something actually failed.
+    private var failedCapturesCard: some View {
+        FormSectionCard("Couldn't Process", icon: "exclamationmark.triangle") {
+            ForEach(failedCaptures.prefix(2), id: \.persistentModelID) { capture in
+                CaptureRowView(capture: capture)
+            }
+            if failedCaptures.count > 2 {
+                NavigationLink { CaptureInboxView() } label: {
+                    Label("All failed (\(failedCaptures.count))", systemImage: "arrow.right")
+                        .font(.subheadline.weight(.medium))
+                }
+            }
+        }
+    }
+
+    private var recentCapturesCard: some View {
+        FormSectionCard("Recent Captures", icon: "sparkles") {
+            ForEach(recentCaptures.prefix(3), id: \.persistentModelID) { capture in
+                CaptureRowView(capture: capture, showsCandidates: false)
+            }
+            NavigationLink { CaptureInboxView() } label: {
+                Label("All captures", systemImage: "arrow.right")
+                    .font(.subheadline.weight(.medium))
+            }
         }
     }
 

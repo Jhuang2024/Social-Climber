@@ -21,10 +21,38 @@ struct AIExtraction: Codable {
     var interests: [String] = []
     var giftIdeas: [String] = []
     var importantDates: [ExtractedDate] = []
+    /// Explicit follow-up instructions only ("remind me Friday…"). Merely
+    /// implied follow-ups belong in `impliedFollowUps`.
     var reminders: [ExtractedReminder] = []
     var followUpQuestions: [String] = []
     var personalityNotes: [String] = []
     var confidence: Double = 0.5
+
+    // MARK: Automatic-organization fields
+    /// Inferred interaction kind, matching `InteractionType` raw values
+    /// ("inPerson", "call", "message", "videoCall", "event", "email").
+    /// `nil` when the input doesn't say.
+    var inferredInteractionType: String?
+    /// When the interaction happened, resolved against the capture date.
+    /// `nil` unless the input clearly states it.
+    var inferredDate: Date?
+    /// Sentiment ONLY when the user explicitly described how it went
+    /// ("bad", "neutral", "good", "great"); nil otherwise.
+    var explicitSentiment: String?
+    var dislikes: [String] = []
+    /// School/work statements about the other person ("applying to Stripe").
+    var schoolOrWorkFacts: [String] = []
+    /// Location statements about the other person ("moving to New York").
+    var locationFacts: [String] = []
+    /// Family/relationship statements ("her sister just had a baby").
+    var familyFacts: [String] = []
+    /// Follow-ups that were implied but never explicitly requested; stored
+    /// as suggestions, never scheduled automatically.
+    var impliedFollowUps: [String] = []
+    /// 0–1 confidence per category ("interests", "reminders",
+    /// "importantDates", "people", "date", "type", "sentiment", …). Missing
+    /// keys fall back to the overall `confidence`.
+    var fieldConfidence: [String: Double] = [:]
 
     enum CodingKeys: String, CodingKey {
         case summary
@@ -38,6 +66,15 @@ struct AIExtraction: Codable {
         case personalityNotes
         case confidence
         case confidenceScore
+        case inferredInteractionType
+        case inferredDate
+        case explicitSentiment
+        case dislikes
+        case schoolOrWorkFacts
+        case locationFacts
+        case familyFacts
+        case impliedFollowUps
+        case fieldConfidence
     }
 
     init(
@@ -78,6 +115,17 @@ struct AIExtraction: Codable {
         confidence = try container.decodeIfPresent(Double.self, forKey: .confidenceScore)
             ?? container.decodeIfPresent(Double.self, forKey: .confidence)
             ?? 0.5
+        // Every newer field decodes defensively so responses (or cached
+        // payloads) from before these fields existed still decode in full.
+        inferredInteractionType = (try? container.decodeIfPresent(String.self, forKey: .inferredInteractionType)) ?? nil
+        inferredDate = (try? container.decodeIfPresent(Date.self, forKey: .inferredDate)) ?? nil
+        explicitSentiment = (try? container.decodeIfPresent(String.self, forKey: .explicitSentiment)) ?? nil
+        dislikes = (try? container.decodeIfPresent([String].self, forKey: .dislikes)) ?? []
+        schoolOrWorkFacts = (try? container.decodeIfPresent([String].self, forKey: .schoolOrWorkFacts)) ?? []
+        locationFacts = (try? container.decodeIfPresent([String].self, forKey: .locationFacts)) ?? []
+        familyFacts = (try? container.decodeIfPresent([String].self, forKey: .familyFacts)) ?? []
+        impliedFollowUps = (try? container.decodeIfPresent([String].self, forKey: .impliedFollowUps)) ?? []
+        fieldConfidence = (try? container.decodeIfPresent([String: Double].self, forKey: .fieldConfidence)) ?? [:]
     }
 
     func encode(to encoder: Encoder) throws {
@@ -92,13 +140,47 @@ struct AIExtraction: Codable {
         try container.encode(followUpQuestions, forKey: .followUpQuestions)
         try container.encode(personalityNotes, forKey: .personalityNotes)
         try container.encode(confidence, forKey: .confidenceScore)
+        try container.encodeIfPresent(inferredInteractionType, forKey: .inferredInteractionType)
+        try container.encodeIfPresent(inferredDate, forKey: .inferredDate)
+        try container.encodeIfPresent(explicitSentiment, forKey: .explicitSentiment)
+        try container.encode(dislikes, forKey: .dislikes)
+        try container.encode(schoolOrWorkFacts, forKey: .schoolOrWorkFacts)
+        try container.encode(locationFacts, forKey: .locationFacts)
+        try container.encode(familyFacts, forKey: .familyFacts)
+        try container.encode(impliedFollowUps, forKey: .impliedFollowUps)
+        try container.encode(fieldConfidence, forKey: .fieldConfidence)
+    }
+
+    /// Confidence for one category, falling back to the overall score.
+    func confidence(for field: String) -> Double {
+        fieldConfidence[field] ?? confidence
     }
 
     var isEmpty: Bool {
         topics.isEmpty && interests.isEmpty && giftIdeas.isEmpty
             && importantDates.isEmpty && reminders.isEmpty
             && followUpQuestions.isEmpty && personalityNotes.isEmpty
+            && dislikes.isEmpty && schoolOrWorkFacts.isEmpty
+            && locationFacts.isEmpty && familyFacts.isEmpty
+            && impliedFollowUps.isEmpty
     }
+}
+
+/// Everything the caller already trusts about a capture, handed to the
+/// extraction provider so it can resolve relative dates correctly, avoid
+/// re-extracting known facts, and tell the user apart from the contact.
+struct AIExtractionContext {
+    /// When the note was captured; the anchor for "Friday", "next week"…
+    var captureDate: Date = .now
+    var timeZoneID: String = TimeZone.current.identifier
+    /// People supplied as trusted context by the entry point.
+    var trustedPersonNames: [String] = []
+    /// Known nickname → full-name pairs for the trusted people.
+    var aliases: [String: String] = [:]
+    var eventName: String?
+    /// Facts already on file for the trusted people, so the extraction can
+    /// skip duplicating them.
+    var existingFacts: [String] = []
 }
 
 // MARK: - Gift suggestions
@@ -243,7 +325,7 @@ struct ReplyAdvice: Codable, Hashable {
 // MARK: - Protocol
 
 protocol AIService {
-    func extract(from text: String, knownPeople: [String]) async throws -> AIExtraction
+    func extract(from text: String, knownPeople: [String], context: AIExtractionContext) async throws -> AIExtraction
     func suggestGiftIdeas(personContext: String, existingGiftTitles: [String]) async throws -> [GiftSuggestion]
 }
 
@@ -426,14 +508,14 @@ final class BazaarLinkAIService: AIService {
         return decoder
     }()
 
-    func extract(from text: String, knownPeople: [String]) async throws -> AIExtraction {
+    func extract(from text: String, knownPeople: [String], context: AIExtractionContext) async throws -> AIExtraction {
         let model = UserDefaults.standard.string(forKey: "bazaarLinkModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
         let result = try await Self.send(modelOverride: model, decoder: decoder) { resolvedModel in
             BazaarLinkRequest(
                 model: resolvedModel,
                 messages: [
                     .init(role: "system", content: Self.systemPrompt),
-                    .init(role: "user", content: Self.userPrompt(text: text, knownPeople: knownPeople)),
+                    .init(role: "user", content: Self.userPrompt(text: text, knownPeople: knownPeople, context: context)),
                 ],
                 temperature: 0.2,
                 responseFormat: .init(type: "json_object")
@@ -529,27 +611,68 @@ final class BazaarLinkAIService: AIService {
     }
 
     private static let systemPrompt = """
-    You turn relationship notes into strict JSON for a local-first iOS app. Return only JSON. Use ISO-8601 dates when a date is clear. Use null for uncertain dates. Do not invent facts.
+    You organize one raw personal memory ("Had coffee with Jimmy, he's applying to Stripe, remind me Friday to send the intro") into strict JSON for a local-first relationship-memory iOS app. Return only JSON, nothing else.
+
+    Rules:
+    - Extract only facts actually stated or strongly implied by the input. Never invent facts, names, or dates.
+    - The narrator is the app's user ("I"/"me"). Everyone else mentioned is a contact. Facts, interests, and dislikes belong to the CONTACT they are about, never to the user. If the user describes their own interests or plans, do not report them as the contact's.
+    - Distinguish explicit commands ("remind me Friday", "follow up next week about X") from merely implied follow-ups; explicit ones go in "reminders", implied ones in "impliedFollowUps".
+    - Resolve relative dates ("Friday", "tomorrow", "next Tuesday", "in two weeks") against the capture date and timezone provided. Use ISO-8601. If a date cannot be resolved with certainty, use null — never guess or invent a year, month, or day.
+    - Do not duplicate the same fact across multiple categories.
+    - Include a 0.0–1.0 confidence per category in "fieldConfidence" plus an overall "confidenceScore".
     """
 
-    private static func userPrompt(text: String, knownPeople: [String]) -> String {
-        """
-        Known people: \(knownPeople.joined(separator: ", "))
+    private static let extractionISOFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
 
-        Raw note:
+    private static func userPrompt(text: String, knownPeople: [String], context: AIExtractionContext) -> String {
+        var contextLines: [String] = []
+        contextLines.append("Capture date: \(extractionISOFormatter.string(from: context.captureDate))")
+        contextLines.append("Timezone: \(context.timeZoneID)")
+        if !context.trustedPersonNames.isEmpty {
+            contextLines.append("Trusted people this memory is about (already confirmed): \(context.trustedPersonNames.joined(separator: ", "))")
+        }
+        if !context.aliases.isEmpty {
+            let pairs = context.aliases.map { "\($0.key) = \($0.value)" }.joined(separator: "; ")
+            contextLines.append("Known nicknames: \(pairs)")
+        }
+        if let eventName = context.eventName, !eventName.isEmpty {
+            contextLines.append("Trusted event this happened at: \(eventName)")
+        }
+        if !context.existingFacts.isEmpty {
+            contextLines.append("Facts already on file (do not repeat these): \(context.existingFacts.prefix(30).joined(separator: "; "))")
+        }
+
+        return """
+        \(contextLines.joined(separator: "\n"))
+        Known people in the app: \(knownPeople.joined(separator: ", "))
+
+        Raw memory:
         \(text)
 
         Return this JSON shape:
         {
           "summary": "short useful summary",
-          "peopleMentioned": ["matching known names"],
+          "peopleMentioned": ["every person named in the memory, matching known names when possible, otherwise as written"],
           "topics": ["topic labels"],
-          "interests": ["interests to attach to the selected person"],
-          "giftIdeas": ["gift ideas"],
-          "importantDates": [{"title": "Birthday", "date": "2026-07-04T00:00:00Z", "display": "Birthday: July 4"}],
-          "reminders": [{"title": "Follow up about...", "dueDate": "2026-07-07T09:00:00Z"}],
+          "interests": ["the contact's interests"],
+          "dislikes": ["the contact's dislikes"],
+          "schoolOrWorkFacts": ["school/work facts about the contact, e.g. 'Applying to Stripe'"],
+          "locationFacts": ["location facts about the contact, e.g. 'Moving to New York in September'"],
+          "familyFacts": ["family or relationship facts about the contact"],
+          "giftIdeas": ["things the contact explicitly wants or would love"],
+          "importantDates": [{"title": "Birthday", "date": "2026-07-04T00:00:00Z or null when uncertain", "display": "Birthday: July 4"}],
+          "reminders": [{"title": "Send the intro", "dueDate": "resolved ISO-8601 date or null if unresolvable"}],
+          "impliedFollowUps": ["possible follow-ups that were implied but never explicitly requested"],
           "followUpQuestions": ["questions to ask next time"],
-          "personalityNotes": ["stable personality/context notes"],
+          "personalityNotes": ["stable personality/communication notes about the contact"],
+          "inferredInteractionType": "one of inPerson|call|message|videoCall|event|email, or null if unstated",
+          "inferredDate": "ISO-8601 datetime the interaction happened, resolved against the capture date, or null if unstated",
+          "explicitSentiment": "one of bad|neutral|good|great ONLY if the user explicitly said how it went, else null",
+          "fieldConfidence": {"people": 0.0, "interests": 0.0, "reminders": 0.0, "importantDates": 0.0, "date": 0.0, "type": 0.0, "sentiment": 0.0},
           "confidenceScore": 0.0
         }
         """
@@ -902,29 +1025,52 @@ final class MockAIService: AIService {
     ]
 
     private static let interestMarkers = ["loves ", "likes ", "is into ", "enjoys ", "obsessed with ", "big fan of ", "really into ", "passionate about ", "started "]
+    private static let dislikeMarkers = ["hates ", "doesn't like ", "does not like ", "can't stand ", "dislikes ", "is sick of ", "is tired of "]
     private static let giftMarkers = ["wants ", "wishlist", "gift idea", "would love ", "has been eyeing ", "asked for ", "needs a new ", "get them ", "get her ", "get him "]
-    private static let reminderMarkers = ["follow up", "remind me", "should reach out", "need to", "i should", "don't forget", "check in", "circle back", "send them", "ask them"]
-    private static let personalityMarkers = ["seems ", "is very ", "is super ", "is kind of ", "personality", "always ", "tends to ", "is a "]
+    private static let schoolWorkMarkers = ["applying to ", "works at ", "working at ", "new job at ", "joined ", "is joining ", "interning at ", "studying ", "studies ", "majoring in "]
+    private static let locationMarkers = ["moving to ", "moved to ", "lives in ", "living in ", "relocating to "]
+    private static let familyMarkers = ["her sister", "his sister", "her brother", "his brother", "her mom", "his mom", "her dad", "his dad", "their kids", "her husband", "his wife", "her boyfriend", "his girlfriend", "got engaged", "getting married"]
+    private static let reminderMarkers = ["follow up", "remind me", "should reach out", "need to", "i should", "don't forget", "check in", "circle back", "send them", "ask them", "send this by", "send him", "send her"]
+    /// Markers that make a follow-up an explicit instruction rather than a
+    /// vague intention; only these schedule a real reminder.
+    private static let explicitReminderMarkers = ["remind me", "follow up", "don't forget", "send this by", "circle back"]
+    private static let personalityMarkers = ["seems ", "is very ", "is super ", "is kind of ", "personality", "always ", "tends to ", "is a ", "kept interrupting"]
     private static let months = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"]
 
-    func extract(from text: String, knownPeople: [String]) async throws -> AIExtraction {
+    func extract(from text: String, knownPeople: [String], context: AIExtractionContext) async throws -> AIExtraction {
         // Small delay so the UI's "analyzing" state is visible and honest.
         try? await Task.sleep(for: .milliseconds(600))
 
         var result = AIExtraction()
         let lower = text.lowercased()
         let sentences = Self.sentences(in: text)
+        let reference = context.captureDate
 
         // People: known names mentioned in the text (full name or first name).
         result.peopleMentioned = knownPeople.filter { name in
             let first = name.components(separatedBy: " ").first ?? name
             return lower.contains(name.lowercased()) || lower.contains(first.lowercased())
         }
+        for trusted in context.trustedPersonNames where !result.peopleMentioned.contains(trusted) {
+            result.peopleMentioned.append(trusted)
+        }
 
         // Topics from keyword buckets.
         result.topics = Self.topicKeywords.compactMap { topic, words in
             words.contains { lower.contains($0) } ? topic : nil
         }.sorted()
+
+        // Interaction shape: type, date, and only *explicit* sentiment.
+        result.inferredInteractionType = CaptureParser.inferInteractionType(in: text)?.rawValue
+        result.inferredDate = CaptureParser.inferInteractionDate(in: text, reference: reference)
+        result.explicitSentiment = CaptureParser.explicitSentiment(in: text).map { sentiment in
+            switch sentiment {
+            case .bad: "bad"
+            case .neutral: "neutral"
+            case .good: "good"
+            case .great: "great"
+            }
+        }
 
         for sentence in sentences {
             let sLower = sentence.lowercased()
@@ -934,16 +1080,43 @@ final class MockAIService: AIService {
                     result.interests.append(phrase)
                 }
             }
+            for marker in Self.dislikeMarkers {
+                if let phrase = Self.phrase(after: marker, in: sentence) {
+                    result.dislikes.append(phrase)
+                }
+            }
             for marker in Self.giftMarkers {
                 if let phrase = Self.phrase(after: marker, in: sentence) {
                     result.giftIdeas.append(phrase)
                 }
             }
+            for marker in Self.schoolWorkMarkers {
+                if Self.phrase(after: marker, in: sentence) != nil {
+                    result.schoolOrWorkFacts.append(Self.clean(sentence))
+                    break
+                }
+            }
+            for marker in Self.locationMarkers {
+                if Self.phrase(after: marker, in: sentence) != nil {
+                    result.locationFacts.append(Self.clean(sentence))
+                    break
+                }
+            }
+            if Self.familyMarkers.contains(where: { sLower.contains($0) }) {
+                result.familyFacts.append(Self.clean(sentence))
+            }
             if Self.reminderMarkers.contains(where: { sLower.contains($0) }) {
-                result.reminders.append(ExtractedReminder(
-                    title: Self.clean(sentence),
-                    dueDate: Calendar.current.date(byAdding: .day, value: sLower.contains("next week") ? 7 : 3, to: .now)
-                ))
+                if Self.explicitReminderMarkers.contains(where: { sLower.contains($0) }) {
+                    // Anchor relative phrases ("Friday", "next week") to the
+                    // capture date; leave the due date nil when the sentence
+                    // names no resolvable day.
+                    result.reminders.append(ExtractedReminder(
+                        title: Self.clean(sentence),
+                        dueDate: CaptureParser.resolveRelativeDate(in: sentence, reference: reference)
+                    ))
+                } else {
+                    result.impliedFollowUps.append(Self.clean(sentence))
+                }
             }
             if Self.personalityMarkers.contains(where: { sLower.contains($0) }),
                result.peopleMentioned.contains(where: { sLower.contains($0.components(separatedBy: " ").first!.lowercased()) }) {
@@ -956,7 +1129,11 @@ final class MockAIService: AIService {
         }
 
         result.interests = Array(Set(result.interests)).sorted()
+        result.dislikes = Array(Set(result.dislikes)).sorted()
         result.giftIdeas = Array(Set(result.giftIdeas)).sorted()
+        result.schoolOrWorkFacts = Array(Set(result.schoolOrWorkFacts)).sorted()
+        result.locationFacts = Array(Set(result.locationFacts)).sorted()
+        result.familyFacts = Array(Set(result.familyFacts)).sorted()
 
         // Follow-up questions generated from detected topics.
         result.followUpQuestions = result.topics.prefix(3).map { topic in
@@ -977,7 +1154,20 @@ final class MockAIService: AIService {
 
         let signal = result.topics.count + result.interests.count + result.giftIdeas.count
             + result.reminders.count + result.peopleMentioned.count
+            + result.dislikes.count + result.schoolOrWorkFacts.count + result.locationFacts.count
         result.confidence = min(0.95, 0.4 + Double(signal) * 0.06)
+        // Heuristic extraction is deliberately conservative: whatever it did
+        // find came from explicit marker phrases, so those categories carry
+        // more confidence than the overall guess.
+        result.fieldConfidence = [
+            "people": result.peopleMentioned.isEmpty ? 0.2 : 0.7,
+            "reminders": result.reminders.isEmpty ? 0.2 : 0.85,
+            "interests": result.interests.isEmpty ? 0.2 : 0.75,
+            "importantDates": result.importantDates.isEmpty ? 0.2 : 0.6,
+            "date": result.inferredDate == nil ? 0.2 : 0.8,
+            "type": result.inferredInteractionType == nil ? 0.2 : 0.8,
+            "sentiment": result.explicitSentiment == nil ? 0.2 : 0.85,
+        ]
 
         return result
     }

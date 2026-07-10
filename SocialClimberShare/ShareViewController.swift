@@ -1,13 +1,12 @@
 import UIKit
 import UniformTypeIdentifiers
 
-/// The Share Extension's entry point. Appears when the user selects one or
-/// more messages in Messages (or anything else offering plain text to the
-/// system share sheet) and taps Share → Social Climber. Pulls the shared
-/// text out, queues it via `SharedImportInbox` for the main app to pick up
-/// next time it's opened, and shows a brief confirmation before closing;
-/// no compose UI, nothing to edit here (that happens in the app, where the
-/// existing paste-import review flow already lives).
+/// The Share Extension's entry point. Appears when the user shares text
+/// (selected Messages bubbles, a paragraph) or images (screenshots) to
+/// Social Climber. It stages everything into the App Group queue as a
+/// capture payload, confirms with "Saved to Social Climber", and closes
+/// immediately — the main app imports and organizes it automatically the
+/// next time it's active, without asking the user to finish anything.
 ///
 /// No `@objc(ShareViewController)` override here on purpose: the
 /// extension's Info.plist looks this class up as
@@ -60,19 +59,33 @@ final class ShareViewController: UIViewController {
 
     private func handleSharedItems() async {
         let text = await extractText()
+        let imageNames = await stageImages()
         spinner.stopAnimating()
 
-        guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            statusLabel.text = "Couldn't find any text to save."
+        let trimmed = (text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty || !imageNames.isEmpty else {
+            statusLabel.text = "Couldn't find anything to save."
             try? await Task.sleep(for: .seconds(1.2))
             complete()
             return
         }
 
-        SharedImportInbox.add(text)
-        statusLabel.text = "Saved. Open Social Climber to log it."
-        try? await Task.sleep(for: .seconds(0.9))
+        SharedImportInbox.add(SharedImportEntry(
+            text: trimmed,
+            imageFileNames: imageNames,
+            sourceApp: sourceApplicationIdentifier() ?? ""
+        ))
+        statusLabel.text = "Saved to Social Climber"
+        try? await Task.sleep(for: .seconds(0.7))
         complete()
+    }
+
+    /// The host app's bundle identifier, when iOS provides it.
+    private func sourceApplicationIdentifier() -> String? {
+        // NSExtensionItem doesn't carry the source app directly; the
+        // extension context's userInfo sometimes does on newer systems.
+        (extensionContext?.inputItems.first as? NSExtensionItem)?
+            .userInfo?["NSExtensionItemSourceApplicationKey"] as? String
     }
 
     /// Walks every attachment on every input item looking for plain text:
@@ -99,6 +112,45 @@ final class ShareViewController: UIViewController {
 
         let combined = collected.joined(separator: "\n\n")
         return combined.isEmpty ? nil : combined
+    }
+
+    /// Copies every shared image into the App Group container so the main
+    /// app can pick it up later; the image never leaves the device and is
+    /// OCR'd locally by the app. Returns the staged file names.
+    private func stageImages() async -> [String] {
+        guard let items = extensionContext?.inputItems as? [NSExtensionItem],
+              let directory = SharedImportInbox.imagesDirectory else { return [] }
+        var names: [String] = []
+
+        for item in items {
+            for provider in item.attachments ?? [] {
+                guard provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) else { continue }
+                guard let data = await loadImageData(from: provider) else { continue }
+                let name = "\(UUID().uuidString).jpg"
+                let url = directory.appendingPathComponent(name)
+                if (try? data.write(to: url, options: .atomic)) != nil {
+                    names.append(name)
+                }
+            }
+        }
+        return names
+    }
+
+    private func loadImageData(from provider: NSItemProvider) async -> Data? {
+        await withCheckedContinuation { continuation in
+            provider.loadItem(forTypeIdentifier: UTType.image.identifier, options: nil) { item, _ in
+                switch item {
+                case let data as Data:
+                    continuation.resume(returning: data)
+                case let url as URL:
+                    continuation.resume(returning: try? Data(contentsOf: url))
+                case let image as UIImage:
+                    continuation.resume(returning: image.jpegData(compressionQuality: 0.9))
+                default:
+                    continuation.resume(returning: nil)
+                }
+            }
+        }
     }
 
     private func loadText(from provider: NSItemProvider, type: String) async -> String? {

@@ -59,6 +59,12 @@ final class Person {
     var events: [Event] = []
     @Relationship(deleteRule: .nullify, inverse: \VoiceNote.people)
     var voiceNotes: [VoiceNote] = []
+    /// Evidence-linked facts learned automatically from captures. Kept
+    /// separate from the manually-entered fields above (interests, notes,
+    /// schoolOrWork…) so automatic extraction never overwrites what the
+    /// user typed; profile display and AI context merge the two.
+    @Relationship(deleteRule: .cascade, inverse: \MemoryFact.person)
+    var memoryFacts: [MemoryFact] = []
 
     init(
         name: String,
@@ -170,6 +176,42 @@ final class Person {
         return closeness - before
     }
 
+    /// Visible (active/suggested) automatic facts of a given type, newest first.
+    func facts(of type: MemoryFactType) -> [MemoryFact] {
+        memoryFacts
+            .filter { $0.type == type && $0.isVisible }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    /// Visible automatic facts of every type, newest first.
+    var visibleFacts: [MemoryFact] {
+        memoryFacts.filter(\.isVisible).sorted { $0.createdAt > $1.createdAt }
+    }
+
+    /// Manually-entered interests merged with active learned interests,
+    /// deduplicated case-insensitively. Used by profile display, search,
+    /// gift suggestions, and AI context.
+    var combinedInterests: [String] {
+        var merged = interests
+        for fact in facts(of: .interest) where fact.status == .active {
+            if !merged.contains(where: { $0.caseInsensitiveCompare(fact.value) == .orderedSame }) {
+                merged.append(fact.value)
+            }
+        }
+        return merged
+    }
+
+    /// Manually-entered dislikes merged with active learned dislikes.
+    var combinedDislikes: [String] {
+        var merged = dislikes
+        for fact in facts(of: .dislike) where fact.status == .active {
+            if !merged.contains(where: { $0.caseInsensitiveCompare(fact.value) == .orderedSame }) {
+                merged.append(fact.value)
+            }
+        }
+        return merged
+    }
+
     func addInterests(_ new: [String]) {
         for item in new where !interests.contains(where: { $0.caseInsensitiveCompare(item) == .orderedSame }) {
             interests.append(item)
@@ -194,5 +236,6 @@ final class Person {
         return tags.contains { $0.localizedCaseInsensitiveContains(term) }
             || interests.contains { $0.localizedCaseInsensitiveContains(term) }
             || dislikes.contains { $0.localizedCaseInsensitiveContains(term) }
+            || memoryFacts.contains { $0.isVisible && $0.value.localizedCaseInsensitiveContains(term) }
     }
 }

@@ -5,6 +5,7 @@ struct RootTabView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
     @Query private var reminders: [Reminder]
+    @Query(sort: \Person.name) private var allPeople: [Person]
 
     private enum Tab: Hashable { case home, people, search, upcoming, settings }
 
@@ -15,11 +16,13 @@ struct RootTabView: View {
     @State private var resetIDs: [Tab: UUID] = [
         .home: UUID(), .people: UUID(), .search: UUID(), .upcoming: UUID(), .settings: UUID(),
     ]
-    /// Text queued by the Share Extension (e.g. Messages bubbles shared from
-    /// outside the app), waiting to be reviewed. Checked on launch and every
-    /// time the app returns to the foreground, since the extension runs in
-    /// its own process and can't hand this off any other way.
-    @State private var pendingSharedImport: SharedImportEntry?
+    /// The single presentation point for Quick Capture, shared by Home,
+    /// person profiles, App Intents, and notification actions.
+    @State private var captureRouter = QuickCaptureRouter.shared
+    /// "Did you reach Jimmy?" — set when the app returns to the foreground
+    /// within the plausible window after the user launched a call/message
+    /// from a profile. Non-modal banner, never an alert.
+    @State private var outboundPrompt: PendingOutboundContact?
 
     private var dueCount: Int {
         reminders.filter { !$0.completed && $0.dueDate.daysFromNow <= 0 }.count
@@ -69,36 +72,112 @@ struct RootTabView: View {
         // doc comment for the same lesson learned the hard way once
         // already). Let each screen's controls use their real system/brand
         // color instead.
-        //
-        // `.toolbarBackground` is unrelated to that bug (it only styles the
-        // bar's surface, not an ambient tint) — a frosted-glass bar instead
-        // of the fully opaque default reads as deliberately designed.
         .toolbarBackground(.ultraThinMaterial, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
+        .overlay { ToastOverlay() }
+        .overlay(alignment: .top) {
+            if let prompt = outboundPrompt {
+                outboundBanner(prompt)
+            }
+        }
+        .sheet(item: Bindable(captureRouter).pendingRequest) { request in
+            QuickCaptureView(request: request)
+        }
         .task {
             DemoDataCleanupService.removeBundledDemoContactsIfNeeded(context: context)
-            checkForSharedImport()
+            await CaptureProcessor.shared.handleAppActivated()
         }
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active { checkForSharedImport() }
-        }
-        .sheet(item: $pendingSharedImport, onDismiss: checkForSharedImport) { entry in
-            AddInteractionView(initialSource: .paste, initialRawText: entry.text)
+            guard newPhase == .active else { return }
+            // Shared payloads become durable capture records and process
+            // silently — never a modal, never "finish logging this".
+            Task { await CaptureProcessor.shared.handleAppActivated() }
+            checkOutboundReturn()
         }
     }
 
-    /// Pulls the next queued share off the inbox (if any) and presents it.
-    /// Removing it up front (rather than waiting for the sheet to be saved)
-    /// means cancelling out of the pre-filled form simply discards that
-    /// one shared snippet instead of leaving it stuck re-appearing forever;
-    /// re-sharing is one tap if that was a mistake. Called again as each
-    /// sheet dismisses so multiple queued shares are worked through one at
-    /// a time instead of only showing the first.
-    private func checkForSharedImport() {
-        guard pendingSharedImport == nil else { return }
-        guard let next = SharedImportInbox.pending().first else { return }
-        SharedImportInbox.remove(next.id)
-        pendingSharedImport = next
+    // MARK: Outbound-contact return prompt
+
+    private func checkOutboundReturn() {
+        guard outboundPrompt == nil else { return }
+        guard let pending = OutboundContactStore.currentWithinWindow() else { return }
+        withAnimation(.snappy) { outboundPrompt = pending }
+    }
+
+    private func outboundBanner(_ prompt: PendingOutboundContact) -> some View {
+        let firstName = prompt.personName.components(separatedBy: " ").first ?? prompt.personName
+        return VStack(spacing: 10) {
+            Text("Did you reach \(firstName)?")
+                .font(.subheadline.weight(.semibold))
+            HStack(spacing: 8) {
+                Button {
+                    resolveOutbound(prompt, logged: true)
+                } label: {
+                    Text("Yes")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(Color.green.opacity(0.16), in: Capsule())
+                        .foregroundStyle(.green)
+                }
+                Button {
+                    addNoteForOutbound(prompt)
+                } label: {
+                    Text("Add note")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(SCTheme.accent.opacity(0.14), in: Capsule())
+                        .foregroundStyle(SCTheme.accent)
+                }
+                Button {
+                    resolveOutbound(prompt, logged: false)
+                } label: {
+                    Text("Not this time")
+                        .font(.subheadline.weight(.medium))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(Color(.tertiarySystemFill), in: Capsule())
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(14)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08))
+        }
+        .shadow(color: .black.opacity(0.3), radius: 16, y: 8)
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
+
+    /// "Yes" logs a minimal neutral interaction in one tap; "Not this time"
+    /// just clears the prompt. Either way the pending record is consumed so
+    /// the question is asked at most once.
+    private func resolveOutbound(_ prompt: PendingOutboundContact, logged: Bool) {
+        OutboundContactStore.clear()
+        withAnimation(.snappy) { outboundPrompt = nil }
+        guard logged else { return }
+        guard let person = allPeople.first(where: { $0.name == prompt.personName }) else { return }
+        let interaction = Interaction(
+            type: prompt.interactionType,
+            date: .now,
+            quality: 3,
+            messageSummary: "Reached out via \(prompt.interactionType.label.lowercased())"
+        )
+        InteractionSaver.finalize(interaction, people: [person], context: context)
+        Haptics.success()
+        ToastCenter.shared.show("Logged contact with \(person.firstName)")
+    }
+
+    private func addNoteForOutbound(_ prompt: PendingOutboundContact) {
+        OutboundContactStore.clear()
+        withAnimation(.snappy) { outboundPrompt = nil }
+        guard let person = allPeople.first(where: { $0.name == prompt.personName }) else { return }
+        QuickCaptureRouter.shared.open(person: person, typeHint: prompt.interactionType)
     }
 }
 

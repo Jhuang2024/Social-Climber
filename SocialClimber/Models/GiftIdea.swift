@@ -8,6 +8,9 @@ final class GiftIdea {
     var priceRange: String = ""
     var occasion: String = ""
     var statusRaw: String = GiftStatus.idea.rawValue
+    /// UUID of the `CapturedMemory` that automatically created this gift
+    /// idea, if any (see `Interaction.sourceCaptureUUID`).
+    var sourceCaptureUUID: UUID?
     var createdAt: Date = Date()
 
     var person: Person?

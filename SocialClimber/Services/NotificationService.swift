@@ -118,6 +118,108 @@ final class NotificationService {
         guard let id = event.notificationID else { return }
         center.removePendingNotificationRequests(withIdentifiers: [id])
         event.notificationID = nil
+        cancelFollowUp(for: event)
+    }
+
+    // MARK: Event follow-up prompts
+
+    /// Category + action identifiers for the post-event "how did it go?"
+    /// prompt. Handled by `NotificationActionHandler`.
+    static let eventFollowUpCategoryID = "EVENT_FOLLOWUP"
+    static let eventLogActionID = "EVENT_LOG"
+    static let eventAddNoteActionID = "EVENT_ADD_NOTE"
+    static let eventSkipActionID = "EVENT_SKIP"
+
+    /// Registers actionable categories. Called once at app launch.
+    func registerNotificationCategories() {
+        let log = UNNotificationAction(identifier: Self.eventLogActionID, title: "Log it", options: [])
+        let addNote = UNNotificationAction(identifier: Self.eventAddNoteActionID, title: "Add note", options: [.foreground])
+        let skip = UNNotificationAction(identifier: Self.eventSkipActionID, title: "Skip", options: [])
+        let category = UNNotificationCategory(
+            identifier: Self.eventFollowUpCategoryID,
+            actions: [log, addNote, skip],
+            intentIdentifiers: [],
+            options: []
+        )
+        center.setNotificationCategories([category])
+    }
+
+    /// Schedules a local "how did it go?" prompt shortly after the event
+    /// ends (its explicit end time when set). One tap on "Log it" then
+    /// creates one neutral event interaction for the attendees — no form.
+    /// Never fires for events with no attendees, already-logged events, or
+    /// ones whose prompt the user skipped.
+    func scheduleFollowUp(for event: Event) {
+        if let existing = event.followUpNotificationID {
+            center.removePendingNotificationRequests(withIdentifiers: [existing])
+            event.followUpNotificationID = nil
+        }
+        guard enabled, !event.attendees.isEmpty, event.loggedAt == nil, event.followUpDismissedAt == nil else { return }
+        let fireDate = event.effectiveEndDate.addingTimeInterval(15 * 60)
+        guard fireDate > .now else { return }
+
+        let id = "event-followup-\(UUID().uuidString)"
+        event.followUpNotificationID = id
+
+        let content = UNMutableNotificationContent()
+        content.title = event.name.isEmpty ? "How did it go?" : "How was \(event.name)?"
+        content.body = "Log it for \(event.attendeeNames) in one tap, or add a quick note."
+        content.sound = .default
+        content.categoryIdentifier = Self.eventFollowUpCategoryID
+        content.userInfo = ["kind": "scEvent", "followUpID": id]
+
+        let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
+    }
+
+    func cancelFollowUp(for event: Event) {
+        guard let id = event.followUpNotificationID else { return }
+        center.removePendingNotificationRequests(withIdentifiers: [id])
+        event.followUpNotificationID = nil
+    }
+
+    /// Same prompt for confidently-matched Google Calendar events. Never
+    /// creates an interaction on its own — an event merely existing is not
+    /// contact; it takes one explicit notification action. Deduplicated by
+    /// the calendar event's own id, which also makes rescheduling on every
+    /// refresh idempotent.
+    func scheduleCalendarFollowUp(
+        calendarEventID: String,
+        title: String,
+        endDate: Date,
+        location: String,
+        attendeeNames: [String]
+    ) {
+        guard enabled, !attendeeNames.isEmpty else { return }
+        let defaults = UserDefaults.standard
+        var handled = Set(defaults.stringArray(forKey: "gcalFollowUpsScheduledOrHandled") ?? [])
+        guard !handled.contains(calendarEventID) else { return }
+
+        let fireDate = endDate.addingTimeInterval(15 * 60)
+        guard fireDate > .now else { return }
+
+        handled.insert(calendarEventID)
+        defaults.set(Array(handled), forKey: "gcalFollowUpsScheduledOrHandled")
+
+        let id = "gcal-followup-\(calendarEventID)"
+        let content = UNMutableNotificationContent()
+        content.title = "How was \(title)?"
+        content.body = "Log it for \(attendeeNames.joined(separator: ", ")) in one tap, or add a quick note."
+        content.sound = .default
+        content.categoryIdentifier = Self.eventFollowUpCategoryID
+        content.userInfo = [
+            "kind": "gcalEvent",
+            "gcalID": calendarEventID,
+            "title": title,
+            "location": location,
+            "attendees": attendeeNames,
+            "dateEpoch": endDate.timeIntervalSince1970,
+        ]
+
+        let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
     }
 
     /// Re-sync every pending notification from current data.
@@ -137,6 +239,8 @@ final class NotificationService {
         for event in events where event.isUpcoming {
             event.notificationID = nil
             schedule(event: event)
+            event.followUpNotificationID = nil
+            scheduleFollowUp(for: event)
         }
     }
 
