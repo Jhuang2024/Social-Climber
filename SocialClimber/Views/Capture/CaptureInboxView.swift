@@ -107,6 +107,9 @@ struct CaptureRowView: View {
                     Text(capture.capturedAt.relativeLabel)
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
             }
             .buttonStyle(.plain)
@@ -381,36 +384,38 @@ struct CaptureDetailView: View {
 
     private var actionsCard: some View {
         FormSectionCard("Actions", icon: "slider.horizontal.3") {
-            if capture.status == .failed || capture.status == .needsContext {
-                Button {
-                    Task { await CaptureProcessor.shared.retry(capture) }
-                } label: {
-                    Label("Retry processing", systemImage: "arrow.clockwise")
-                        .font(.subheadline.weight(.medium))
+            VStack(alignment: .leading, spacing: 10) {
+                if capture.status == .failed || capture.status == .needsContext {
+                    Button {
+                        Task { await CaptureProcessor.shared.retry(capture) }
+                    } label: {
+                        Label("Retry processing", systemImage: "arrow.clockwise")
+                            .font(.subheadline.weight(.medium))
+                    }
                 }
-            }
-            if capture.status == .processed {
-                Button {
-                    assignSelection = []
-                    showAssign = true
-                } label: {
-                    Label("Change people", systemImage: "person.2.badge.gearshape")
-                        .font(.subheadline.weight(.medium))
+                if capture.status == .processed {
+                    Button {
+                        assignSelection = []
+                        showAssign = true
+                    } label: {
+                        Label("Change people", systemImage: "person.2.badge.gearshape")
+                            .font(.subheadline.weight(.medium))
+                    }
+                    Button(role: .destructive) {
+                        confirmUndo = true
+                    } label: {
+                        Label("Undo everything this created", systemImage: "arrow.uturn.backward")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.red)
+                    }
                 }
                 Button(role: .destructive) {
-                    confirmUndo = true
+                    confirmDelete = true
                 } label: {
-                    Label("Undo everything this created", systemImage: "arrow.uturn.backward")
+                    Label("Delete capture", systemImage: "trash")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.red)
                 }
-            }
-            Button(role: .destructive) {
-                confirmDelete = true
-            } label: {
-                Label("Delete capture", systemImage: "trash")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.red)
             }
         }
     }

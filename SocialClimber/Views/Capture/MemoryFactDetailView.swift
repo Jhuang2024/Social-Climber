@@ -211,38 +211,40 @@ struct MemoryFactDetailView: View {
 
     private var actionsCard: some View {
         FormSectionCard("Actions", icon: "slider.horizontal.3") {
-            if fact.status == .suggested {
-                Button {
-                    fact.status = .active
-                } label: {
-                    Label("Confirm", systemImage: "checkmark")
-                        .font(.subheadline.weight(.medium))
+            VStack(alignment: .leading, spacing: 10) {
+                if fact.status == .suggested {
+                    Button {
+                        fact.status = .active
+                    } label: {
+                        Label("Confirm", systemImage: "checkmark")
+                            .font(.subheadline.weight(.medium))
+                    }
                 }
-            }
-            if fact.status != .rejected {
+                if fact.status != .rejected {
+                    Button(role: .destructive) {
+                        fact.status = .rejected
+                    } label: {
+                        Label("Reject", systemImage: "hand.thumbsdown")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.red)
+                    }
+                } else {
+                    Button {
+                        fact.status = .active
+                        fact.markUserEdited()
+                    } label: {
+                        Label("Restore", systemImage: "arrow.uturn.backward")
+                            .font(.subheadline.weight(.medium))
+                    }
+                }
                 Button(role: .destructive) {
-                    fact.status = .rejected
+                    context.delete(fact)
+                    dismiss()
                 } label: {
-                    Label("Reject", systemImage: "hand.thumbsdown")
+                    Label("Delete", systemImage: "trash")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.red)
                 }
-            } else {
-                Button {
-                    fact.status = .active
-                    fact.markUserEdited()
-                } label: {
-                    Label("Restore", systemImage: "arrow.uturn.backward")
-                        .font(.subheadline.weight(.medium))
-                }
-            }
-            Button(role: .destructive) {
-                context.delete(fact)
-                dismiss()
-            } label: {
-                Label("Delete", systemImage: "trash")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.red)
             }
         }
     }
