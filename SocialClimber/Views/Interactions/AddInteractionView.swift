@@ -365,9 +365,10 @@ struct AddInteractionView: View {
     // MARK: Import helpers
 
     /// Runs local on-device parsing (date/speaker detection) and, when
-    /// enabled, sends the text to the configured AI provider (BazaarLink or
-    /// Mock) to generate a real summary and extract topics/gifts/dates/
-    /// follow-ups, the same extraction pipeline manual note logging uses.
+    /// enabled, sends the text to the configured AI provider (OpenRouter/
+    /// BazaarLink, or Mock) to generate a real summary and extract topics/
+    /// gifts/dates/follow-ups, the same extraction pipeline manual note
+    /// logging uses.
     private func analyzeImport(_ text: String) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }

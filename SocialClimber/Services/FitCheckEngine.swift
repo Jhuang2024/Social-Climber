@@ -1,12 +1,13 @@
 import UIKit
 
 /// Grounds a Fit Checker request in whatever's already typed into the Add
-/// Event flow, and runs it through the configured AI provider. Unlike gift
-/// ideas or the person summary, there's no deterministic offline fallback:
-/// rating a photo needs a vision-capable model, so this only ever calls
-/// BazaarLink and surfaces a clear notice otherwise. Nothing here is ever
-/// written to a `Person` or `Interaction`; this is event-prep assistance
-/// only and must never influence closeness, cadence, or relationship scores.
+/// Event flow, and runs it through the configured AI gateway (OpenRouter,
+/// falling back to BazaarLink). Unlike gift ideas or the person summary,
+/// there's no deterministic offline fallback: rating a photo needs a
+/// vision-capable model, so this only ever calls out to a real provider and
+/// surfaces a clear notice otherwise. Nothing here is ever written to a
+/// `Person` or `Interaction`; this is event-prep assistance only and must
+/// never influence closeness, cadence, or relationship scores.
 enum FitCheckEngine {
     /// A snapshot of the event form's current fields: built from live
     /// `@State`, not a saved `Event`, so it works while creating a brand-new
@@ -53,11 +54,11 @@ enum FitCheckEngine {
     }
 
     static func check(image: UIImage, context: EventContext) async -> Outcome {
-        guard AIProvider.currentCase == .bazaarLink else {
-            return Outcome(result: nil, notice: "Fit Checker needs a vision-capable AI. Switch AI Provider to BazaarLink in Settings.")
+        guard AIProvider.currentCase != .mock else {
+            return Outcome(result: nil, notice: "Fit Checker needs a vision-capable AI. Switch AI Provider away from Mock in Settings.")
         }
-        guard KeychainService.hasBazaarLinkAPIKey() else {
-            let notice = AIServiceError.missingBazaarLinkAPIKey.errorDescription
+        guard KeychainService.hasAnyAIKey() else {
+            let notice = AIServiceError.missingAPIKey.errorDescription
             return Outcome(result: nil, notice: notice)
         }
         do {

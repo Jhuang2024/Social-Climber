@@ -2,11 +2,12 @@ import UIKit
 
 /// Grounds a "How to Respond" request in everything Social Climber already
 /// knows about a specific person, and runs it through the configured AI
-/// provider. Like `FitCheckEngine`, there's no offline fallback: reading a
-/// screenshot needs a vision-capable model, so this only calls BazaarLink
-/// and otherwise surfaces a clear notice. The screenshots and the resulting
-/// advice are never persisted here: this is a reply-drafting assist, not a
-/// logged interaction, and must never touch closeness or interaction history.
+/// gateway (OpenRouter, falling back to BazaarLink). Like `FitCheckEngine`,
+/// there's no offline fallback: reading a screenshot needs a vision-capable
+/// model, so this only calls out to a real provider and otherwise surfaces a
+/// clear notice. The screenshots and the resulting advice are never
+/// persisted here: this is a reply-drafting assist, not a logged
+/// interaction, and must never touch closeness or interaction history.
 enum ReplyAdvisorEngine {
     /// A plain-text digest of everything relevant to how the user should
     /// talk to this person: their profile, closeness, notes, strategy, and
@@ -39,11 +40,11 @@ enum ReplyAdvisorEngine {
     }
 
     static func analyze(images: [UIImage], person: Person) async -> Outcome {
-        guard AIProvider.currentCase == .bazaarLink else {
-            return Outcome(advice: nil, notice: "How to Respond needs a vision-capable AI. Switch AI Provider to BazaarLink in Settings.")
+        guard AIProvider.currentCase != .mock else {
+            return Outcome(advice: nil, notice: "How to Respond needs a vision-capable AI. Switch AI Provider away from Mock in Settings.")
         }
-        guard KeychainService.hasBazaarLinkAPIKey() else {
-            let notice = AIServiceError.missingBazaarLinkAPIKey.errorDescription
+        guard KeychainService.hasAnyAIKey() else {
+            let notice = AIServiceError.missingAPIKey.errorDescription
             return Outcome(advice: nil, notice: notice)
         }
         do {

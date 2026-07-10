@@ -6,7 +6,7 @@ import UIKit
 /// Optional, read-only Google Calendar integration: finds upcoming events
 /// that mention known people so they can be turned into planned hangouts.
 ///
-/// Bring-your-own OAuth client, same spirit as the BazaarLink AI key: you
+/// Bring-your-own OAuth client, same spirit as the OpenRouter/BazaarLink AI keys: you
 /// create a free "iOS" OAuth Client ID in Google Cloud Console (Calendar
 /// API enabled, bundle ID matching this app's) and paste it in Settings.
 /// No client secret is needed: sign-in uses the standard PKCE flow for

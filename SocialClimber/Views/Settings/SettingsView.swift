@@ -26,6 +26,8 @@ struct SettingsView: View {
     @State private var confirmImport = false
     @State private var pendingImportData: Data?
     @State private var pendingImportName = ""
+    @State private var openRouterAPIKey = ""
+    @State private var hasOpenRouterAPIKey = false
     @State private var bazaarLinkAPIKey = ""
     @State private var hasBazaarLinkAPIKey = false
     @State private var testingConnection = false
@@ -182,7 +184,32 @@ struct SettingsView: View {
                         }
                     }
                     if aiProvider == AIProvider.bazaarLink.rawValue {
-                        SecureField(hasBazaarLinkAPIKey ? "BazaarLink API key saved" : "BazaarLink API key", text: $bazaarLinkAPIKey)
+                        Text("OpenRouter API Key — default")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        SecureField(hasOpenRouterAPIKey ? "OpenRouter API key saved" : "OpenRouter API key (sk-or-…)", text: $openRouterAPIKey)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .submitLabel(.done)
+                        Button {
+                            saveOpenRouterKey()
+                        } label: {
+                            Label("Save API Key", systemImage: "key.fill")
+                        }
+                        .disabled(openRouterAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        if hasOpenRouterAPIKey {
+                            Button(role: .destructive) {
+                                clearOpenRouterKey()
+                            } label: {
+                                Label("Remove Saved API Key", systemImage: "trash")
+                            }
+                            .tint(.red)
+                        }
+
+                        Text("BazaarLink API Key — fallback")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        SecureField(hasBazaarLinkAPIKey ? "BazaarLink API key saved" : "BazaarLink API key (sk-bl-…)", text: $bazaarLinkAPIKey)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .submitLabel(.done)
@@ -200,15 +227,16 @@ struct SettingsView: View {
                             }
                             .tint(.red)
                         }
-                        TextField("Model ID", text: $bazaarLinkModelID)
+
+                        TextField("Model ID override (optional)", text: $bazaarLinkModelID)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .submitLabel(.done)
-                        Text("Default: \(BazaarLinkDefaults.modelID). The API key is stored only in iOS Keychain and is never exported or logged. Fit Checker and How to Respond need a vision-capable model to read photos; check your model's capabilities on BazaarLink if those come back with an error.")
+                        Text("Leave blank to use each gateway's free-routing model automatically. Requests try OpenRouter first, falling back to BazaarLink only if OpenRouter has no key or fails. Keys are stored only in iOS Keychain and never exported or logged. Fit Checker and How to Respond need a vision-capable model to read photos; check your model's capabilities on the provider's site if those come back with an error.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Button {
-                            Task { await testBazaarLinkConnection() }
+                            Task { await testConnection() }
                         } label: {
                             if testingConnection {
                                 HStack { ProgressView(); Text("Testing…") }
@@ -216,14 +244,14 @@ struct SettingsView: View {
                                 Label("Test Connection", systemImage: "bolt.horizontal")
                             }
                         }
-                        .disabled(testingConnection || !hasBazaarLinkAPIKey)
+                        .disabled(testingConnection || (!hasOpenRouterAPIKey && !hasBazaarLinkAPIKey))
                         if let connectionTestResult {
                             Text(connectionTestResult)
                                 .font(.caption)
                                 .foregroundStyle(connectionTestResult.hasPrefix("Connected") ? .green : .secondary)
                         }
                     } else {
-                        Text("Mock uses deterministic local heuristics and never sends notes off this iPhone. Fit Checker and How to Respond need real photo analysis, so both require BazaarLink.")
+                        Text("Mock uses deterministic local heuristics and never sends notes off this iPhone. Fit Checker and How to Respond need real photo analysis, so both require an OpenRouter or BazaarLink key.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -336,7 +364,7 @@ struct SettingsView: View {
                 Text(message ?? "")
             }
             .onAppear {
-                refreshBazaarLinkKeyStatus()
+                refreshAIKeyStatus()
                 Task { await refreshNotificationAuthorization() }
             }
             .onChange(of: scenePhase) {
@@ -408,11 +436,34 @@ struct SettingsView: View {
         pendingImportName = ""
     }
 
+    private func saveOpenRouterKey() {
+        do {
+            try KeychainService.saveOpenRouterAPIKey(openRouterAPIKey)
+            openRouterAPIKey = ""
+            refreshAIKeyStatus()
+            message = "OpenRouter API key saved."
+            connectionTestResult = nil
+        } catch {
+            message = "Could not save API key: \(error.localizedDescription)"
+        }
+    }
+
+    private func clearOpenRouterKey() {
+        do {
+            try KeychainService.saveOpenRouterAPIKey("")
+            refreshAIKeyStatus()
+            message = "OpenRouter API key removed."
+            connectionTestResult = nil
+        } catch {
+            message = "Could not remove API key: \(error.localizedDescription)"
+        }
+    }
+
     private func saveBazaarLinkKey() {
         do {
             try KeychainService.saveBazaarLinkAPIKey(bazaarLinkAPIKey)
             bazaarLinkAPIKey = ""
-            refreshBazaarLinkKeyStatus()
+            refreshAIKeyStatus()
             message = "BazaarLink API key saved."
             connectionTestResult = nil
         } catch {
@@ -420,7 +471,7 @@ struct SettingsView: View {
         }
     }
 
-    private func testBazaarLinkConnection() async {
+    private func testConnection() async {
         testingConnection = true
         defer { testingConnection = false }
         do {
@@ -433,7 +484,7 @@ struct SettingsView: View {
     private func clearBazaarLinkKey() {
         do {
             try KeychainService.saveBazaarLinkAPIKey("")
-            refreshBazaarLinkKeyStatus()
+            refreshAIKeyStatus()
             message = "BazaarLink API key removed."
             connectionTestResult = nil
         } catch {
@@ -441,7 +492,8 @@ struct SettingsView: View {
         }
     }
 
-    private func refreshBazaarLinkKeyStatus() {
+    private func refreshAIKeyStatus() {
+        hasOpenRouterAPIKey = KeychainService.hasOpenRouterAPIKey()
         hasBazaarLinkAPIKey = KeychainService.hasBazaarLinkAPIKey()
     }
 }

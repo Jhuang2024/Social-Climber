@@ -255,7 +255,7 @@ enum AIProvider: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .mock: "Mock"
-        case .bazaarLink: "BazaarLink"
+        case .bazaarLink: "AI (OpenRouter / BazaarLink)"
         }
     }
 
@@ -266,11 +266,11 @@ enum AIProvider: String, CaseIterable, Identifiable {
         }
     }
 
-    /// The provider selected in Settings, defaulting to Mock. A stored
-    /// "openRouter" from before the BazaarLink migration maps to
-    /// .bazaarLink so existing users keep a real provider selected instead
-    /// of silently dropping back to Mock (they still need to paste their
-    /// new sk-bl- key; the missing-key error will say so).
+    /// The provider selected in Settings, defaulting to Mock. `.bazaarLink`'s
+    /// raw value predates this app supporting two gateways — kept as-is so
+    /// an existing stored preference doesn't silently reset — but now means
+    /// "real AI, tried via whichever gateway key works" rather than
+    /// literally BazaarLink only (see AIGatewayProvider / BazaarLinkAIService).
     static var currentCase: AIProvider {
         let raw = UserDefaults.standard.string(forKey: "aiProvider") ?? AIProvider.mock.rawValue
         if raw == "openRouter" { return .bazaarLink }
@@ -280,24 +280,78 @@ enum AIProvider: String, CaseIterable, Identifiable {
     static var current: AIService { currentCase.service }
 }
 
+/// Which AI gateway served a request. OpenRouter is tried first (the app's
+/// default provider); BazaarLink is the fallback, tried only if OpenRouter
+/// has no key saved or its request fails.
+enum AIGatewayProvider: CaseIterable {
+    case openRouter
+    case bazaarLink
+
+    var displayName: String {
+        switch self {
+        case .openRouter: return "OpenRouter"
+        case .bazaarLink: return "BazaarLink"
+        }
+    }
+
+    var endpoint: URL {
+        switch self {
+        case .openRouter: return URL(string: "https://openrouter.ai/api/v1/chat/completions")!
+        case .bazaarLink: return URL(string: "https://bazaarlink.ai/api/v1/chat/completions")!
+        }
+    }
+
+    /// Model ID used when Settings has no explicit override: each gateway's
+    /// own "route to an available free model automatically" ID, so ordinary
+    /// AI use costs nothing by default no matter which provider ends up
+    /// serving the request.
+    var defaultFreeModel: String {
+        switch self {
+        case .openRouter: return "openrouter/free"
+        case .bazaarLink: return "auto:free"
+        }
+    }
+
+    var apiKey: String? {
+        switch self {
+        case .openRouter: return try? KeychainService.openRouterAPIKey()
+        case .bazaarLink: return try? KeychainService.bazaarLinkAPIKey()
+        }
+    }
+
+    /// Optional app-attribution headers OpenRouter's dashboard/rankings use;
+    /// harmless to send, meaningless to BazaarLink.
+    var extraHeaders: [String: String] {
+        switch self {
+        case .openRouter: return ["HTTP-Referer": "https://localhost/social-climber", "X-Title": "Social Climber"]
+        case .bazaarLink: return [:]
+        }
+    }
+
+    func resolvedModel(override: String?) -> String {
+        let trimmed = override?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? defaultFreeModel : trimmed
+    }
+}
+
 enum AIServiceError: LocalizedError {
-    case missingBazaarLinkAPIKey
+    case missingAPIKey
     case invalidAPIKey
     case rateLimited
     case timeout
     case networkFailure
     case invalidResponse
     case emptyResponse
-    case requestFailed(status: Int)
+    case requestFailed(provider: String, status: Int)
 
     var errorDescription: String? {
         switch self {
-        case .missingBazaarLinkAPIKey:
-            "Add your BazaarLink API key in Settings, or switch AI Provider to Mock."
+        case .missingAPIKey:
+            "Add your OpenRouter or BazaarLink API key in Settings, or switch AI Provider to Mock."
         case .invalidAPIKey:
-            "Your BazaarLink API key was rejected. Check it in Settings. Showing a local summary instead."
+            "Your API key was rejected. Check it in Settings. Showing a local summary instead."
         case .rateLimited:
-            "BazaarLink is rate-limiting requests right now. Try again in a bit. Showing a local summary instead."
+            "The AI provider is rate-limiting requests right now. Try again in a bit. Showing a local summary instead."
         case .timeout:
             "The AI request took too long and timed out. Showing a local summary instead."
         case .networkFailure:
@@ -306,8 +360,8 @@ enum AIServiceError: LocalizedError {
             "The AI provider returned a response Social Climber could not read."
         case .emptyResponse:
             "The AI provider returned an empty response."
-        case .requestFailed(let status):
-            "BazaarLink request failed (HTTP \(status)). Check your API key and model in Settings."
+        case .requestFailed(let provider, let status):
+            "\(provider) request failed (HTTP \(status)). Check your API key and model in Settings."
         }
     }
 
@@ -366,7 +420,6 @@ func withAITimeout<T: Sendable>(seconds: TimeInterval = 20, _ operation: @escapi
 }
 
 final class BazaarLinkAIService: AIService {
-    private let endpoint = URL(string: "https://bazaarlink.ai/api/v1/chat/completions")!
     private let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -374,37 +427,65 @@ final class BazaarLinkAIService: AIService {
     }()
 
     func extract(from text: String, knownPeople: [String]) async throws -> AIExtraction {
-        let apiKey = try KeychainService.bazaarLinkAPIKey()
         let model = UserDefaults.standard.string(forKey: "bazaarLinkModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let requestBody = BazaarLinkRequest(
-            model: model?.isEmpty == false ? model! : BazaarLinkDefaults.modelID,
-            messages: [
-                .init(role: "system", content: Self.systemPrompt),
-                .init(role: "user", content: Self.userPrompt(text: text, knownPeople: knownPeople)),
-            ],
-            temperature: 0.2,
-            responseFormat: .init(type: "json_object")
-        )
-
-        let content = try await Self.send(requestBody, apiKey: apiKey, endpoint: endpoint, decoder: decoder)
-        return try Self.decodeExtraction(from: content, decoder: decoder)
+        let result = try await Self.send(modelOverride: model, decoder: decoder) { resolvedModel in
+            BazaarLinkRequest(
+                model: resolvedModel,
+                messages: [
+                    .init(role: "system", content: Self.systemPrompt),
+                    .init(role: "user", content: Self.userPrompt(text: text, knownPeople: knownPeople)),
+                ],
+                temperature: 0.2,
+                responseFormat: .init(type: "json_object")
+            )
+        }
+        return try Self.decodeExtraction(from: result.content, decoder: decoder)
     }
 
-    /// Runs one chat completion and returns the raw assistant message text.
-    /// Centralizes the network call, timeout, and error classification so
-    /// every BazaarLink call site (extraction, gift ideas, person summary)
-    /// fails the same clean way instead of leaking raw network errors.
+    /// Tries each configured AI gateway in order (OpenRouter first, then
+    /// BazaarLink), skipping any with no saved key, until one answers
+    /// successfully. `makeBody` builds the strongly-typed request body for a
+    /// given provider's resolved model, since the model ID is embedded in
+    /// the Encodable struct rather than a loose dictionary.
     private static func send<Body: Encodable>(
+        modelOverride: String?,
+        decoder: JSONDecoder,
+        makeBody: (String) -> Body
+    ) async throws -> (content: String, provider: AIGatewayProvider, model: String) {
+        var lastError: Error = AIServiceError.missingAPIKey
+        var attempted = false
+        for provider in AIGatewayProvider.allCases {
+            guard let apiKey = provider.apiKey else { continue }
+            attempted = true
+            let model = provider.resolvedModel(override: modelOverride)
+            do {
+                let content = try await sendOnce(makeBody(model), apiKey: apiKey, provider: provider, decoder: decoder)
+                return (content, provider, model)
+            } catch {
+                lastError = error
+                continue
+            }
+        }
+        guard attempted else { throw AIServiceError.missingAPIKey }
+        throw lastError
+    }
+
+    /// Runs one chat completion against a single gateway and returns the raw
+    /// assistant message text.
+    private static func sendOnce<Body: Encodable>(
         _ requestBody: Body,
         apiKey: String,
-        endpoint: URL,
+        provider: AIGatewayProvider,
         decoder: JSONDecoder
     ) async throws -> String {
-        var request = URLRequest(url: endpoint)
+        var request = URLRequest(url: provider.endpoint)
         request.httpMethod = "POST"
         request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        for (field, value) in provider.extraHeaders {
+            request.setValue(value, forHTTPHeaderField: field)
+        }
         request.httpBody = try JSONEncoder().encode(requestBody)
 
         let data: Data
@@ -415,7 +496,7 @@ final class BazaarLinkAIService: AIService {
             }
         } catch {
             let mapped = AIServiceError.from(error)
-            mapped.logForDeveloper(context: "network request")
+            mapped.logForDeveloper(context: "\(provider.displayName) network request")
             throw mapped
         }
 
@@ -427,9 +508,9 @@ final class BazaarLinkAIService: AIService {
             switch http.statusCode {
             case 401, 403: mapped = .invalidAPIKey
             case 429: mapped = .rateLimited
-            default: mapped = .requestFailed(status: http.statusCode)
+            default: mapped = .requestFailed(provider: provider.displayName, status: http.statusCode)
             }
-            mapped.logForDeveloper(context: "HTTP \(http.statusCode)")
+            mapped.logForDeveloper(context: "\(provider.displayName) HTTP \(http.statusCode)")
             throw mapped
         }
 
@@ -489,55 +570,54 @@ final class BazaarLinkAIService: AIService {
     }
 
     func suggestGiftIdeas(personContext: String, existingGiftTitles: [String]) async throws -> [GiftSuggestion] {
-        let apiKey = try KeychainService.bazaarLinkAPIKey()
         let model = UserDefaults.standard.string(forKey: "bazaarLinkModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let requestBody = BazaarLinkRequest(
-            model: model?.isEmpty == false ? model! : BazaarLinkDefaults.modelID,
-            messages: [
-                .init(role: "system", content: Self.giftSystemPrompt),
-                .init(role: "user", content: Self.giftUserPrompt(personContext: personContext, existingGiftTitles: existingGiftTitles)),
-            ],
-            temperature: 0.5,
-            responseFormat: .init(type: "json_object")
-        )
-
-        let content = try await Self.send(requestBody, apiKey: apiKey, endpoint: endpoint, decoder: decoder)
-        return try Self.decodeGiftSuggestions(from: content, decoder: decoder)
+        let result = try await Self.send(modelOverride: model, decoder: decoder) { resolvedModel in
+            BazaarLinkRequest(
+                model: resolvedModel,
+                messages: [
+                    .init(role: "system", content: Self.giftSystemPrompt),
+                    .init(role: "user", content: Self.giftUserPrompt(personContext: personContext, existingGiftTitles: existingGiftTitles)),
+                ],
+                temperature: 0.5,
+                responseFormat: .init(type: "json_object")
+            )
+        }
+        return try Self.decodeGiftSuggestions(from: result.content, decoder: decoder)
     }
 
     /// Plain-text relationship summary: no JSON schema, just a few honest
     /// sentences grounded in what's already logged for this person.
     func summarizePerson(context personContext: String) async throws -> String {
-        let apiKey = try KeychainService.bazaarLinkAPIKey()
         let model = UserDefaults.standard.string(forKey: "bazaarLinkModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let requestBody = BazaarLinkRequest(
-            model: model?.isEmpty == false ? model! : BazaarLinkDefaults.modelID,
-            messages: [
-                .init(role: "system", content: Self.summarySystemPrompt),
-                .init(role: "user", content: personContext),
-            ],
-            temperature: 0.4,
-            responseFormat: nil
-        )
-        return try await Self.send(requestBody, apiKey: apiKey, endpoint: endpoint, decoder: decoder)
+        let result = try await Self.send(modelOverride: model, decoder: decoder) { resolvedModel in
+            BazaarLinkRequest(
+                model: resolvedModel,
+                messages: [
+                    .init(role: "system", content: Self.summarySystemPrompt),
+                    .init(role: "user", content: personContext),
+                ],
+                temperature: 0.4,
+                responseFormat: nil
+            )
+        }
+        return result.content
     }
 
-    /// Verifies the saved key and model actually work, independent of any
-    /// real feature — used by Settings' "Test Connection" button so a bad
-    /// key or model ID surfaces immediately instead of only on the next
-    /// note extraction or gift-idea request.
+    /// Verifies whichever gateway key actually works — used by Settings'
+    /// "Test Connection" button so a bad key or model ID surfaces
+    /// immediately instead of only on the next note extraction or
+    /// gift-idea request.
     func testConnection() async throws -> String {
-        let apiKey = try KeychainService.bazaarLinkAPIKey()
         let model = UserDefaults.standard.string(forKey: "bazaarLinkModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedModel = model?.isEmpty == false ? model! : BazaarLinkDefaults.modelID
-        let requestBody = BazaarLinkRequest(
-            model: resolvedModel,
-            messages: [.init(role: "user", content: "Reply with the single word: ok")],
-            temperature: 0.2,
-            responseFormat: nil
-        )
-        let content = try await Self.send(requestBody, apiKey: apiKey, endpoint: endpoint, decoder: decoder)
-        return "Connected. \(resolvedModel) replied: \(content.trimmingCharacters(in: .whitespacesAndNewlines).prefix(40))"
+        let result = try await Self.send(modelOverride: model, decoder: decoder) { resolvedModel in
+            BazaarLinkRequest(
+                model: resolvedModel,
+                messages: [.init(role: "user", content: "Reply with the single word: ok")],
+                temperature: 0.2,
+                responseFormat: nil
+            )
+        }
+        return "Connected via \(result.provider.displayName) (\(result.model)). Replied: \(result.content.trimmingCharacters(in: .whitespacesAndNewlines).prefix(40))"
     }
 
     private static let summarySystemPrompt = """
@@ -550,20 +630,20 @@ final class BazaarLinkAIService: AIService {
     /// to. Event-prep assistance only: the result is never persisted onto
     /// a `Person` or `Interaction`, so it can't touch closeness or history.
     func checkFit(image: UIImage, eventContext: String) async throws -> FitCheckResult {
-        let apiKey = try KeychainService.bazaarLinkAPIKey()
         guard let dataURL = ImageEncoding.dataURL(for: image) else { throw AIServiceError.invalidResponse }
         let model = UserDefaults.standard.string(forKey: "bazaarLinkModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let requestBody = VisionRequest(
-            model: model?.isEmpty == false ? model! : BazaarLinkDefaults.modelID,
-            messages: [
-                VisionMessage(role: "system", content: [VisionContentPart.text(Self.fitCheckSystemPrompt)]),
-                VisionMessage(role: "user", content: [VisionContentPart.text(Self.fitCheckUserPrompt(eventContext: eventContext)), VisionContentPart.imageURL(dataURL)]),
-            ],
-            temperature: 0.4,
-            responseFormat: ResponseFormat(type: "json_object")
-        )
-        let content = try await Self.send(requestBody, apiKey: apiKey, endpoint: endpoint, decoder: decoder)
-        return try Self.decode(FitCheckResult.self, from: content, decoder: decoder)
+        let result = try await Self.send(modelOverride: model, decoder: decoder) { resolvedModel in
+            VisionRequest(
+                model: resolvedModel,
+                messages: [
+                    VisionMessage(role: "system", content: [VisionContentPart.text(Self.fitCheckSystemPrompt)]),
+                    VisionMessage(role: "user", content: [VisionContentPart.text(Self.fitCheckUserPrompt(eventContext: eventContext)), VisionContentPart.imageURL(dataURL)]),
+                ],
+                temperature: 0.4,
+                responseFormat: ResponseFormat(type: "json_object")
+            )
+        }
+        return try Self.decode(FitCheckResult.self, from: result.content, decoder: decoder)
     }
 
     private static let fitCheckSystemPrompt = """
@@ -594,23 +674,23 @@ final class BazaarLinkAIService: AIService {
     /// person. Assist-only: never creates an `Interaction` or touches
     /// closeness; the caller must not persist the screenshots either.
     func analyzeReply(images: [UIImage], personContext: String) async throws -> ReplyAdvice {
-        let apiKey = try KeychainService.bazaarLinkAPIKey()
         let dataURLs = images.compactMap { ImageEncoding.dataURL(for: $0) }
         guard !dataURLs.isEmpty else { throw AIServiceError.invalidResponse }
         let model = UserDefaults.standard.string(forKey: "bazaarLinkModelID")?.trimmingCharacters(in: .whitespacesAndNewlines)
         var userContent: [VisionContentPart] = [VisionContentPart.text(Self.replyUserPrompt(personContext: personContext))]
         userContent.append(contentsOf: dataURLs.map { VisionContentPart.imageURL($0) })
-        let requestBody = VisionRequest(
-            model: model?.isEmpty == false ? model! : BazaarLinkDefaults.modelID,
-            messages: [
-                VisionMessage(role: "system", content: [VisionContentPart.text(Self.replySystemPrompt)]),
-                VisionMessage(role: "user", content: userContent),
-            ],
-            temperature: 0.5,
-            responseFormat: ResponseFormat(type: "json_object")
-        )
-        let content = try await Self.send(requestBody, apiKey: apiKey, endpoint: endpoint, decoder: decoder)
-        return try Self.decode(ReplyAdvice.self, from: content, decoder: decoder)
+        let result = try await Self.send(modelOverride: model, decoder: decoder) { resolvedModel in
+            VisionRequest(
+                model: resolvedModel,
+                messages: [
+                    VisionMessage(role: "system", content: [VisionContentPart.text(Self.replySystemPrompt)]),
+                    VisionMessage(role: "user", content: userContent),
+                ],
+                temperature: 0.5,
+                responseFormat: ResponseFormat(type: "json_object")
+            )
+        }
+        return try Self.decode(ReplyAdvice.self, from: result.content, decoder: decoder)
     }
 
     private static let replySystemPrompt = """
@@ -791,10 +871,12 @@ final class BazaarLinkAIService: AIService {
 }
 
 enum BazaarLinkDefaults {
-    /// BazaarLink's special routing ID: automatically picks an available
-    /// free model. Free-tier models aren't guaranteed to be vision-capable,
-    /// so Fit Checker / How to Respond (photo features) may need a real
-    /// vision model ID set in Settings instead.
+    /// The initial value shown in Settings' shared model-override field
+    /// before the user types anything. Leaving the field blank (its usual
+    /// state) makes each gateway resolve its own free-routing default
+    /// instead — see `AIGatewayProvider.defaultFreeModel`. Free-tier models
+    /// aren't guaranteed to be vision-capable, so Fit Checker / How to
+    /// Respond (photo features) may need a real vision model ID set here.
     static let modelID = "auto:free"
 }
 

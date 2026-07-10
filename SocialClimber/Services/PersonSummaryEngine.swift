@@ -6,10 +6,10 @@ import Foundation
 ///
 /// Always computes the deterministic version first from data already on
 /// disk, so the feature keeps working with zero network dependency. When
-/// the configured provider is BazaarLink, it's asked to write a nicer
-/// version grounded in that same deterministic digest; on any failure
-/// (missing/invalid key, timeout, rate limit, network, bad response) this
-/// falls back to the deterministic text instead of showing an error.
+/// AI is enabled, it's asked to write a nicer version grounded in that same
+/// deterministic digest; on any failure (missing/invalid key, timeout, rate
+/// limit, network, bad response) this falls back to the deterministic text
+/// instead of showing an error.
 enum PersonSummaryEngine {
     struct Result {
         let text: String
@@ -22,7 +22,7 @@ enum PersonSummaryEngine {
     static func summary(for person: Person) async -> Result {
         let deterministic = deterministicSummary(for: person)
 
-        guard AIProvider.currentCase == .bazaarLink, KeychainService.hasBazaarLinkAPIKey() else {
+        guard AIProvider.currentCase != .mock, KeychainService.hasAnyAIKey() else {
             return Result(text: deterministic, isAIGenerated: false, notice: nil)
         }
 
