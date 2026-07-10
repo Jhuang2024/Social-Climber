@@ -58,7 +58,19 @@ struct PolishedPageBackground: ViewModifier {
     func body(content: Content) -> some View {
         content
             .scrollContentBackground(.hidden)
-            .background(SCTheme.pageBackground)
+            // A faint brand glow bleeding down from the top instead of a
+            // flat fill — on the app's committed dark look (see
+            // INFOPLIST_KEY_UIUserInterfaceStyle) this gives every page an
+            // ambient light source the cards sit under, rather than gray
+            // boxes floating on plain black.
+            .background {
+                ZStack {
+                    SCTheme.pageBackground
+                    LinearGradient(colors: [SCTheme.accent.opacity(0.10), .clear],
+                                   startPoint: .top, endPoint: .center)
+                }
+                .ignoresSafeArea()
+            }
     }
 }
 
@@ -68,7 +80,10 @@ extension View {
     }
 
     func cardShadow() -> some View {
-        shadow(color: Color.black.opacity(0.06), radius: 14, x: 0, y: 8)
+        // Deep enough to register on the app's committed dark background;
+        // the old 6% was tuned for light gray and disappeared entirely on
+        // near-black.
+        shadow(color: Color.black.opacity(0.35), radius: 16, x: 0, y: 10)
     }
 
     /// Adds a clear "Done" button above the keyboard so text fields and text
@@ -212,10 +227,10 @@ struct SectionHeader<Trailing: View>: View {
                     .background(accent.gradient, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             }
             Text(title)
-                .font(.footnote.weight(.bold))
+                .font(.caption.weight(.bold))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
-                .tracking(0.8)
+                .tracking(1.4)
             Spacer()
             trailing()
         }
@@ -223,15 +238,29 @@ struct SectionHeader<Trailing: View>: View {
 }
 
 extension View {
-    /// Wraps any content in the app's standard thin-material card.
+    /// Wraps any content in the app's standard card: thin material with a
+    /// faint top-edge "sheen" so each card reads as a lit surface with
+    /// depth rather than a flat gray rectangle — the single biggest tell
+    /// separating premium dark UIs from default dark-mode grays — plus a
+    /// border whose top edge is slightly brighter than its sides, the way
+    /// light actually falls on a raised surface.
     func scCard(padding: CGFloat = 16) -> some View {
-        self
+        let shape = RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous)
+        return self
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous))
+            .background {
+                ZStack {
+                    shape.fill(.thinMaterial)
+                    shape.fill(LinearGradient(colors: [.white.opacity(0.06), .clear],
+                                              startPoint: .top, endPoint: .center))
+                }
+            }
             .overlay {
-                RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.055))
+                shape.strokeBorder(
+                    LinearGradient(colors: [Color.primary.opacity(0.14), Color.primary.opacity(0.04)],
+                                   startPoint: .top, endPoint: .bottom),
+                    lineWidth: 1)
             }
             .cardShadow()
     }

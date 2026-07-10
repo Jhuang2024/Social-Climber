@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 @main
 struct SocialClimberApp: App {
@@ -9,6 +10,24 @@ struct SocialClimberApp: App {
         // which doesn't go through `@AppStorage`) even before the Settings
         // screen has ever set it explicitly.
         UserDefaults.standard.register(defaults: ["crossAppSharingEnabled": true])
+
+        // Editorial navigation titles: heavy rounded display type matched
+        // to the root-level .fontDesign(.rounded), so screen titles read as
+        // part of one designed type system instead of stock chrome sitting
+        // on top of it. UIKit appearance is the only lever for nav-title
+        // fonts; SwiftUI exposes none.
+        Self.configureNavigationTitleTypography()
+    }
+
+    private static func configureNavigationTitleTypography() {
+        func rounded(size: CGFloat, weight: UIFont.Weight) -> UIFont {
+            let base = UIFont.systemFont(ofSize: size, weight: weight)
+            guard let descriptor = base.fontDescriptor.withDesign(.rounded) else { return base }
+            return UIFont(descriptor: descriptor, size: size)
+        }
+        let appearance = UINavigationBar.appearance()
+        appearance.largeTitleTextAttributes = [.font: rounded(size: 34, weight: .heavy)]
+        appearance.titleTextAttributes = [.font: rounded(size: 17, weight: .bold)]
     }
 
     let container: ModelContainer = {
