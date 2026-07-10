@@ -71,8 +71,13 @@ struct CaptureRowView: View {
 
     @Query(sort: \Person.name) private var allPeople: [Person]
 
+    /// IDs are authoritative; falls back to the cached names only for a
+    /// capture processed before ID-based storage existed.
     private var candidates: [Person] {
-        capture.candidatePersonNames.compactMap { name in
+        if !capture.candidatePersonIDs.isEmpty {
+            return CapturedMemory.resolvePeople(ids: capture.candidatePersonIDs, in: allPeople)
+        }
+        return capture.candidatePersonNames.compactMap { name in
             allPeople.first { $0.name == name }
         }
     }
@@ -437,7 +442,10 @@ struct CaptureCandidateChips: View {
     @Query(sort: \Person.name) private var allPeople: [Person]
 
     private var candidates: [Person] {
-        capture.candidatePersonNames.compactMap { name in
+        if !capture.candidatePersonIDs.isEmpty {
+            return CapturedMemory.resolvePeople(ids: capture.candidatePersonIDs, in: allPeople)
+        }
+        return capture.candidatePersonNames.compactMap { name in
             allPeople.first { $0.name == name }
         }
     }
@@ -480,29 +488,39 @@ struct MemoryFactRowView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: fact.type.icon)
-                .font(.caption)
-                .foregroundStyle(fact.type.color)
-                .frame(width: 26, height: 26)
-                .background(fact.type.color.opacity(0.12), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(fact.value)
-                    .font(.subheadline)
-                    .strikethrough(fact.status == .rejected)
-                    .foregroundStyle(fact.status == .rejected ? .secondary : .primary)
-                HStack(spacing: 5) {
-                    Text(fact.type.label)
-                    if showsPerson, let person = fact.person {
-                        Text("· \(person.firstName)")
-                    }
-                    if fact.status == .suggested {
-                        Text("· Suggested")
-                            .foregroundStyle(.orange)
+            NavigationLink {
+                MemoryFactDetailView(fact: fact)
+            } label: {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: fact.type.icon)
+                        .font(.caption)
+                        .foregroundStyle(fact.type.color)
+                        .frame(width: 26, height: 26)
+                        .background(fact.type.color.opacity(0.12), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(fact.value)
+                            .font(.subheadline)
+                            .strikethrough(fact.status == .rejected)
+                            .foregroundStyle(fact.status == .rejected ? .secondary : .primary)
+                        HStack(spacing: 5) {
+                            Text(fact.type.label)
+                            if showsPerson, let person = fact.person {
+                                Text("· \(person.firstName)")
+                            } else if fact.person == nil {
+                                Text("· Unattributed")
+                                    .foregroundStyle(.orange)
+                            }
+                            if fact.status == .suggested {
+                                Text("· Suggested")
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                     }
                 }
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
             }
+            .buttonStyle(.plain)
             Spacer()
             Menu {
                 if fact.status == .suggested {
@@ -521,6 +539,7 @@ struct MemoryFactRowView: View {
                 } else {
                     Button {
                         fact.status = .active
+                        fact.markUserEdited()
                     } label: {
                         Label("Restore", systemImage: "arrow.uturn.backward")
                     }

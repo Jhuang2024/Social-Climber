@@ -168,6 +168,7 @@ struct UpcomingView: View {
                 title: event.title,
                 endDate: end,
                 location: "",
+                attendeeIDs: event.people.map(\.uuid),
                 attendeeNames: event.people.map(\.name)
             )
         }

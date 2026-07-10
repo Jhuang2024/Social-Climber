@@ -3,18 +3,89 @@ import UIKit
 
 // MARK: - Extraction output
 
-struct ExtractedDate: Codable, Hashable {
+struct ExtractedDate: Codable, Hashable, Sendable {
     var title: String
     var date: Date?
     var display: String
+    /// Names of the people this date is about, as written/matched in the
+    /// source text. Empty means unattributed — never guessed, never
+    /// defaulted to "whoever was resolved first" for this capture.
+    var personNames: [String] = []
+
+    enum CodingKeys: String, CodingKey { case title, date, display, personNames }
+
+    init(title: String, date: Date? = nil, display: String, personNames: [String] = []) {
+        self.title = title
+        self.date = date
+        self.display = display
+        self.personNames = personNames
+    }
+
+    /// Defensive decode so a provider response (or a cached payload) from
+    /// before `personNames` existed still decodes in full.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        title = try c.decode(String.self, forKey: .title)
+        date = try c.decodeIfPresent(Date.self, forKey: .date)
+        display = try c.decode(String.self, forKey: .display)
+        personNames = (try? c.decodeIfPresent([String].self, forKey: .personNames)) ?? []
+    }
 }
 
-struct ExtractedReminder: Codable, Hashable {
+struct ExtractedReminder: Codable, Hashable, Sendable {
     var title: String
     var dueDate: Date?
+    /// Names of the people this reminder is about, as written/matched in
+    /// the source text. Empty means unattributed.
+    var personNames: [String] = []
+
+    enum CodingKeys: String, CodingKey { case title, dueDate, personNames }
+
+    init(title: String, dueDate: Date? = nil, personNames: [String] = []) {
+        self.title = title
+        self.dueDate = dueDate
+        self.personNames = personNames
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        title = try c.decode(String.self, forKey: .title)
+        dueDate = try c.decodeIfPresent(Date.self, forKey: .dueDate)
+        personNames = (try? c.decodeIfPresent([String].self, forKey: .personNames)) ?? []
+    }
 }
 
-struct AIExtraction: Codable {
+/// One extracted, attributable fact: a value (an interest, a school/work
+/// note, a gift idea, an implied follow-up…) plus the specific people it's
+/// about, matched by name against the text it came from. This is what
+/// replaces "attach every fact to whichever person happens to be first" —
+/// `personNames` is empty when the text didn't clearly name anyone, one
+/// name when it named exactly one person, and more than one when the text
+/// genuinely names several people sharing the same fact (e.g. "Daniel and
+/// Priya are both training for a marathon"). `factType` matches
+/// `MemoryFactType`'s raw value.
+struct ExtractedFact: Codable, Hashable, Sendable {
+    var factType: String
+    var value: String
+    var personNames: [String] = []
+
+    enum CodingKeys: String, CodingKey { case factType, value, personNames }
+
+    init(factType: String, value: String, personNames: [String] = []) {
+        self.factType = factType
+        self.value = value
+        self.personNames = personNames
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        factType = try c.decode(String.self, forKey: .factType)
+        value = try c.decode(String.self, forKey: .value)
+        personNames = (try? c.decodeIfPresent([String].self, forKey: .personNames)) ?? []
+    }
+}
+
+struct AIExtraction: Codable, Sendable {
     var summary: String = ""
     var peopleMentioned: [String] = []
     var topics: [String] = []
@@ -53,6 +124,13 @@ struct AIExtraction: Codable {
     /// "importantDates", "people", "date", "type", "sentiment", …). Missing
     /// keys fall back to the overall `confidence`.
     var fieldConfidence: [String: Double] = [:]
+    /// Per-item, per-person-attributed facts — the mechanism the capture
+    /// pipeline uses to create `MemoryFact`s correctly attributed to
+    /// whichever specific person the source text actually names, instead of
+    /// flattening every fact onto "whoever was resolved first". Populated
+    /// in parallel with (not instead of) the legacy flat-string arrays
+    /// above, which the manual/advanced editing flows still use unchanged.
+    var attributedFacts: [ExtractedFact] = []
 
     enum CodingKeys: String, CodingKey {
         case summary
@@ -75,6 +153,7 @@ struct AIExtraction: Codable {
         case familyFacts
         case impliedFollowUps
         case fieldConfidence
+        case attributedFacts
     }
 
     init(
@@ -126,6 +205,7 @@ struct AIExtraction: Codable {
         familyFacts = (try? container.decodeIfPresent([String].self, forKey: .familyFacts)) ?? []
         impliedFollowUps = (try? container.decodeIfPresent([String].self, forKey: .impliedFollowUps)) ?? []
         fieldConfidence = (try? container.decodeIfPresent([String: Double].self, forKey: .fieldConfidence)) ?? [:]
+        attributedFacts = (try? container.decodeIfPresent([ExtractedFact].self, forKey: .attributedFacts)) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -149,11 +229,17 @@ struct AIExtraction: Codable {
         try container.encode(familyFacts, forKey: .familyFacts)
         try container.encode(impliedFollowUps, forKey: .impliedFollowUps)
         try container.encode(fieldConfidence, forKey: .fieldConfidence)
+        try container.encode(attributedFacts, forKey: .attributedFacts)
     }
 
     /// Confidence for one category, falling back to the overall score.
     func confidence(for field: String) -> Double {
         fieldConfidence[field] ?? confidence
+    }
+
+    /// `attributedFacts` entries of one type ("interest", "dislike", …).
+    func attributedFacts(ofType type: MemoryFactType) -> [ExtractedFact] {
+        attributedFacts.filter { $0.factType == type.rawValue }
     }
 
     var isEmpty: Bool {
@@ -162,14 +248,14 @@ struct AIExtraction: Codable {
             && followUpQuestions.isEmpty && personalityNotes.isEmpty
             && dislikes.isEmpty && schoolOrWorkFacts.isEmpty
             && locationFacts.isEmpty && familyFacts.isEmpty
-            && impliedFollowUps.isEmpty
+            && impliedFollowUps.isEmpty && attributedFacts.isEmpty
     }
 }
 
 /// Everything the caller already trusts about a capture, handed to the
 /// extraction provider so it can resolve relative dates correctly, avoid
 /// re-extracting known facts, and tell the user apart from the contact.
-struct AIExtractionContext {
+struct AIExtractionContext: Sendable {
     /// When the note was captured; the anchor for "Friday", "next week"…
     var captureDate: Date = .now
     var timeZoneID: String = TimeZone.current.identifier
@@ -619,6 +705,7 @@ final class BazaarLinkAIService: AIService {
     - Distinguish explicit commands ("remind me Friday", "follow up next week about X") from merely implied follow-ups; explicit ones go in "reminders", implied ones in "impliedFollowUps".
     - Resolve relative dates ("Friday", "tomorrow", "next Tuesday", "in two weeks") against the capture date and timezone provided. Use ISO-8601. If a date cannot be resolved with certainty, use null — never guess or invent a year, month, or day.
     - Do not duplicate the same fact across multiple categories.
+    - Attribution matters: when more than one contact is named, each individual fact ("attributedFacts" entries, and each reminder/importantDate) must list exactly the person or people that specific fact is actually about in "personNames" — never all contacts mentioned anywhere in the memory. If a fact doesn't clearly belong to anyone in particular, leave "personNames" empty; do not guess by picking whichever person was mentioned first.
     - Include a 0.0–1.0 confidence per category in "fieldConfidence" plus an overall "confidenceScore".
     """
 
@@ -664,17 +751,20 @@ final class BazaarLinkAIService: AIService {
           "locationFacts": ["location facts about the contact, e.g. 'Moving to New York in September'"],
           "familyFacts": ["family or relationship facts about the contact"],
           "giftIdeas": ["things the contact explicitly wants or would love"],
-          "importantDates": [{"title": "Birthday", "date": "2026-07-04T00:00:00Z or null when uncertain", "display": "Birthday: July 4"}],
-          "reminders": [{"title": "Send the intro", "dueDate": "resolved ISO-8601 date or null if unresolvable"}],
+          "importantDates": [{"title": "Birthday", "date": "2026-07-04T00:00:00Z or null when uncertain", "display": "Birthday: July 4", "personNames": ["exactly who this date is about"]}],
+          "reminders": [{"title": "Send the intro", "dueDate": "resolved ISO-8601 date or null if unresolvable", "personNames": ["exactly who this reminder is about"]}],
           "impliedFollowUps": ["possible follow-ups that were implied but never explicitly requested"],
           "followUpQuestions": ["questions to ask next time"],
           "personalityNotes": ["stable personality/communication notes about the contact"],
+          "attributedFacts": [{"factType": "one of interest|dislike|schoolOrWork|location|family|personality|giftIdea", "value": "the fact, matching one of the arrays above", "personNames": ["exactly who this specific fact is about; empty if unclear"]}],
           "inferredInteractionType": "one of inPerson|call|message|videoCall|event|email, or null if unstated",
           "inferredDate": "ISO-8601 datetime the interaction happened, resolved against the capture date, or null if unstated",
           "explicitSentiment": "one of bad|neutral|good|great ONLY if the user explicitly said how it went, else null",
           "fieldConfidence": {"people": 0.0, "interests": 0.0, "reminders": 0.0, "importantDates": 0.0, "date": 0.0, "type": 0.0, "sentiment": 0.0},
           "confidenceScore": 0.0
         }
+
+        "attributedFacts" must include one entry for every item already listed in interests/dislikes/schoolOrWorkFacts/locationFacts/familyFacts/personalityNotes/giftIdeas, with the matching factType and the correct personNames for that specific item.
         """
     }
 
@@ -1072,47 +1162,63 @@ final class MockAIService: AIService {
             }
         }
 
+        // Per-sentence attribution: which known people this specific
+        // sentence names, so a fact never defaults to "whoever was resolved
+        // first" for the whole capture — see `ExtractedFact`.
+        var attributed: [ExtractedFact] = []
+
         for sentence in sentences {
             let sLower = sentence.lowercased()
+            let namesHere = CaptureParser.peopleNamed(in: sentence, knownPeople: knownPeople)
 
             for marker in Self.interestMarkers {
                 if let phrase = Self.phrase(after: marker, in: sentence) {
                     result.interests.append(phrase)
+                    attributed.append(ExtractedFact(factType: MemoryFactType.interest.rawValue, value: phrase, personNames: namesHere))
                 }
             }
             for marker in Self.dislikeMarkers {
                 if let phrase = Self.phrase(after: marker, in: sentence) {
                     result.dislikes.append(phrase)
+                    attributed.append(ExtractedFact(factType: MemoryFactType.dislike.rawValue, value: phrase, personNames: namesHere))
                 }
             }
             for marker in Self.giftMarkers {
                 if let phrase = Self.phrase(after: marker, in: sentence) {
                     result.giftIdeas.append(phrase)
+                    attributed.append(ExtractedFact(factType: MemoryFactType.giftIdea.rawValue, value: phrase, personNames: namesHere))
                 }
             }
             for marker in Self.schoolWorkMarkers {
                 if Self.phrase(after: marker, in: sentence) != nil {
-                    result.schoolOrWorkFacts.append(Self.clean(sentence))
+                    let value = Self.clean(sentence)
+                    result.schoolOrWorkFacts.append(value)
+                    attributed.append(ExtractedFact(factType: MemoryFactType.schoolOrWork.rawValue, value: value, personNames: namesHere))
                     break
                 }
             }
             for marker in Self.locationMarkers {
                 if Self.phrase(after: marker, in: sentence) != nil {
-                    result.locationFacts.append(Self.clean(sentence))
+                    let value = Self.clean(sentence)
+                    result.locationFacts.append(value)
+                    attributed.append(ExtractedFact(factType: MemoryFactType.location.rawValue, value: value, personNames: namesHere))
                     break
                 }
             }
             if Self.familyMarkers.contains(where: { sLower.contains($0) }) {
-                result.familyFacts.append(Self.clean(sentence))
+                let value = Self.clean(sentence)
+                result.familyFacts.append(value)
+                attributed.append(ExtractedFact(factType: MemoryFactType.family.rawValue, value: value, personNames: namesHere))
             }
             if Self.reminderMarkers.contains(where: { sLower.contains($0) }) {
                 if Self.explicitReminderMarkers.contains(where: { sLower.contains($0) }) {
                     // Anchor relative phrases ("Friday", "next week") to the
                     // capture date; leave the due date nil when the sentence
-                    // names no resolvable day.
+                    // names no resolvable day. Never invent a fallback date.
                     result.reminders.append(ExtractedReminder(
                         title: Self.clean(sentence),
-                        dueDate: CaptureParser.resolveRelativeDate(in: sentence, reference: reference)
+                        dueDate: CaptureParser.resolveRelativeDate(in: sentence, reference: reference),
+                        personNames: namesHere
                     ))
                 } else {
                     result.impliedFollowUps.append(Self.clean(sentence))
@@ -1120,10 +1226,13 @@ final class MockAIService: AIService {
             }
             if Self.personalityMarkers.contains(where: { sLower.contains($0) }),
                result.peopleMentioned.contains(where: { sLower.contains($0.components(separatedBy: " ").first!.lowercased()) }) {
-                result.personalityNotes.append(Self.clean(sentence))
+                let value = Self.clean(sentence)
+                result.personalityNotes.append(value)
+                attributed.append(ExtractedFact(factType: MemoryFactType.personality.rawValue, value: value, personNames: namesHere))
             }
             // Dates: "birthday ... <month> <day>" or plain "<month> <day>"
-            if let extracted = Self.date(in: sentence) {
+            if var extracted = Self.date(in: sentence) {
+                extracted.personNames = namesHere
                 result.importantDates.append(extracted)
             }
         }
@@ -1134,6 +1243,14 @@ final class MockAIService: AIService {
         result.schoolOrWorkFacts = Array(Set(result.schoolOrWorkFacts)).sorted()
         result.locationFacts = Array(Set(result.locationFacts)).sorted()
         result.familyFacts = Array(Set(result.familyFacts)).sorted()
+        // Deduped by (type, value, attributed people) rather than value
+        // alone, so the same phrase said about two different people (or
+        // about no one in particular) survives as distinct facts.
+        var seenAttributed = Set<String>()
+        result.attributedFacts = attributed.filter { fact in
+            let key = "\(fact.factType)|\(fact.value.lowercased())|\(fact.personNames.sorted().joined(separator: ","))"
+            return seenAttributed.insert(key).inserted
+        }
 
         // Follow-up questions generated from detected topics.
         result.followUpQuestions = result.topics.prefix(3).map { topic in

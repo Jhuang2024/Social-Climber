@@ -3,11 +3,15 @@ import Observation
 import SwiftUI
 
 /// Trusted event context handed to Quick Capture when it's opened from an
-/// event or an event follow-up notification.
+/// event or an event follow-up notification. `attendeeIDs` is authoritative
+/// (stable `Person.uuid`s); `attendeeNames` is only a cached display copy
+/// used for prompt/UI text and as a fallback when an ID can't be resolved
+/// (e.g. a matched Google Calendar attendee with no local `Person` yet).
 struct CaptureEventContext {
     var name: String
     var date: Date
     var location: String
+    var attendeeIDs: [UUID] = []
     var attendeeNames: [String]
 }
 
@@ -15,8 +19,13 @@ struct CaptureEventContext {
 /// supplied (a person, an event, "start recording"). Routed through a
 /// single presentation point in `RootTabView` so Home, profiles, App
 /// Intents, and notification actions all share one sheet.
+///
+/// `trustedPersonIDs` is authoritative; `trustedPersonNames` is a cached
+/// display copy only. A renamed-but-not-yet-processed person's capture
+/// still resolves correctly because attribution is keyed by ID, not name.
 struct QuickCaptureRequest: Identifiable {
     let id = UUID()
+    var trustedPersonIDs: [UUID] = []
     var trustedPersonNames: [String] = []
     var eventContext: CaptureEventContext?
     var startRecording = false
@@ -38,6 +47,7 @@ final class QuickCaptureRouter {
 
     func open(person: Person, startRecording: Bool = false, typeHint: InteractionType? = nil) {
         pendingRequest = QuickCaptureRequest(
+            trustedPersonIDs: [person.uuid],
             trustedPersonNames: [person.name],
             startRecording: startRecording,
             typeHint: typeHint
@@ -46,11 +56,13 @@ final class QuickCaptureRouter {
 
     func open(event: Event) {
         pendingRequest = QuickCaptureRequest(
+            trustedPersonIDs: event.attendees.map(\.uuid),
             trustedPersonNames: event.attendees.map(\.name),
             eventContext: CaptureEventContext(
                 name: event.name,
                 date: event.date,
                 location: event.location,
+                attendeeIDs: event.attendees.map(\.uuid),
                 attendeeNames: event.attendees.map(\.name)
             )
         )

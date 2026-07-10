@@ -189,6 +189,7 @@ final class NotificationService {
         title: String,
         endDate: Date,
         location: String,
+        attendeeIDs: [UUID],
         attendeeNames: [String]
     ) {
         guard enabled, !attendeeNames.isEmpty else { return }
@@ -213,6 +214,7 @@ final class NotificationService {
             "gcalID": calendarEventID,
             "title": title,
             "location": location,
+            "attendeeIDs": attendeeIDs.map(\.uuidString),
             "attendees": attendeeNames,
             "dateEpoch": endDate.timeIntervalSince1970,
         ]

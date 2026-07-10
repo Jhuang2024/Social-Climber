@@ -92,13 +92,16 @@ final class NotificationActionHandler: NSObject, UNUserNotificationCenterDelegat
         let title = userInfo["title"] as? String ?? "Calendar event"
         let location = userInfo["location"] as? String ?? ""
         let attendeeNames = userInfo["attendees"] as? [String] ?? []
+        let attendeeIDs = (userInfo["attendeeIDs"] as? [String] ?? []).compactMap(UUID.init)
         let date = (userInfo["dateEpoch"] as? TimeInterval).map { Date(timeIntervalSince1970: $0) } ?? .now
 
         let context = AppServices.container.mainContext
         let allPeople = (try? context.fetch(FetchDescriptor<Person>())) ?? []
-        let people = attendeeNames.compactMap { name in
-            allPeople.first { $0.name == name }
-        }
+        // IDs are authoritative; name matching is only a fallback for a
+        // notification scheduled before this field existed.
+        let people: [Person] = !attendeeIDs.isEmpty
+            ? CapturedMemory.resolvePeople(ids: attendeeIDs, in: allPeople)
+            : attendeeNames.compactMap { name in allPeople.first { $0.name == name } }
 
         switch actionID {
         case NotificationService.eventLogActionID, UNNotificationDefaultActionIdentifier:
@@ -121,8 +124,9 @@ final class NotificationActionHandler: NSObject, UNUserNotificationCenterDelegat
 
         case NotificationService.eventAddNoteActionID:
             QuickCaptureRouter.shared.open(QuickCaptureRequest(
+                trustedPersonIDs: people.map(\.uuid),
                 trustedPersonNames: attendeeNames,
-                eventContext: CaptureEventContext(name: title, date: date, location: location, attendeeNames: attendeeNames)
+                eventContext: CaptureEventContext(name: title, date: date, location: location, attendeeIDs: people.map(\.uuid), attendeeNames: attendeeNames)
             ))
 
         case NotificationService.eventSkipActionID:

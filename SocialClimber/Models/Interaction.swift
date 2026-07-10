@@ -3,6 +3,10 @@ import SwiftData
 
 @Model
 final class Interaction {
+    /// Stable identity, independent of `persistentModelID`, so a
+    /// `MemoryFact` can point back at "the interaction this came from"
+    /// (`MemoryFact.sourceInteractionUUID`) durably across export/restore.
+    var uuid: UUID = UUID()
     var typeRaw: String = InteractionType.inPerson.rawValue
     var date: Date = Date()
     var location: String = ""

@@ -116,26 +116,40 @@ struct RememberInteractionIntent: AppIntent, ForegroundContinuableIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
+        let context = AppServices.container.mainContext
+        // Resolve the entity to a real Person now (this happens atomically
+        // with intent execution, so there's no rename-race window the way
+        // there is for a capture that waits to be processed later) so both
+        // paths below store the stable ID, never just the name.
+        let matched: Person? = person.flatMap { entity in
+            ((try? context.fetch(FetchDescriptor<Person>())) ?? [])
+                .first { $0.name.caseInsensitiveCompare(entity.id) == .orderedSame }
+        }
+
         let trimmed = (note ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             // No note supplied: continue in the app with Quick Capture open.
-            let trusted = person.map { [$0.id] } ?? []
             let hint = type?.interactionType
             throw needsToContinueInForegroundError("Open Quick Capture to finish.") {
-                QuickCaptureRouter.shared.open(QuickCaptureRequest(trustedPersonNames: trusted, typeHint: hint))
+                if let matched {
+                    QuickCaptureRouter.shared.open(person: matched, typeHint: hint)
+                } else {
+                    QuickCaptureRouter.shared.open(QuickCaptureRequest(typeHint: hint))
+                }
             }
         }
 
-        let context = AppServices.container.mainContext
         let capture = CapturedMemory(
             rawText: trimmed,
             source: .intent,
             capturedAt: .now,
-            trustedPersonNames: person.map { [$0.id] } ?? [],
+            trustedPersonIDs: matched.map { [$0.uuid] } ?? [],
+            trustedPersonNames: matched.map { [$0.name] } ?? [],
             typeHint: type?.interactionType
         )
-        context.insert(capture)
-        try? context.save()
+        if CaptureProcessor.shared.persistNewCapture(capture) != nil {
+            return .result(dialog: "Couldn't save that — try again from the app.")
+        }
         Task { await CaptureProcessor.shared.processQueued() }
         return .result(dialog: "Remembered.")
     }

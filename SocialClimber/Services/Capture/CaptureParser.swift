@@ -8,20 +8,49 @@ import Foundation
 /// both agree about what a phrase means.
 enum CaptureParser {
 
-    struct LocalParse {
+    struct LocalParse: Sendable {
         var interactionType: InteractionType?
         var interactionDate: Date?
         var explicitSentiment: Sentiment?
-        var reminders: [(title: String, dueDate: Date?)] = []
+        var reminders: [(title: String, dueDate: Date?, personNames: [String])] = []
     }
 
-    static func parse(_ text: String, reference: Date) -> LocalParse {
+    static func parse(_ text: String, reference: Date, knownPeople: [String] = []) -> LocalParse {
         var result = LocalParse()
         result.interactionType = inferInteractionType(in: text)
         result.interactionDate = inferInteractionDate(in: text, reference: reference)
         result.explicitSentiment = explicitSentiment(in: text)
-        result.reminders = explicitReminders(in: text, reference: reference)
+        result.reminders = explicitReminders(in: text, reference: reference, knownPeople: knownPeople)
         return result
+    }
+
+    // MARK: Person-mention matching (shared attribution helper)
+
+    /// Which of `knownPeople` are actually named in `text` — by full name
+    /// or first name, at a word boundary so "Sam" never matches inside
+    /// "Samantha". This is the single mechanism the capture pipeline uses
+    /// to attribute an extracted fact, reminder, or date to a specific
+    /// person instead of defaulting to whichever person was resolved
+    /// first for the whole capture.
+    static func peopleNamed(in text: String, knownPeople: [String]) -> [String] {
+        let lower = " " + text.lowercased() + " "
+        return knownPeople.filter { name in
+            guard !name.isEmpty else { return false }
+            let first = name.components(separatedBy: " ").first ?? name
+            return containsWord(name.lowercased(), in: lower) || containsWord(first.lowercased(), in: lower)
+        }
+    }
+
+    /// Word-boundary containment so a short name never matches as a
+    /// substring of an unrelated longer word.
+    static func containsWord(_ word: String, in paddedLowerText: String) -> Bool {
+        guard !word.isEmpty else { return false }
+        let escaped = NSRegularExpression.escapedPattern(for: word)
+        guard let regex = try? NSRegularExpression(pattern: "\\b\(escaped)\\b", options: [.caseInsensitive]) else {
+            return paddedLowerText.contains(" \(word) ")
+        }
+        let range = NSRange(paddedLowerText.startIndex..., in: paddedLowerText)
+        return regex.firstMatch(in: paddedLowerText, range: range) != nil
     }
 
     // MARK: Interaction type
@@ -194,14 +223,20 @@ enum CaptureParser {
     private static let explicitReminderMarkers = ["remind me", "follow up", "don't forget", "send this by", "circle back", "need to send", "need to reply"]
 
     /// Sentences that contain an explicit follow-up instruction, with any
-    /// relative date resolved against the capture date. Sentences that only
-    /// *imply* a follow-up are deliberately excluded — those become
-    /// suggestions, not scheduled reminders.
-    static func explicitReminders(in text: String, reference: Date) -> [(title: String, dueDate: Date?)] {
+    /// relative date resolved against the capture date and attributed to
+    /// whichever known people are actually named in that sentence (empty
+    /// when it names no one in particular). Sentences that only *imply* a
+    /// follow-up are deliberately excluded — those become suggestions, not
+    /// scheduled reminders.
+    static func explicitReminders(in text: String, reference: Date, knownPeople: [String] = []) -> [(title: String, dueDate: Date?, personNames: [String])] {
         sentences(in: text).compactMap { sentence in
             let lower = sentence.lowercased()
             guard explicitReminderMarkers.contains(where: { lower.contains($0) }) else { return nil }
-            return (title: cleanReminderTitle(sentence), dueDate: resolveRelativeDate(in: sentence, reference: reference))
+            return (
+                title: cleanReminderTitle(sentence),
+                dueDate: resolveRelativeDate(in: sentence, reference: reference),
+                personNames: peopleNamed(in: sentence, knownPeople: knownPeople)
+            )
         }
     }
 

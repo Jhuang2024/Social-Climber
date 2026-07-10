@@ -3,6 +3,12 @@ import SwiftData
 
 @Model
 final class Person {
+    /// Stable identity independent of SwiftData's internal
+    /// `persistentModelID` (which isn't portable across export/backup
+    /// restore). Capture provenance (`CapturedMemory`/`MemoryFact` person
+    /// links) is keyed by this, not by name, so a rename after a capture is
+    /// made but before it's processed can never break attribution.
+    var uuid: UUID = UUID()
     var name: String = ""
     var nickname: String = ""
     var relationshipToMe: String = ""

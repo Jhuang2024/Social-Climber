@@ -23,24 +23,35 @@ struct QuickCaptureView: View {
     /// separately so the capture can preserve the transcript as such.
     @State private var transcribedText = ""
     @State private var recorder = QuickCaptureRecorder()
-    @State private var selectedChipNames: Set<String> = []
+    @State private var selectedChipIDs: Set<UUID> = []
+    @State private var selectedChipNames: [UUID: String] = [:]
     @State private var photoItems: [PhotosPickerItem] = []
+    @State private var cameraImages: [UIImage] = []
+    @State private var showCamera = false
     @State private var isSubmitting = false
+    /// Set only when persisting the capture itself failed. The sheet stays
+    /// open, no haptic/toast/enqueue happens, and the same "Remember" tap
+    /// retries — see `CaptureProcessor.persistNewCapture`.
+    @State private var saveErrorMessage: String?
     @FocusState private var isTextFocused: Bool
 
     @Query(sort: [SortDescriptor(\Person.lastContactedAt, order: .reverse)]) private var peopleByRecency: [Person]
 
     private var hasTrustedContext: Bool {
-        !request.trustedPersonNames.isEmpty || request.eventContext != nil
+        !request.trustedPersonIDs.isEmpty || !request.trustedPersonNames.isEmpty || request.eventContext != nil
     }
 
     private var recentPeople: [Person] {
         peopleByRecency.filter { !$0.isArchived && $0.lastContactedAt != nil }.prefix(6).map { $0 }
     }
 
+    private var photoCount: Int { photoItems.count + cameraImages.count }
+
     private var canSubmit: Bool {
-        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !photoItems.isEmpty
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || photoCount > 0
     }
+
+    private var cameraAvailable: Bool { UIImagePickerController.isSourceTypeAvailable(.camera) }
 
     var body: some View {
         VStack(spacing: 14) {
@@ -58,6 +69,13 @@ struct QuickCaptureView: View {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.orange)
+                    .multilineTextAlignment(.center)
+            }
+
+            if let saveErrorMessage {
+                Text(saveErrorMessage)
+                    .font(.caption)
+                    .foregroundStyle(.red)
                     .multilineTextAlignment(.center)
             }
 
@@ -86,6 +104,12 @@ struct QuickCaptureView: View {
         }
         .onDisappear {
             recorder.discard()
+        }
+        .sheet(isPresented: $showCamera) {
+            CameraCaptureView { captured in
+                if let captured { cameraImages.append(captured) }
+            }
+            .ignoresSafeArea()
         }
         .interactiveDismissDisabled(isSubmitting)
     }
@@ -158,12 +182,14 @@ struct QuickCaptureView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(recentPeople) { person in
-                    let selected = selectedChipNames.contains(person.name)
+                    let selected = selectedChipIDs.contains(person.uuid)
                     Button {
                         if selected {
-                            selectedChipNames.remove(person.name)
+                            selectedChipIDs.remove(person.uuid)
+                            selectedChipNames.removeValue(forKey: person.uuid)
                         } else {
-                            selectedChipNames.insert(person.name)
+                            selectedChipIDs.insert(person.uuid)
+                            selectedChipNames[person.uuid] = person.name
                         }
                     } label: {
                         HStack(spacing: 6) {
@@ -186,7 +212,7 @@ struct QuickCaptureView: View {
                 }
             }
         }
-        .sensoryFeedback(.selection, trigger: selectedChipNames.count)
+        .sensoryFeedback(.selection, trigger: selectedChipIDs.count)
     }
 
     private var bottomBar: some View {
@@ -208,16 +234,30 @@ struct QuickCaptureView: View {
             .sensoryFeedback(.start, trigger: recorder.isRecording) { _, isOn in isOn }
             .sensoryFeedback(.stop, trigger: recorder.isRecording) { _, isOn in !isOn }
 
-            // Screenshot / photo.
-            PhotosPicker(selection: $photoItems, maxSelectionCount: 4, matching: .images) {
-                Image(systemName: photoItems.isEmpty ? "photo" : "photo.fill")
+            // Photo: an explicit choice between the camera and the
+            // library, never a single icon that silently only does one of
+            // the two (a plain "photo" glyph would be ambiguous now that
+            // both are real options; the menu itself removes the ambiguity).
+            Menu {
+                if cameraAvailable {
+                    Button {
+                        showCamera = true
+                    } label: {
+                        Label("Take Photo", systemImage: "camera")
+                    }
+                }
+                PhotosPicker(selection: $photoItems, maxSelectionCount: 4, matching: .images) {
+                    Label("Choose Photo", systemImage: "photo.on.rectangle")
+                }
+            } label: {
+                Image(systemName: photoCount == 0 ? "photo" : "photo.fill")
                     .font(.headline)
                     .foregroundStyle(SCTheme.accent)
                     .frame(width: 44, height: 44)
                     .background(SCTheme.accent.opacity(0.12), in: Circle())
                     .overlay(alignment: .topTrailing) {
-                        if !photoItems.isEmpty {
-                            Text("\(photoItems.count)")
+                        if photoCount > 0 {
+                            Text("\(photoCount)")
                                 .font(.caption2.weight(.bold))
                                 .foregroundStyle(.white)
                                 .frame(width: 16, height: 16)
@@ -252,7 +292,7 @@ struct QuickCaptureView: View {
                         Image(systemName: "arrow.up")
                             .font(.subheadline.weight(.bold))
                     }
-                    Text("Remember")
+                    Text(saveErrorMessage == nil ? "Remember" : "Retry")
                         .font(.headline)
                 }
                 .foregroundStyle(.white)
@@ -290,17 +330,35 @@ struct QuickCaptureView: View {
 
     // MARK: Submit
 
-    /// Persists the raw capture locally, gives success feedback, dismisses
-    /// immediately, and lets the processor organize it asynchronously. No
-    /// AI loading screen, ever.
+    /// Builds the capture and hands it to `CaptureProcessor.persistNewCapture`,
+    /// which is the single source of truth for "is this actually durable
+    /// yet". Only on a confirmed successful save do we give haptic
+    /// feedback, dismiss, show the toast, and enqueue processing — in that
+    /// exact order. On failure the sheet stays open, an inline error shows,
+    /// no toast appears, nothing is enqueued, and the same button (now
+    /// reading "Retry") tries again with a fresh capture — the failed one
+    /// was already rolled back, so a retry can never create a duplicate.
+    /// The same guarantee applies whether this came from typing, pasting,
+    /// or a voice debrief, since they all funnel through this one method.
     private func submit() async {
         guard canSubmit, !isSubmitting else { return }
         isSubmitting = true
+        saveErrorMessage = nil
+        defer { isSubmitting = false }
 
-        // Copy any picked screenshots into the capture images directory.
+        // Copy any picked/captured screenshots into the capture images
+        // directory before building the record.
         var imageNames: [String] = []
         for item in photoItems {
             guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
+            let name = "\(UUID().uuidString).jpg"
+            let url = CapturedMemory.imagesDirectory.appendingPathComponent(name)
+            if (try? data.write(to: url, options: .atomic)) != nil {
+                imageNames.append(name)
+            }
+        }
+        for image in cameraImages {
+            guard let data = image.jpegData(compressionQuality: 0.9) else { continue }
             let name = "\(UUID().uuidString).jpg"
             let url = CapturedMemory.imagesDirectory.appendingPathComponent(name)
             if (try? data.write(to: url, options: .atomic)) != nil {
@@ -312,20 +370,30 @@ struct QuickCaptureView: View {
         let voiceOnly = !transcribedText.isEmpty && typed == transcribedText.trimmingCharacters(in: .whitespacesAndNewlines)
 
         let source: CaptureSource = voiceOnly ? .voice : (!imageNames.isEmpty && typed.isEmpty ? .photo : .text)
+        let trustedIDs = request.trustedPersonIDs + selectedChipIDs
+        let trustedNames = request.trustedPersonNames + selectedChipIDs.compactMap { selectedChipNames[$0] }
         let capture = CapturedMemory(
             rawText: voiceOnly ? "" : typed,
             source: source,
             transcript: voiceOnly ? typed : "",
             imagePaths: imageNames,
             capturedAt: .now,
-            trustedPersonNames: request.trustedPersonNames + selectedChipNames.sorted(),
+            trustedPersonIDs: trustedIDs,
+            trustedPersonNames: trustedNames,
             eventName: request.eventContext?.name ?? "",
             eventDate: request.eventContext?.date,
             eventLocation: request.eventContext?.location ?? "",
             typeHint: request.typeHint
         )
-        context.insert(capture)
-        try? context.save()
+
+        if let error = CaptureProcessor.shared.persistNewCapture(capture) {
+            // Not durable — the image files just written are now orphaned
+            // (harmless, small, and cleaned up implicitly since nothing
+            // references them); the capture itself was rolled back, so
+            // retrying is always safe.
+            saveErrorMessage = error
+            return
+        }
 
         Haptics.success()
         dismiss()

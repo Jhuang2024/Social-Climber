@@ -107,9 +107,16 @@ final class CapturedMemory {
     var capturedAt: Date = Date()
 
     // MARK: Trusted context supplied by the entry point
-    /// People supplied as trusted context (opened from a profile, an event,
-    /// an intent, or assigned later from Needs Context). Resolved with
-    /// confidence 1.0.
+    /// Stable IDs of people supplied as trusted context (opened from a
+    /// profile, an event, an intent, or assigned later from Needs Context).
+    /// Resolved with confidence 1.0. Authoritative: `trustedPersonNames` is
+    /// only a cached display copy, so renaming a person after capture but
+    /// before processing can never break attribution, and a deleted person
+    /// is simply dropped rather than silently misattributed.
+    var trustedPersonIDs: [UUID] = []
+    /// Cached display names for `trustedPersonIDs`, same order. Never
+    /// authoritative — used only for UI/AI-prompt display when a live
+    /// `Person` lookup isn't convenient.
     var trustedPersonNames: [String] = []
     var eventName: String = ""
     var eventDate: Date?
@@ -122,9 +129,13 @@ final class CapturedMemory {
     var statusRaw: String = CaptureStatus.queued.rawValue
     var attempts: Int = 0
     var errorMessage: String = ""
-    /// Names of the people the processor confidently attached.
+    /// Stable IDs of the people the processor confidently attached.
+    /// Authoritative; `resolvedPersonNames` is a cached display copy.
+    var resolvedPersonIDs: [UUID] = []
     var resolvedPersonNames: [String] = []
-    /// Candidate names offered as one-tap chips when the person is ambiguous.
+    /// Stable IDs offered as one-tap candidate chips when the person is
+    /// ambiguous. Authoritative; `candidatePersonNames` is a cached copy.
+    var candidatePersonIDs: [UUID] = []
     var candidatePersonNames: [String] = []
     var inferenceConfidence: Double = 0
     var needsClarification: Bool = false
@@ -146,6 +157,7 @@ final class CapturedMemory {
         transcript: String = "",
         imagePaths: [String] = [],
         capturedAt: Date = .now,
+        trustedPersonIDs: [UUID] = [],
         trustedPersonNames: [String] = [],
         eventName: String = "",
         eventDate: Date? = nil,
@@ -158,6 +170,7 @@ final class CapturedMemory {
         self.transcript = transcript
         self.imagePaths = imagePaths
         self.capturedAt = capturedAt
+        self.trustedPersonIDs = trustedPersonIDs
         self.trustedPersonNames = trustedPersonNames
         self.eventName = eventName
         self.eventDate = eventDate
@@ -165,6 +178,35 @@ final class CapturedMemory {
         self.typeHintRaw = typeHint?.rawValue ?? ""
         self.createdAt = .now
         self.updatedAt = .now
+    }
+
+    /// Convenience initializer taking live `Person` objects: fills both the
+    /// authoritative ID arrays and the cached display names in one call.
+    convenience init(
+        rawText: String,
+        source: CaptureSource,
+        transcript: String = "",
+        imagePaths: [String] = [],
+        capturedAt: Date = .now,
+        trustedPeople: [Person],
+        eventName: String = "",
+        eventDate: Date? = nil,
+        eventLocation: String = "",
+        typeHint: InteractionType? = nil
+    ) {
+        self.init(
+            rawText: rawText,
+            source: source,
+            transcript: transcript,
+            imagePaths: imagePaths,
+            capturedAt: capturedAt,
+            trustedPersonIDs: trustedPeople.map(\.uuid),
+            trustedPersonNames: trustedPeople.map(\.displayName),
+            eventName: eventName,
+            eventDate: eventDate,
+            eventLocation: eventLocation,
+            typeHint: typeHint
+        )
     }
 
     var source: CaptureSource {
@@ -211,5 +253,16 @@ final class CapturedMemory {
 
     func imageURLs() -> [URL] {
         imagePaths.map { Self.imagesDirectory.appendingPathComponent($0) }
+    }
+
+    /// Resolves a list of stable person IDs against a live `people` list,
+    /// preserving `ids`' order and silently dropping any ID that no longer
+    /// resolves (the person was deleted) — the graceful-degradation rule
+    /// used everywhere a capture's stored IDs need to become real `Person`
+    /// objects again.
+    static func resolvePeople(ids: [UUID], in people: [Person]) -> [Person] {
+        guard !ids.isEmpty else { return [] }
+        let byID = Dictionary(uniqueKeysWithValues: people.map { ($0.uuid, $0) })
+        return ids.compactMap { byID[$0] }
     }
 }

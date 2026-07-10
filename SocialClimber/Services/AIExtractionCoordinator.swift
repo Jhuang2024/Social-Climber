@@ -6,7 +6,7 @@ import Foundation
 /// network failure, malformed response), a deterministic local fallback
 /// instead of an empty result or a blocked save.
 enum AIExtractionCoordinator {
-    struct Outcome {
+    struct Outcome: Sendable {
         let extraction: AIExtraction
         /// True when `extraction` came from the local heuristic fallback
         /// rather than the configured AI provider.

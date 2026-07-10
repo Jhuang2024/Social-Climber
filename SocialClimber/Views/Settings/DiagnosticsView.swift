@@ -9,10 +9,53 @@ import SwiftData
 struct DiagnosticsView: View {
     @Environment(\.modelContext) private var context
 
+    @State private var isRunningIntegrityCheck = false
+    @State private var integrityResults: [CaptureIntegrityValidator.CheckResult] = []
+
     var body: some View {
         Form {
             Section("App") {
                 LabeledContent("Bundle Identifier", value: Bundle.main.bundleIdentifier ?? "unknown")
+            }
+
+            Section {
+                Button {
+                    Task {
+                        isRunningIntegrityCheck = true
+                        integrityResults = await CaptureIntegrityValidator.run(context: context)
+                        isRunningIntegrityCheck = false
+                    }
+                } label: {
+                    if isRunningIntegrityCheck {
+                        HStack { ProgressView(); Text("Running…") }
+                    } else {
+                        Text("Run Capture Integrity Checks")
+                    }
+                }
+                .disabled(isRunningIntegrityCheck)
+                ForEach(integrityResults) { result in
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(result.name).font(.caption)
+                            if !result.detail.isEmpty {
+                                Text(result.detail).font(.caption2).foregroundStyle(.secondary)
+                            }
+                        }
+                    } icon: {
+                        Image(systemName: result.passed ? "checkmark.circle.fill" : "xmark.octagon.fill")
+                            .foregroundStyle(result.passed ? .green : .red)
+                    }
+                }
+                if !integrityResults.isEmpty {
+                    let failed = integrityResults.filter { !$0.passed }.count
+                    Text(failed == 0 ? "All \(integrityResults.count) checks passed." : "\(failed) of \(integrityResults.count) checks FAILED.")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(failed == 0 ? .green : .red)
+                }
+            } header: {
+                Text("Capture Pipeline Integrity")
+            } footer: {
+                Text("Creates and fully removes its own throwaway test people/captures — never touches real data. Exercises undo completeness, idempotent reprocessing, no-invented-dates, and multi-person attribution against the real pipeline.")
             }
 
             Section("Persistence") {
