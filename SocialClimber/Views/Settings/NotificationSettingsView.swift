@@ -62,7 +62,7 @@ struct NotificationSettingsView: View {
             }
             .disabled(!masterEnabled)
 
-            Section("Quiet Hours") {
+            Section {
                 Toggle("Quiet hours", isOn: $quietHoursEnabled)
                     .tint(.green)
                     .onChange(of: quietHoursEnabled) { reconcile() }
@@ -72,15 +72,19 @@ struct NotificationSettingsView: View {
                     Stepper("Until \(hourLabel(quietEnd))", value: $quietEnd, in: 0...23)
                         .onChange(of: quietEnd) { reconcile() }
                 }
+            } header: {
+                Text("Quiet Hours")
             } footer: {
                 Text("During quiet hours, alerts are held until the window ends. Times follow this device's time zone automatically.")
             }
             .disabled(!masterEnabled)
 
-            Section("Preview Privacy") {
+            Section {
                 Toggle("Show details in previews", isOn: $detailedPreviews)
                     .tint(.green)
                     .onChange(of: detailedPreviews) { reconcile() }
+            } header: {
+                Text("Preview Privacy")
             } footer: {
                 Text(detailedPreviews
                      ? "Notifications may show names and details on the lock screen."
@@ -88,19 +92,23 @@ struct NotificationSettingsView: View {
             }
             .disabled(!masterEnabled)
 
-            Section("Snooze") {
+            Section {
                 Stepper("Default snooze: \(snoozeMinutes) min", value: $snoozeMinutes, in: 5...240, step: 5)
+            } header: {
+                Text("Snooze")
             } footer: {
                 Text("How long the Snooze action postpones an alert.")
             }
             .disabled(!masterEnabled)
 
-            Section("Reminder Frequency") {
+            Section {
                 Stepper("Top priority: every \(cadenceClose)d", value: $cadenceClose, in: 7...90, step: 7)
                 Stepper("Regular priority: every \(cadenceRegular)d", value: $cadenceRegular, in: 14...180, step: 7)
                 Stepper("Low priority: every \(cadenceDistant)d", value: $cadenceDistant, in: 30...365, step: 15)
                 Stepper("Periodic review: every \(reviewFrequencyDays)d", value: $reviewFrequencyDays, in: 7...180, step: 7)
                     .onChange(of: reviewFrequencyDays) { reconcile() }
+            } header: {
+                Text("Reminder Frequency")
             } footer: {
                 Text("How often relationship-maintenance and periodic-review reminders surface. Per-person cadence on a profile always overrides these.")
             }
