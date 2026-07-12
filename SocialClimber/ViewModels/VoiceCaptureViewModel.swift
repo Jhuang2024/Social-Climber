@@ -1,117 +1,157 @@
 import Foundation
-import AVFoundation
-import Speech
 import Observation
 
-/// Drives the voice note flow: record audio → transcribe (on-device Speech,
-/// with a mock fallback) → run AI extraction. No AI logic lives in views.
+/// Drives the voice note flow: record audio through the shared pipeline →
+/// enhance + transcribe (on-device, confidence-aware) → run AI extraction. No
+/// AVFoundation or Speech logic lives here anymore — it's all in the shared
+/// `VoiceRecorder` / `RecordingProcessor` / `TranscriptionService` so every
+/// capture screen behaves identically.
 @Observable
+@MainActor
 final class VoiceCaptureViewModel {
 
-    var isRecording = false
+    // Mirrors of the recorder's state, so SwiftUI tracks them via @Observable.
+    var recordingState: AudioCaptureState = .idle
+    var level: Float = 0
+    var duration: TimeInterval = 0
+
     var isTranscribing = false
     var isAnalyzing = false
+
+    /// The editable, user-facing transcript (seeded from the cleaned copy).
     var transcript = ""
+    /// Verbatim transcript, preserved separately and never shown in the editor.
+    private(set) var rawTranscript = ""
+    private(set) var segments: [TranscriptSegment] = []
+    private(set) var enhancedAudioFileName: String?
+    private(set) var detectedLanguage: String?
+    private(set) var averageConfidence: Double = 0
+    /// A processing/recording failure to surface (retryable). Distinct from
+    /// `errorMessage`, which is the AI-provider degradation notice.
+    private(set) var captureFailure: AudioCaptureFailure?
+
     var extraction: AIExtraction?
     /// Set when the configured AI provider failed and `extraction` is the
     /// deterministic local fallback instead, shown as an informational
     /// notice, never blocks review/apply.
     var errorMessage: String?
 
-    private var recorder: AVAudioRecorder?
+    private let recorder = VoiceRecorder()
     private(set) var audioFileName: String?
+    /// Contact names passed in for name-hinting during cleanup; set by the view.
+    var knownContactNames: [String] = []
+
+    // Convenience flags the view already relied on.
+    var isRecording: Bool { recordingState == .recording }
+    var isPaused: Bool { recordingState == .paused }
+    var isInterrupted: Bool { recordingState == .interrupted }
+
+    /// A value-type snapshot of the processed recording, handed to the review
+    /// screen so the persisted `VoiceNote` keeps raw/cleaned transcripts,
+    /// timed segments, and pipeline metadata.
+    struct RecordingPayload {
+        var rawTranscript: String
+        var cleanedTranscript: String
+        var segments: [TranscriptSegment]
+        var enhancedAudioFileName: String?
+        var detectedLanguage: String?
+        var averageConfidence: Double
+        var failure: AudioCaptureFailure?
+    }
+
+    var recordingPayload: RecordingPayload {
+        RecordingPayload(
+            rawTranscript: rawTranscript,
+            cleanedTranscript: transcript,
+            segments: segments,
+            enhancedAudioFileName: enhancedAudioFileName,
+            detectedLanguage: detectedLanguage,
+            averageConfidence: averageConfidence,
+            failure: captureFailure
+        )
+    }
+
+    init() {
+        recorder.onChange = { [weak self] in
+            guard let self else { return }
+            self.recordingState = self.recorder.state
+            self.level = self.recorder.level
+            self.duration = self.recorder.duration
+            if self.recorder.state == .failed {
+                self.captureFailure = self.recorder.failure
+            }
+        }
+    }
 
     // MARK: Recording
 
     func toggleRecording() {
-        isRecording ? stopRecording() : startRecording()
-    }
-
-    private func startRecording() {
-        AVAudioApplication.requestRecordPermission { [weak self] granted in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                guard granted else {
-                    self.errorMessage = "Microphone access is off. You can type the note instead, or enable the mic in Settings."
-                    return
+        Task {
+            if recordingState == .recording {
+                await stopAndProcess()
+            } else if recordingState == .paused || recordingState == .interrupted {
+                recorder.resume()
+            } else {
+                captureFailure = nil
+                errorMessage = nil
+                await recorder.start()
+                if recorder.state == .failed {
+                    captureFailure = recorder.failure
+                    errorMessage = recorder.failure?.message
                 }
-                self.beginRecording()
             }
         }
     }
 
-    private func beginRecording() {
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playAndRecord, mode: .default)
-            try session.setActive(true)
+    func pauseRecording() { recorder.pause() }
+    func resumeRecording() { recorder.resume() }
 
-            let fileName = "\(UUID().uuidString).m4a"
-            let url = VoiceNote.directory.appendingPathComponent(fileName)
-            let settings: [String: Any] = [
-                AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-                AVSampleRateKey: 44_100,
-                AVNumberOfChannelsKey: 1,
-                AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
-            ]
-            recorder = try AVAudioRecorder(url: url, settings: settings)
-            recorder?.record()
-            audioFileName = fileName
-            isRecording = true
-            errorMessage = nil
-        } catch {
-            errorMessage = "Couldn't start recording: \(error.localizedDescription)"
+    private func stopAndProcess() async {
+        guard let fileName = await recorder.stop() else {
+            recorder.markProcessed(success: false, failure: .recordingFailed)
+            captureFailure = .recordingFailed
+            return
         }
+        audioFileName = fileName
+        await runProcessing(originalFileName: fileName)
     }
 
-    private func stopRecording() {
-        recorder?.stop()
-        recorder = nil
-        isRecording = false
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-        transcribeRecording()
-    }
-
-    // MARK: Transcription
-
-    private func transcribeRecording() {
-        guard let audioFileName else { return }
-        let url = VoiceNote.directory.appendingPathComponent(audioFileName)
+    /// Runs the shared enhance + transcribe pipeline and folds the result into
+    /// the editable transcript. Used for the initial pass and manual retries.
+    private func runProcessing(originalFileName: String) async {
         isTranscribing = true
+        defer { isTranscribing = false }
 
-        SFSpeechRecognizer.requestAuthorization { [weak self] status in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                guard status == .authorized, let recognizer = SFSpeechRecognizer(), recognizer.isAvailable else {
-                    self.applyMockTranscript()
-                    return
-                }
-                let request = SFSpeechURLRecognitionRequest(url: url)
-                request.requiresOnDeviceRecognition = true
-                recognizer.recognitionTask(with: request) { result, error in
-                    DispatchQueue.main.async {
-                        if let result, result.isFinal {
-                            let text = result.bestTranscription.formattedString
-                            if !text.isEmpty {
-                                self.transcript += (self.transcript.isEmpty ? "" : "\n") + text
-                            }
-                            self.isTranscribing = false
-                        } else if error != nil {
-                            self.applyMockTranscript()
-                        }
-                    }
-                }
-            }
+        let processed = await RecordingProcessor.shared.processInMemory(
+            originalFileName: originalFileName,
+            contactNames: knownContactNames
+        )
+
+        rawTranscript = processed.rawTranscript
+        segments = processed.segments
+        enhancedAudioFileName = processed.enhancedFileName
+        detectedLanguage = processed.detectedLanguage
+        averageConfidence = processed.averageConfidence
+        captureFailure = processed.failure
+
+        // Seed the editor with the cleaned transcript, appending if the user has
+        // already typed something so nothing is lost.
+        if !processed.cleanedTranscript.isEmpty {
+            transcript += (transcript.isEmpty ? "" : "\n") + processed.cleanedTranscript
+        }
+
+        recorder.markProcessed(success: processed.state == .completed, failure: processed.failure)
+        if let failure = processed.failure, processed.state == .failed {
+            errorMessage = failure.message
         }
     }
 
-    /// Fallback when speech recognition is unavailable (e.g. Simulator):
-    /// insert an editable placeholder so the flow can still be completed.
-    private func applyMockTranscript() {
-        if transcript.isEmpty {
-            transcript = "(Transcription unavailable; edit this note.) Caught up today. "
-        }
-        isTranscribing = false
+    /// Manually retry transcription/enhancement on the already-recorded audio.
+    func retryTranscription() async {
+        guard let audioFileName else { return }
+        captureFailure = nil
+        errorMessage = nil
+        await runProcessing(originalFileName: audioFileName)
     }
 
     // MARK: AI extraction
@@ -121,21 +161,20 @@ final class VoiceCaptureViewModel {
         guard !text.isEmpty else { return }
         isAnalyzing = true
         defer { isAnalyzing = false }
-        // Never blocks: falls back to a deterministic local extraction if the
-        // configured AI provider fails, so review/apply always has something
-        // to work with.
         let outcome = await AIExtractionCoordinator.extract(from: text, knownPeople: knownPeople)
         extraction = outcome.extraction
         errorMessage = outcome.notice
     }
 
     func discardRecording() {
-        recorder?.stop()
-        recorder = nil
-        isRecording = false
+        recorder.discard()
         if let audioFileName {
             try? FileManager.default.removeItem(at: VoiceNote.directory.appendingPathComponent(audioFileName))
         }
+        if let enhancedAudioFileName {
+            try? FileManager.default.removeItem(at: VoiceNote.directory.appendingPathComponent(enhancedAudioFileName))
+        }
         audioFileName = nil
+        enhancedAudioFileName = nil
     }
 }

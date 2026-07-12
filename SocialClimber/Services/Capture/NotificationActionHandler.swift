@@ -38,9 +38,89 @@ final class NotificationActionHandler: NSObject, UNUserNotificationCenterDelegat
             case "gcalEvent":
                 Self.handleCalendarEvent(actionID: actionID, userInfo: userInfo)
             default:
-                break
+                // Reminder / birthday / important-date / maintenance / review /
+                // capture-review categories (added by the notification
+                // overhaul).
+                Self.handleReminderOrContact(
+                    actionID: actionID,
+                    request: response.notification.request,
+                    userInfo: userInfo
+                )
             }
         }
+    }
+
+    // MARK: Reminders, contacts, and capture review
+
+    @MainActor
+    private static func handleReminderOrContact(
+        actionID: String,
+        request: UNNotificationRequest,
+        userInfo: [AnyHashable: Any]
+    ) {
+        let action = NotificationAction(rawValue: actionID)
+        let personName = userInfo["personName"] as? String
+
+        switch action {
+        case .snooze:
+            snooze(request: request)
+            return
+        case .markComplete:
+            completeReminder(notificationID: request.identifier)
+            return
+        case .openContact:
+            route(personName?.isEmpty == false ? .contact(name: personName!) : .reminders)
+            return
+        case .logInteraction:
+            route(.logInteraction(personName: personName))
+            return
+        case .reviewCapture:
+            route(.captureReview)
+            return
+        case .openReminder:
+            route(.reminders)
+            return
+        case .none:
+            break
+        }
+
+        // Default tap (no explicit action) — route by category.
+        let category = (userInfo["category"] as? String).flatMap(NotificationCategory.init(rawValue:))
+        switch category {
+        case .captureReview:
+            route(.captureReview)
+        case .birthday, .event, .importantDate, .relationshipMaintenance, .periodicReview:
+            route(personName?.isEmpty == false ? .contact(name: personName!) : .reminders)
+        default:
+            route(.reminders)
+        }
+    }
+
+    @MainActor
+    private static func route(_ destination: NotificationRouter.Destination) {
+        NotificationRouter.shared.request(destination)
+    }
+
+    @MainActor
+    private static func completeReminder(notificationID: String) {
+        let context = AppServices.container.mainContext
+        let all = (try? context.fetch(FetchDescriptor<Reminder>())) ?? []
+        guard let reminder = all.first(where: { $0.notificationID == notificationID }) else { return }
+        reminder.completed = true
+        NotificationService.shared.cancel(reminder: reminder)
+        try? context.save()
+    }
+
+    /// Re-fires the same notification after the user's default snooze duration,
+    /// reusing its content so it keeps its category/actions.
+    private static func snooze(request: UNNotificationRequest) {
+        let minutes = NotificationSettings().defaultSnoozeMinutes
+        let interval = TimeInterval(max(1, minutes) * 60)
+        let content = request.content.mutableCopy() as? UNMutableNotificationContent ?? UNMutableNotificationContent()
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
+        UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: request.identifier, content: content, trigger: trigger)
+        )
     }
 
     // MARK: Social Climber events

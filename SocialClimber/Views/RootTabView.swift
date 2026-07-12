@@ -6,6 +6,9 @@ struct RootTabView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Query private var reminders: [Reminder]
     @Query(sort: \Person.name) private var allPeople: [Person]
+    @Query private var importantDates: [ImportantDate]
+    @Query private var events: [Event]
+    @Query private var voiceNotes: [VoiceNote]
 
     private enum Tab: Hashable { case home, people, search, upcoming, settings }
 
@@ -24,8 +27,18 @@ struct RootTabView: View {
     /// from a profile. Non-modal banner, never an alert.
     @State private var outboundPrompt: PendingOutboundContact?
 
+    /// Deep-link bus for notification actions (open reminder/contact, review
+    /// capture, log interaction).
+    private let router = NotificationRouter.shared
+
     private var dueCount: Int {
         reminders.filter { !$0.completed && $0.dueDate.daysFromNow <= 0 }.count
+    }
+
+    /// Captures that failed processing and are still worth retrying — surfaced
+    /// as the "needs review" count for notifications.
+    private var pendingCaptureCount: Int {
+        voiceNotes.filter { $0.processingState == .failed && ($0.failureReason?.isRetryable ?? false) }.count
     }
 
     /// A selection binding that detects re-taps on the active tab and resets it.
@@ -67,11 +80,8 @@ struct RootTabView: View {
         }
         // Deliberately no `.tint()` here: a tint set this high cascades to
         // every screen in every tab as the *ambient* tint, not just the tab
-        // bar; it's what was turning Toggles and destructive buttons grey
-        // app-wide instead of their normal green/red (see SCTheme.accent's
-        // doc comment for the same lesson learned the hard way once
-        // already). Let each screen's controls use their real system/brand
-        // color instead.
+        // bar (see SCTheme.accent's doc comment). Let each screen's controls
+        // use their real system/brand color instead.
         .toolbarBackground(.ultraThinMaterial, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
         .overlay { ToastOverlay() }
@@ -86,6 +96,8 @@ struct RootTabView: View {
         .task {
             DemoDataCleanupService.removeBundledDemoContactsIfNeeded(context: context)
             await CaptureProcessor.shared.handleAppActivated()
+            reconcileNotifications()
+            await processPendingCaptures()
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
@@ -93,7 +105,58 @@ struct RootTabView: View {
             // silently; never a modal, never "finish logging this".
             Task { await CaptureProcessor.shared.handleAppActivated() }
             checkOutboundReturn()
+            reconcileNotifications()
+            Task { await processPendingCaptures() }
         }
+        // Reconcile whenever the data that drives notifications changes, so a
+        // completed/deleted/edited item updates its scheduled alerts.
+        .onChange(of: reminders.count) { reconcileNotifications() }
+        .onChange(of: importantDates.count) { reconcileNotifications() }
+        .onChange(of: events.count) { reconcileNotifications() }
+        .onChange(of: pendingCaptureCount) { reconcileNotifications() }
+        // Time-zone changes: recompute all fire times against the new local
+        // hours so a 9 AM reminder stays 9 AM local.
+        .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
+            reconcileNotifications()
+        }
+        // Notification-action deep links.
+        .onChange(of: router.pending) { _, destination in
+            handle(destination: destination)
+        }
+    }
+
+    // MARK: Notifications
+
+    private func reconcileNotifications() {
+        NotificationService.shared.reconcile(
+            people: allPeople,
+            reminders: reminders,
+            importantDates: importantDates,
+            events: events,
+            pendingCaptureCount: pendingCaptureCount
+        )
+        try? context.save()
+    }
+
+    private func processPendingCaptures() async {
+        await RecordingProcessor.shared.processPending(
+            context: context,
+            contactNames: allPeople.map(\.name)
+        )
+    }
+
+    private func handle(destination: NotificationRouter.Destination?) {
+        guard let destination else { return }
+        switch destination {
+        case .reminders:
+            selection = .upcoming
+        case .captureReview, .logInteraction:
+            selection = .home
+        case .contact:
+            selection = .people
+        }
+        // Consume it so re-selecting the same destination later still fires.
+        DispatchQueue.main.async { router.pending = nil }
     }
 
     // MARK: Outbound-contact return prompt

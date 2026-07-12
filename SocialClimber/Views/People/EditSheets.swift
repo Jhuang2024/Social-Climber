@@ -113,7 +113,12 @@ struct ReminderEditSheet: View {
                     Button("Save") {
                         let reminder = Reminder(title: title, dueDate: dueDate, type: type, person: person ?? selectedPerson, notes: notes)
                         context.insert(reminder)
-                        NotificationService.shared.schedule(reminder: reminder)
+                        // Contextual permission: creating a reminder is exactly
+                        // the moment to ask, then schedule once granted.
+                        Task {
+                            await NotificationService.shared.requestPermissionContextually()
+                            NotificationService.shared.schedule(reminder: reminder)
+                        }
                         Haptics.success()
                         dismiss()
                     }
@@ -163,7 +168,10 @@ struct ImportantDateEditSheet: View {
                     Button("Save") {
                         let important = ImportantDate(title: title, date: date, repeatsYearly: repeatsYearly, person: person ?? selectedPerson, notes: notes)
                         context.insert(important)
-                        NotificationService.shared.schedule(importantDate: important)
+                        Task {
+                            await NotificationService.shared.requestPermissionContextually()
+                            NotificationService.shared.schedule(importantDate: important)
+                        }
                         Haptics.success()
                         dismiss()
                     }

@@ -98,7 +98,12 @@ struct SettingsView: View {
                         }
                         .font(.caption)
                     }
-                    Text("Birthdays, important dates, and events at 9 AM (events at their scheduled time), reminders on their due date. Everything fires locally; nothing is ever sent off this iPhone.")
+                    NavigationLink {
+                        NotificationSettingsView()
+                    } label: {
+                        Label("Notification Settings", systemImage: "slider.horizontal.3")
+                    }
+                    Text("Categories, quiet hours, preview privacy, snooze, and reminder frequency. Everything fires locally; nothing is ever sent off this iPhone.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

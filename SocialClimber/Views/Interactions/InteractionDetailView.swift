@@ -67,6 +67,10 @@ struct InteractionDetailView: View {
                     }
                 }
 
+                if let voiceNote = interaction.aiSummary?.voiceNote, voiceNote.audioFileName != nil {
+                    VoiceNotePlaybackView(voiceNote: voiceNote)
+                }
+
                 if let summary = interaction.aiSummary {
                     summaryCard(summary)
                 }

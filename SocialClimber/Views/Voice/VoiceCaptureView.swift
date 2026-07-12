@@ -35,11 +35,7 @@ struct VoiceCaptureView: View {
 
                 recordButton
 
-                if model.isTranscribing {
-                    Label("Transcribing…", systemImage: "waveform")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+                captureStatus
 
                 VStack(alignment: .leading, spacing: 8) {
                     SectionHeader("Note", icon: "note.text")
@@ -63,7 +59,23 @@ struct VoiceCaptureView: View {
                         }
                 }
 
-                if let error = model.errorMessage {
+                if let failure = model.captureFailure {
+                    VStack(spacing: 8) {
+                        Text(failure.message)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .multilineTextAlignment(.center)
+                        if model.audioFileName != nil {
+                            Button {
+                                Task { await model.retryTranscription() }
+                            } label: {
+                                Label("Retry transcription", systemImage: "arrow.clockwise")
+                                    .font(.subheadline.weight(.semibold))
+                            }
+                            .buttonStyle(.pressable)
+                        }
+                    }
+                } else if let error = model.errorMessage {
                     Text(error)
                         .font(.caption)
                         .foregroundStyle(.red)
@@ -129,13 +141,57 @@ struct VoiceCaptureView: View {
                         extraction: extraction,
                         people: selectedPeople,
                         transcript: model.transcript,
-                        audioFileName: model.audioFileName
+                        audioFileName: model.audioFileName,
+                        payload: model.recordingPayload
                     ) {
                         dismiss()
                     }
                 }
             }
+            .onAppear { model.knownContactNames = allPeople.map(\.name) }
         }
+    }
+
+    /// Honest, state-aware status line beneath the record button: transcribing,
+    /// paused, interrupted, or a live meter while recording.
+    @ViewBuilder
+    private var captureStatus: some View {
+        switch model.recordingState {
+        case .processing:
+            Label("Enhancing & transcribing…", systemImage: "waveform")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        case .paused:
+            Label("Paused — tap to resume", systemImage: "pause.circle")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        case .interrupted:
+            Label("Interrupted — will resume", systemImage: "exclamationmark.circle")
+                .font(.subheadline)
+                .foregroundStyle(.orange)
+        case .recording:
+            HStack(spacing: 8) {
+                Image(systemName: "waveform")
+                    .foregroundStyle(.red)
+                Text(Self.timeString(model.duration))
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                ProgressView(value: Double(model.level))
+                    .frame(width: 80)
+                    .tint(.red)
+            }
+        default:
+            if model.isTranscribing {
+                Label("Enhancing & transcribing…", systemImage: "waveform")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private static func timeString(_ t: TimeInterval) -> String {
+        let total = Int(t)
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 
     private var recordButton: some View {
@@ -224,6 +280,7 @@ struct ExtractionReviewView: View {
     let people: [Person]
     let transcript: String
     let audioFileName: String?
+    let payload: VoiceCaptureViewModel.RecordingPayload
     let onApplied: () -> Void
 
     /// Starts with every suggestion pre-approved; the checklist below lets
@@ -235,11 +292,12 @@ struct ExtractionReviewView: View {
     /// happened days ago doesn't get logged as if it were today.
     @State private var date = Date.now
 
-    init(extraction: AIExtraction, people: [Person], transcript: String, audioFileName: String?, onApplied: @escaping () -> Void) {
+    init(extraction: AIExtraction, people: [Person], transcript: String, audioFileName: String?, payload: VoiceCaptureViewModel.RecordingPayload, onApplied: @escaping () -> Void) {
         self.extraction = extraction
         self.people = people
         self.transcript = transcript
         self.audioFileName = audioFileName
+        self.payload = payload
         self.onApplied = onApplied
         _options = State(initialValue: .allApproved(for: extraction))
     }
@@ -309,6 +367,18 @@ struct ExtractionReviewView: View {
     private func apply() {
         let voiceNote = VoiceNote(audioFileName: audioFileName, transcript: transcript)
         voiceNote.people = people
+        // Persist the shared-pipeline results alongside the editable transcript
+        // so the note keeps its verbatim copy, timed segments, and audio refs,
+        // and is marked processed (idempotent — never reprocessed on relaunch).
+        voiceNote.rawTranscript = payload.rawTranscript
+        voiceNote.cleanedTranscript = payload.cleanedTranscript
+        voiceNote.segments = payload.segments
+        voiceNote.enhancedAudioFileName = payload.enhancedAudioFileName
+        voiceNote.detectedLanguage = payload.detectedLanguage
+        voiceNote.averageConfidence = payload.averageConfidence
+        voiceNote.failureReason = payload.failure
+        voiceNote.processingState = payload.failure == nil || payload.failure == .partialTranscription ? .completed : .failed
+        voiceNote.processedAt = .now
         context.insert(voiceNote)
 
         ExtractionApplier.apply(
