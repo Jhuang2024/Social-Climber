@@ -7,7 +7,7 @@ struct SocialClimberApp: App {
         let schema = Schema([
             Person.self, Interaction.self, GiftIdea.self, Reminder.self,
             ImportantDate.self, VoiceNote.self, ConversationSummary.self,
-            Event.self,
+            Event.self, FollowerSnapshot.self, FollowerEvent.self,
         ])
         do {
             return try ModelContainer(for: schema)

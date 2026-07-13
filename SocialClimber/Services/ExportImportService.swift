@@ -37,6 +37,8 @@ enum ExportImportService {
         var location: String
         var contactMethods: [ContactMethod]
         var tags: [String]
+        /// Optional so archives exported before this field existed still decode.
+        var instagramUsername: String?
         var avatarData: Data?
         var giftIdeas: [GiftDTO]
         var reminders: [ReminderDTO]
@@ -94,7 +96,8 @@ enum ExportImportService {
                 notes: p.notes, personalityNotes: p.personalityNotes,
                 interests: p.interests, dislikes: p.dislikes, familyMembers: p.familyMembers,
                 schoolOrWork: p.schoolOrWork, location: p.location,
-                contactMethods: p.contactMethods, tags: p.tags, avatarData: p.avatarData,
+                contactMethods: p.contactMethods, tags: p.tags,
+                instagramUsername: p.instagramUsername, avatarData: p.avatarData,
                 giftIdeas: p.giftIdeas.map { GiftDTO(title: $0.title, notes: $0.notes, priceRange: $0.priceRange, occasion: $0.occasion, status: $0.statusRaw) },
                 reminders: p.reminders.map { ReminderDTO(title: $0.title, dueDate: $0.dueDate, type: $0.typeRaw, completed: $0.completed, notes: $0.notes) },
                 importantDates: p.importantDates.map { DateDTO(title: $0.title, date: $0.date, repeatsYearly: $0.repeatsYearly, notes: $0.notes) }
@@ -166,6 +169,9 @@ enum ExportImportService {
             person.location = dto.location
             person.contactMethods = dto.contactMethods
             person.tags = dto.tags
+            if let username = dto.instagramUsername, !username.isEmpty {
+                person.instagramUsername = username
+            }
             if let avatar = dto.avatarData { person.avatarData = avatar }
 
             // Replace child collections wholesale to avoid duplicates.

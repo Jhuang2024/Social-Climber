@@ -5,6 +5,7 @@ enum KeychainService {
     private static let service = "com.jerryhuang.SocialClimber"
     private static let openRouterAccount = "openrouter-api-key"
     private static let googleRefreshTokenAccount = "google-calendar-refresh-token"
+    private static let googleDriveRefreshTokenAccount = "google-drive-refresh-token"
 
     static func openRouterAPIKey() throws -> String {
         guard let key = try read(account: openRouterAccount), !key.isEmpty else {
@@ -40,6 +41,23 @@ enum KeychainService {
             try delete(account: googleRefreshTokenAccount)
         } else {
             try save(trimmed, account: googleRefreshTokenAccount)
+        }
+    }
+
+    static func googleDriveRefreshToken() throws -> String? {
+        try read(account: googleDriveRefreshTokenAccount)
+    }
+
+    static func hasGoogleDriveRefreshToken() -> Bool {
+        (try? googleDriveRefreshToken())?.isEmpty == false
+    }
+
+    static func saveGoogleDriveRefreshToken(_ token: String) throws {
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            try delete(account: googleDriveRefreshTokenAccount)
+        } else {
+            try save(trimmed, account: googleDriveRefreshTokenAccount)
         }
     }
 

@@ -19,6 +19,7 @@ struct PersonEditView: View {
     @State private var birthday = Calendar.current.date(from: DateComponents(year: 2000, month: 1, day: 1)) ?? .now
     @State private var schoolOrWork = ""
     @State private var location = ""
+    @State private var instagramUsername = ""
     @State private var notes = ""
     @State private var personalityNotes = ""
     @State private var interests: [String] = []
@@ -112,6 +113,10 @@ struct PersonEditView: View {
                     TextField("School / Work", text: $schoolOrWork)
                         .submitLabel(.done)
                     TextField("Location", text: $location)
+                        .submitLabel(.done)
+                    TextField("Instagram username", text: $instagramUsername)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
                         .submitLabel(.done)
                 }
 
@@ -232,6 +237,7 @@ struct PersonEditView: View {
         }
         schoolOrWork = person.schoolOrWork
         location = person.location
+        instagramUsername = person.instagramUsername
         notes = person.notes
         personalityNotes = person.personalityNotes
         interests = person.interests
@@ -257,6 +263,10 @@ struct PersonEditView: View {
         target.birthday = hasBirthday ? birthday : nil
         target.schoolOrWork = schoolOrWork
         target.location = location
+        target.instagramUsername = instagramUsername
+            .trimmingCharacters(in: .whitespaces)
+            .replacingOccurrences(of: "@", with: "")
+            .lowercased()
         target.notes = notes
         target.personalityNotes = personalityNotes
         target.interests = interests

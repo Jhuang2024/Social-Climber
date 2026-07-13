@@ -120,6 +120,37 @@ final class NotificationService {
         event.notificationID = nil
     }
 
+    // MARK: Instagram sync reminder
+
+    /// iOS background execution is too unreliable to run the Drive sync on
+    /// a real schedule, so this daily nudge asks the user to open the app
+    /// and run it instead. Fires every evening at 8 PM while the toggle in
+    /// Settings is on.
+    private static let instagramReminderID = "instagram-sync-reminder"
+
+    var instagramReminderEnabled: Bool {
+        UserDefaults.standard.bool(forKey: "instagramSyncReminderEnabled")
+    }
+
+    func scheduleInstagramSyncReminder() {
+        center.removePendingNotificationRequests(withIdentifiers: [Self.instagramReminderID])
+        guard enabled, instagramReminderEnabled else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "📸 Instagram sync"
+        content.body = "Pull today's export from Google Drive to refresh people, messages, and followers."
+        content.sound = .default
+
+        var comps = DateComponents()
+        comps.hour = 20
+        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
+        center.add(UNNotificationRequest(identifier: Self.instagramReminderID, content: content, trigger: trigger))
+    }
+
+    func cancelInstagramSyncReminder() {
+        center.removePendingNotificationRequests(withIdentifiers: [Self.instagramReminderID])
+    }
+
     /// Re-sync every pending notification from current data.
     func rescheduleAll(people: [Person], reminders: [Reminder], importantDates: [ImportantDate], events: [Event]) {
         center.removeAllPendingNotificationRequests()
@@ -138,6 +169,9 @@ final class NotificationService {
             event.notificationID = nil
             schedule(event: event)
         }
+        // `removeAllPendingNotificationRequests` above also cleared the
+        // standing Instagram reminder — put it back if it's turned on.
+        scheduleInstagramSyncReminder()
     }
 
     func cancelAll() {

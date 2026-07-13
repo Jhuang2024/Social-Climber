@@ -25,6 +25,10 @@ final class Person {
     var location: String = ""
     var contactMethods: [ContactMethod] = []
     var tags: [String] = []
+    /// Instagram username (without the "@"), used to match this person
+    /// against imported Instagram export data. Learned automatically the
+    /// first time an import is linked to this person, editable any time.
+    var instagramUsername: String = ""
     @Attribute(.externalStorage) var avatarData: Data?
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
@@ -188,7 +192,8 @@ final class Person {
             || notes.localizedCaseInsensitiveContains(term)
             || personalityNotes.localizedCaseInsensitiveContains(term)
             || schoolOrWork.localizedCaseInsensitiveContains(term)
-            || location.localizedCaseInsensitiveContains(term) {
+            || location.localizedCaseInsensitiveContains(term)
+            || instagramUsername.localizedCaseInsensitiveContains(term) {
             return true
         }
         return tags.contains { $0.localizedCaseInsensitiveContains(term) }
