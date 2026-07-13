@@ -33,7 +33,8 @@ struct InstagramSyncReviewView: View {
                 followersSection
                 if decisions.isEmpty {
                     Section("Conversations") {
-                        Text("No new messages since the last sync.")
+                        Label("No new messages since the last sync.", systemImage: "checkmark.circle")
+                            .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                 } else {
@@ -63,9 +64,11 @@ struct InstagramSyncReviewView: View {
                         // "Choose person…" — otherwise that conversation
                         // would be silently dropped, and the advanced
                         // cutoff means it never comes back.
-                        Button("Apply") { applyAll() }
+                        let readyCount = decisions.filter { $0.include && ($0.person != nil || $0.createNew) }.count
+                        Button(readyCount > 0 ? "Apply (\(readyCount))" : "Apply") { applyAll() }
+                            .fontWeight(.semibold)
                             .disabled(
-                                !decisions.contains { $0.include && ($0.person != nil || $0.createNew) }
+                                readyCount == 0
                                     || decisions.contains { $0.include && $0.person == nil && !$0.createNew }
                             )
                     }
@@ -74,14 +77,16 @@ struct InstagramSyncReviewView: View {
             .interactiveDismissDisabled(isApplying)
             .overlay {
                 if isApplying {
-                    VStack(spacing: 10) {
+                    VStack(spacing: 12) {
                         ProgressView()
+                            .controlSize(.large)
                         Text(applyProgress)
-                            .font(.caption)
+                            .font(.caption.weight(.medium))
                             .foregroundStyle(.secondary)
                     }
-                    .padding(20)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .padding(24)
+                    .scCard()
+                    .fixedSize()
                 }
             }
             .onAppear {
@@ -106,13 +111,16 @@ struct InstagramSyncReviewView: View {
     private var followersSection: some View {
         if result.hadFollowerData {
             Section("Followers") {
-                LabeledContent("Followers", value: "\(result.followerCount)")
-                LabeledContent("Following", value: "\(result.followingCount)")
+                HStack(spacing: 10) {
+                    followerStat(value: result.followerCount, label: "followers")
+                    followerStat(value: result.followingCount, label: "following")
+                }
+                .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
                 if !result.newFollowers.isEmpty {
                     followerChangeRow(
                         label: "New followers",
                         usernames: result.newFollowers,
-                        color: .green,
+                        color: SCTheme.Accents.growth,
                         icon: "person.badge.plus"
                     )
                 }
@@ -120,12 +128,12 @@ struct InstagramSyncReviewView: View {
                     followerChangeRow(
                         label: "Unfollowed you",
                         usernames: result.lostFollowers,
-                        color: .red,
+                        color: SCTheme.Accents.alert,
                         icon: "person.badge.minus"
                     )
                 }
                 if result.newFollowers.isEmpty && result.lostFollowers.isEmpty {
-                    Text("No follower changes since the last sync.")
+                    Label("No follower changes since the last sync.", systemImage: "checkmark.circle")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -133,12 +141,41 @@ struct InstagramSyncReviewView: View {
         }
     }
 
+    private func followerStat(value: Int, label: String) -> some View {
+        VStack(spacing: 2) {
+            Text("\(value)")
+                .font(SCTheme.displayFont(20, weight: .bold))
+                .monospacedDigit()
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .tracking(1.0)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(SCTheme.elevatedBackground.opacity(0.6), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
     private func followerChangeRow(label: String, usernames: [String], color: Color, icon: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Label("\(label) (\(usernames.count))", systemImage: icon)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(color)
-            Text(usernames.map { "@\($0)" }.joined(separator: ", "))
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(color)
+                    .frame(width: 22, height: 22)
+                    .background(color.opacity(0.14), in: Circle())
+                Text(label)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(color)
+                Text("\(usernames.count)")
+                    .font(.caption2.weight(.bold).monospacedDigit())
+                    .foregroundStyle(color)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(color.opacity(0.14), in: Capsule())
+            }
+            Text(usernames.map { "@\($0)" }.joined(separator: "  "))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -177,22 +214,7 @@ struct InstagramSyncReviewView: View {
                         }
                     }
                 } label: {
-                    HStack {
-                        Image(systemName: "person.crop.circle")
-                        if decision.wrappedValue.createNew {
-                            Text("New person: \(candidate.title)")
-                        } else if let person = decision.wrappedValue.person {
-                            Text(person.displayName)
-                        } else {
-                            Text("Choose person…")
-                                .foregroundStyle(.orange)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                    .font(.caption)
+                    assignmentLabel(decision.wrappedValue)
                 }
 
                 Text(previewText(candidate))
@@ -202,6 +224,36 @@ struct InstagramSyncReviewView: View {
             }
         }
         .padding(.vertical, 2)
+    }
+
+    /// The current person assignment rendered as a tinted capsule: accent
+    /// when resolved, alert-toned while it still needs a choice — the one
+    /// state that blocks Apply.
+    private func assignmentLabel(_ decision: ThreadDecision) -> some View {
+        let needsChoice = decision.person == nil && !decision.createNew
+        let tint = needsChoice ? SCTheme.Accents.alert : SCTheme.accent
+        return HStack(spacing: 6) {
+            if let person = decision.person {
+                PersonAvatarView(person: person, size: 18)
+                Text(person.displayName)
+            } else if decision.createNew {
+                Image(systemName: "person.badge.plus")
+                    .font(.caption2)
+                Text("New: \(decision.candidate.title)")
+            } else {
+                Image(systemName: "person.crop.circle.badge.questionmark")
+                    .font(.caption2)
+                Text("Choose person…")
+            }
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.system(size: 8, weight: .semibold))
+                .opacity(0.6)
+        }
+        .font(.caption.weight(.medium))
+        .foregroundStyle(tint)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(tint.opacity(0.12), in: Capsule())
     }
 
     private func previewText(_ candidate: InstagramSyncService.ThreadCandidate) -> String {

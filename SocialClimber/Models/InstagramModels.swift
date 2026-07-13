@@ -46,12 +46,15 @@ enum FollowerEventKind: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// Drawn from the app's curated accent set rather than stock SwiftUI
+    /// colors, so follower events read as part of the same product as the
+    /// rest of the dashboard.
     var color: Color {
         switch self {
-        case .gainedFollower: .green
-        case .lostFollower: .red
-        case .startedFollowing: .blue
-        case .stoppedFollowing: .orange
+        case .gainedFollower: SCTheme.Accents.growth
+        case .lostFollower: SCTheme.Accents.alert
+        case .startedFollowing: SCTheme.Accents.cool
+        case .stoppedFollowing: SCTheme.Accents.warm
         }
     }
 }

@@ -190,7 +190,14 @@ struct SettingsView: View {
                 }
 
                 Section("Instagram via Google Drive") {
-                    LabeledContent("Status", value: googleDrive.isConnected ? "Connected" : "Not connected")
+                    LabeledContent("Status") {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(googleDrive.isConnected ? SCTheme.Accents.growth : Color.secondary.opacity(0.4))
+                                .frame(width: 8, height: 8)
+                            Text(googleDrive.isConnected ? "Connected" : "Not connected")
+                        }
+                    }
                     if !googleDrive.isConnected {
                         if !googleCalendar.isConnected {
                             TextField("OAuth Client ID (Google Cloud Console)", text: $googleClientID)
@@ -224,13 +231,19 @@ struct SettingsView: View {
                                         .foregroundStyle(.secondary)
                                 }
                             } else {
-                                Label("Sync Now", systemImage: "arrow.triangle.2.circlepath")
+                                HStack {
+                                    Label("Sync Now", systemImage: "arrow.triangle.2.circlepath")
+                                        .fontWeight(.medium)
+                                    Spacer()
+                                    if let lastSync = instagramSync.lastSyncAt {
+                                        Text(lastSync.relativeLabel)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
                             }
                         }
                         .disabled(instagramSync.isSyncing)
-                        if let lastSync = instagramSync.lastSyncAt {
-                            LabeledContent("Last synced", value: lastSync.relativeLabel)
-                        }
                         Toggle("Daily sync reminder (8 PM)", isOn: $instagramReminderEnabled)
                             .tint(.green)
                             .onChange(of: instagramReminderEnabled) {
@@ -248,9 +261,24 @@ struct SettingsView: View {
                         }
                         .tint(.red)
                     }
-                    Text("Set up Instagram's \"Download your information\" to deliver a daily export to Google Drive (in your Meta Accounts Center), then sync here to refresh messages, followers, and unfollows. Same OAuth Client ID as Google Calendar — just enable the Google Drive API on that Cloud project too. Read-only; exports are parsed on-device and the raw files are deleted immediately. Leave the folder blank to search Drive for the newest Instagram zip. iOS can't run this on a schedule in the background, so the optional daily reminder nudges you to open the app instead.")
+                    Text("Pulls Instagram's daily \"Download your information\" export from Drive: new DMs become reviewable interactions, and follower changes are tracked on the Social Health page. Read-only; parsed on-device, raw files deleted immediately.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    DisclosureGroup {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("1. In Meta Accounts Center, choose \"Download your information\", select Instagram, and set the destination to Google Drive on a daily schedule. Pick \"Some of your information\" with messages plus followers and following to keep exports small.")
+                            Text("2. Use the same OAuth Client ID as Google Calendar, with the Google Drive API also enabled on that Cloud project.")
+                            Text("3. Leave the folder blank to find the newest Instagram zip automatically, or name the Drive folder the exports land in.")
+                            Text("4. iOS can't run this on a schedule in the background, so turn on the daily reminder and sync when you open the app.")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 2)
+                    } label: {
+                        Label("How to set up", systemImage: "questionmark.circle")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Section("AI") {

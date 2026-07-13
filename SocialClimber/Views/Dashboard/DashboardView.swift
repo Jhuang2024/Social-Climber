@@ -11,6 +11,7 @@ struct DashboardView: View {
     @Query(sort: \Event.date, order: .reverse) private var events: [Event]
 
     @Query(sort: \CapturedMemory.capturedAt, order: .reverse) private var captures: [CapturedMemory]
+    @Query(sort: \FollowerEvent.date, order: .reverse) private var followerEvents: [FollowerEvent]
 
     @AppStorage("locationEnabled") private var locationEnabled = false
 
@@ -233,30 +234,43 @@ struct DashboardView: View {
     // MARK: Sections
 
     private var socialHealthLink: some View {
-        NavigationLink { SocialHealthView() } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "heart.text.square.fill")
-                    .font(.title3)
-                    .foregroundStyle(.white)
-                    .frame(width: 36, height: 36)
-                    .background(.pink.gradient, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                VStack(alignment: .leading, spacing: 1) {
+        let report = SocialHealthReport.compute(
+            people: allPeople,
+            interactions: interactions,
+            followerEvents: followerEvents
+        )
+        return NavigationLink { SocialHealthView() } label: {
+            HStack(spacing: 14) {
+                // A miniature of the full page's score ring, so the card
+                // carries the number itself instead of just advertising it.
+                ZStack {
+                    Circle()
+                        .stroke(report.band.color.opacity(0.18), lineWidth: 4)
+                    Circle()
+                        .trim(from: 0, to: CGFloat(report.total) / 100)
+                        .stroke(report.band.color.gradient, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    Text("\(report.total)")
+                        .font(SCTheme.displayFont(17, weight: .bold))
+                        .foregroundStyle(report.band.color)
+                }
+                .frame(width: 44, height: 44)
+                VStack(alignment: .leading, spacing: 2) {
                     Text("Social Health")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
-                    Text("Your whole social life, one explainable score")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Label(report.band.label, systemImage: report.band.icon)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(report.band.color)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.tertiary)
             }
-            .padding(14)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous))
+            .scCard(padding: 14)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private var brandHeader: some View {
