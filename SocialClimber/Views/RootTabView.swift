@@ -35,7 +35,7 @@ struct RootTabView: View {
         reminders.filter { !$0.completed && $0.dueDate.daysFromNow <= 0 }.count
     }
 
-    /// Captures that failed processing and are still worth retrying — surfaced
+    /// Captures that failed processing and are still worth retrying, surfaced
     /// as the "needs review" count for notifications.
     private var pendingCaptureCount: Int {
         voiceNotes.filter { $0.processingState == .failed && ($0.failureReason?.isRetryable ?? false) }.count

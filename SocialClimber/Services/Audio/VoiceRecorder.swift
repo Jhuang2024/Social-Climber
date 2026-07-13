@@ -11,7 +11,7 @@ import UIKit
 ///   • progressive, segmented saving so a crash costs at most the current
 ///     segment, and the original audio is always preserved on disk.
 ///
-/// UI never talks to `AVAudioRecorder` directly — it observes `state`,
+/// UI never talks to `AVAudioRecorder` directly; it observes `state`,
 /// `level`, and `duration` and calls `start/pause/resume/stop`.
 @MainActor
 final class VoiceRecorder: NSObject {
@@ -143,7 +143,7 @@ final class VoiceRecorder: NSObject {
         setState(success ? .completed : .failed, failure: failure)
     }
 
-    /// Discards everything captured and returns to idle — used on Cancel.
+    /// Discards everything captured and returns to idle; used on Cancel.
     func discard() {
         finalizeSegment()
         stopMetering()
@@ -309,7 +309,7 @@ extension VoiceRecorder: AudioSessionEventHandler {
     }
 
     func audioSessionRouteDidChange(reason: AVAudioSession.RouteChangeReason) {
-        // We deliberately do NOT re-select the input mid-recording — that would
+        // We deliberately do NOT re-select the input mid-recording; that would
         // be the "unexpected route switch" the requirements forbid. We only log
         // the change; the pinned preferred input keeps the route stable.
         AudioLog.debug("Route changed (reason \(reason.rawValue)) while state=\(state.rawValue)")

@@ -55,8 +55,8 @@ struct SocialHealthView: View {
         .navigationTitle("Social Health")
         .navigationBarTitleDisplayMode(.large)
         // Person NavigationLinks here resolve through the Dashboard
-        // NavigationStack's existing `.navigationDestination(for: Person.self)`
-        // — registering it again on this pushed screen would conflict.
+        // NavigationStack's existing `.navigationDestination(for: Person.self)`;
+        // registering it again on this pushed screen would conflict.
         .onAppear {
             withAnimation(.snappy(duration: 0.8)) {
                 ringProgress = CGFloat(report.total) / 100
@@ -68,7 +68,7 @@ struct SocialHealthView: View {
         EmptyStateView(
             icon: "heart.text.square",
             title: "No score yet",
-            message: "Add a few people and log some interactions — your social health score builds itself from them."
+            message: "Add a few people and log some interactions; your social health score builds itself from them."
         )
         .padding(.top, 40)
     }
@@ -219,7 +219,7 @@ struct SocialHealthView: View {
         }
     }
 
-    /// Same matcher the sync uses — keeping the two consistent means a
+    /// Same matcher the sync uses; keeping the two consistent means a
     /// person matched during import review is also matched here.
     private func matchedPerson(for username: String) -> Person? {
         InstagramSyncService.shared.match(nameOrUsername: username, people: people)
@@ -234,7 +234,7 @@ struct SocialHealthView: View {
         return FormSectionCard("This Month", icon: "chart.line.uptrend.xyaxis") {
             HStack(spacing: 10) {
                 momentumStat(value: "\(recent)", label: "interactions")
-                momentumStat(value: prior > 0 ? "\(recent >= prior ? "+" : "")\(recent - prior)" : "—", label: "vs last month")
+                momentumStat(value: prior > 0 ? "\(recent >= prior ? "+" : "")\(recent - prior)" : "N/A", label: "vs last month")
                 momentumStat(value: "\(touched)", label: "people reached")
             }
         }
@@ -288,7 +288,7 @@ struct SocialHealthView: View {
 
     private var instagramHint: some View {
         FormSectionCard("Instagram", icon: "camera.fill") {
-            Text("Connect Google Drive in Settings and run an Instagram sync to see who followed and unfollowed you here — the follower trend then feeds into this score.")
+            Text("Connect Google Drive in Settings and run an Instagram sync to see who followed and unfollowed you here; the follower trend then feeds into this score.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

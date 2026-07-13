@@ -162,11 +162,11 @@ struct VoiceCaptureView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         case .paused:
-            Label("Paused — tap to resume", systemImage: "pause.circle")
+            Label("Paused, tap to resume", systemImage: "pause.circle")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         case .interrupted:
-            Label("Interrupted — will resume", systemImage: "exclamationmark.circle")
+            Label("Interrupted, will resume", systemImage: "exclamationmark.circle")
                 .font(.subheadline)
                 .foregroundStyle(.orange)
         case .recording:
@@ -369,7 +369,7 @@ struct ExtractionReviewView: View {
         voiceNote.people = people
         // Persist the shared-pipeline results alongside the editable transcript
         // so the note keeps its verbatim copy, timed segments, and audio refs,
-        // and is marked processed (idempotent — never reprocessed on relaunch).
+        // and is marked processed (idempotent: never reprocessed on relaunch).
         voiceNote.rawTranscript = payload.rawTranscript
         voiceNote.cleanedTranscript = payload.cleanedTranscript
         voiceNote.segments = payload.segments

@@ -3,7 +3,7 @@ import Observation
 
 /// Drives the voice note flow: record audio through the shared pipeline →
 /// enhance + transcribe (on-device, confidence-aware) → run AI extraction. No
-/// AVFoundation or Speech logic lives here anymore — it's all in the shared
+/// AVFoundation or Speech logic lives here anymore; it's all in the shared
 /// `VoiceRecorder` / `RecordingProcessor` / `TranscriptionService` so every
 /// capture screen behaves identically.
 @Observable

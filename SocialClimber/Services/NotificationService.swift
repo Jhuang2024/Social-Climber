@@ -24,7 +24,7 @@ final class NotificationService {
     private var settings: NotificationSettings { NotificationSettings() }
 
     /// Requests permission the first time the user does something a reminder
-    /// would help with (creates a reminder, date, or event) — the action itself
+    /// would help with (creates a reminder, date, or event): the action itself
     /// is the explanation, so the OS prompt never appears cold on first launch.
     /// A no-op after the first ask. On grant, flips the master toggle on.
     @discardableResult
@@ -373,7 +373,7 @@ final class NotificationService {
             scheduleFollowUp(for: event)
         }
         // `removeAllPendingNotificationRequests` above also cleared the
-        // standing Instagram reminder — put it back if it's turned on.
+        // standing Instagram reminder; put it back if it's turned on.
         scheduleInstagramSyncReminder()
     }
 

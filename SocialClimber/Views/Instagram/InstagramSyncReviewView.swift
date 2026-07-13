@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 /// Review step after an Instagram sync: shows follower changes (already
-/// recorded — they're facts) and the conversations with new messages, each
+/// recorded; they're facts) and the conversations with new messages, each
 /// matched to a Person where possible. Nothing touches People or the
 /// timeline until the user taps Apply, mirroring the voice-note review
 /// pattern.
@@ -45,7 +45,7 @@ struct InstagramSyncReviewView: View {
                     } header: {
                         Text("New Conversations (\(decisions.count))")
                     } footer: {
-                        Text("Included conversations are analyzed with your selected AI provider (or the offline fallback) and logged as Instagram interactions — interests, reminders, and dates found in them are applied to the matched person.")
+                        Text("Included conversations are analyzed with your selected AI provider (or the offline fallback) and logged as Instagram interactions. Interests, reminders, and dates found in them are applied to the matched person.")
                     }
                 }
             }
@@ -61,7 +61,7 @@ struct InstagramSyncReviewView: View {
                         ProgressView()
                     } else {
                         // Disabled while any included row still says
-                        // "Choose person…" — otherwise that conversation
+                        // "Choose person…"; otherwise that conversation
                         // would be silently dropped, and the advanced
                         // cutoff means it never comes back.
                         let readyCount = decisions.filter { $0.include && ($0.person != nil || $0.createNew) }.count
@@ -227,7 +227,7 @@ struct InstagramSyncReviewView: View {
     }
 
     /// The current person assignment rendered as a tinted capsule: accent
-    /// when resolved, alert-toned while it still needs a choice — the one
+    /// when resolved, alert-toned while it still needs a choice: the one
     /// state that blocks Apply.
     private func assignmentLabel(_ decision: ThreadDecision) -> some View {
         let needsChoice = decision.person == nil && !decision.createNew

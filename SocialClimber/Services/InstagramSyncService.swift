@@ -14,7 +14,7 @@ final class InstagramSyncService {
     nonisolated static let folderDefaultsKey = "instagramDriveFolder"
     nonisolated static let lastSyncDefaultsKey = "instagramLastSyncAt"
     /// With no previous sync, only messages from the last N days are
-    /// offered — a first sync shouldn't dump years of DM history into the
+    /// offered: a first sync shouldn't dump years of DM history into the
     /// review sheet.
     private static let firstSyncWindowDays = 30
     /// Snapshots beyond this count are pruned oldest-first; events derived
@@ -46,7 +46,7 @@ final class InstagramSyncService {
 
         var latestDate: Date { messages.map(\.date).max() ?? .now }
 
-        /// The conversation rendered as plain "Name: text" lines — what
+        /// The conversation rendered as plain "Name: text" lines, what
         /// gets AI-extracted and stored as the interaction's raw import
         /// text, same shape as a pasted chat.
         var digestText: String {
@@ -63,7 +63,7 @@ final class InstagramSyncService {
         /// True when the export contained no follower lists (e.g. the
         /// scheduled export was configured to include only messages).
         var hadFollowerData = false
-        /// The newest message timestamp anywhere in the export — the
+        /// The newest message timestamp anywhere in the export: the
         /// content-based high-water mark the next sync's cutoff should
         /// advance to. Never wall-clock "now": exports are generated hours
         /// or days before they're synced, and messages sent in that gap
@@ -90,7 +90,7 @@ final class InstagramSyncService {
             localURLs.append(try await GoogleDriveService.shared.downloadToTemporaryFile(fileID: file.id))
         }
 
-        // Unzipping and JSON parsing are CPU-bound — keep them off the main
+        // Unzipping and JSON parsing are CPU-bound; keep them off the main
         // actor so the UI stays responsive during a big export.
         progressText = "Reading export…"
         let urls = localURLs
@@ -120,7 +120,7 @@ final class InstagramSyncService {
     }
 
     /// Advances the message cutoff to the export's own newest message.
-    /// Called only after the user applies a review — cancelling the review
+    /// Called only after the user applies a review: cancelling the review
     /// sheet must leave the cutoff untouched, or every conversation in that
     /// batch would be skipped forever on the next sync.
     func commitCutoff(_ result: SyncResult) {
@@ -144,7 +144,7 @@ final class InstagramSyncService {
         )) ?? []
         let last = previous.first
 
-        // Each side is diffed only when this export actually contains it —
+        // Each side is diffed only when this export actually contains it:
         // a messages-only export (or one corrupt part-zip) must never be
         // read as "everyone unfollowed you". A missing side carries the
         // previous snapshot's values forward so the baseline stays honest.
@@ -177,7 +177,7 @@ final class InstagramSyncService {
         ))
 
         // Prune oldest snapshots beyond the cap (events derived from them
-        // stay — they're the durable history).
+        // stay, since they're the durable history).
         let excess = previous.count + 1 - Self.maxSnapshots
         if excess > 0 {
             for snapshot in previous.suffix(excess) {
@@ -198,7 +198,7 @@ final class InstagramSyncService {
             let fresh = thread.messages.filter { $0.date > cutoff }
             guard !fresh.isEmpty else { continue }
             let others = Set(thread.participants).subtracting([owner].compactMap { $0 })
-            // Skip notes-to-self threads — with no other participant the
+            // Skip notes-to-self threads: with no other participant the
             // title is the owner's own name, which could otherwise
             // auto-match a Person who happens to share it.
             if owner != nil && others.isEmpty { continue }
@@ -269,7 +269,7 @@ final class InstagramSyncService {
         interaction?.rawImportText = digest
 
         if person.instagramUsername.isEmpty, !candidate.otherParticipant.isEmpty {
-            // Thread participants are display names, not handles — only
+            // Thread participants are display names, not handles; only
             // store it when it looks like a handle (no spaces).
             let normalized = normalize(candidate.otherParticipant)
             if !normalized.contains(" ") {

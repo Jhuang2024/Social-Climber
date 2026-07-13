@@ -114,7 +114,7 @@ enum NotificationCategory: String, CaseIterable {
     /// The iOS `UNNotificationCategory` identifier (drives which actions show).
     var identifier: String { "sc.\(rawValue)" }
 
-    /// Generic, privacy-safe body used by default — never names a person or
+    /// Generic, privacy-safe body used by default; never names a person or
     /// reveals note content on the lock screen.
     var genericBody: String {
         switch self {

@@ -1,6 +1,6 @@
 import Foundation
 
-/// An aggregate, explainable 0–100 picture of your whole social life —
+/// An aggregate, explainable 0–100 picture of your whole social life:
 /// the same transparency contract as `RelationshipScore`, one level up:
 /// every point comes from a labeled factor. Built from relationship scores
 /// across all active people, interaction momentum, and (when Instagram
@@ -9,7 +9,7 @@ struct SocialHealthReport {
     let total: Int
     let factors: [ScoreFactor]
 
-    /// Reuses the per-person score bands — the meaning ("strong/steady/
+    /// Reuses the per-person score bands: the meaning ("strong/steady/
     /// cooling/cold") translates directly to the aggregate.
     var band: ScoreBand {
         switch total {
@@ -33,7 +33,7 @@ struct SocialHealthReport {
         var factors: [ScoreFactor] = []
         let active = people.filter { !$0.isArchived }
 
-        // 1. Average relationship score across active people — the core of
+        // 1. Average relationship score across active people: the core of
         //    social health is the state of the individual relationships.
         if active.isEmpty {
             factors.append(ScoreFactor(label: "No people tracked yet", points: 40))
@@ -44,7 +44,7 @@ struct SocialHealthReport {
             factors.append(ScoreFactor(label: "Average relationship score (\(average))", points: average / 2))
         }
 
-        // 2. Interaction momentum — last 30 days vs. the 30 before that.
+        // 2. Interaction momentum: last 30 days vs. the 30 before that.
         let recent = interactions.filter { $0.date.daysAgo <= 30 }.count
         let prior = interactions.filter { $0.date.daysAgo > 30 && $0.date.daysAgo <= 60 }.count
         switch (recent, prior) {
@@ -58,7 +58,7 @@ struct SocialHealthReport {
             factors.append(ScoreFactor(label: "Steady activity (\(recent) this month)", points: 5))
         }
 
-        // 3. Breadth — how many distinct people you actually touched
+        // 3. Breadth: how many distinct people you actually touched
         //    in the last 30 days.
         let touchedIDs = Set(interactions.filter { $0.date.daysAgo <= 30 }.flatMap { $0.people.map(\.persistentModelID) })
         switch touchedIDs.count {
@@ -72,7 +72,7 @@ struct SocialHealthReport {
             break
         }
 
-        // 4. Relationships going cold — high-priority ones count double.
+        // 4. Relationships going cold: high-priority ones count double.
         let cooling = active.filter { $0.status == .goingQuiet || $0.status == .dormant }
         let coolingHighPriority = cooling.filter { $0.priority >= 4 }.count
         if !cooling.isEmpty {

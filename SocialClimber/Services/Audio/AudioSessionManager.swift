@@ -44,7 +44,7 @@ final class AudioSessionManager: NSObject {
     }
 
     /// Reactivates the session after an interruption without reselecting the
-    /// route — recovery must not move the mic out from under an in-progress
+    /// route: recovery must not move the mic out from under an in-progress
     /// recording.
     func reactivateAfterInterruption() throws {
         try session.setActive(true, options: [])

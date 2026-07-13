@@ -8,11 +8,11 @@ import UIKit
 /// schedule.
 ///
 /// Bring-your-own OAuth client, exactly like `GoogleCalendarService`: the
-/// same OAuth Client ID pasted in Settings works for both — just enable the
+/// same OAuth Client ID pasted in Settings works for both: just enable the
 /// Google Drive API on the same Google Cloud project. Sign-in uses the PKCE
 /// flow for native apps; only a refresh token is stored, in the iOS
 /// Keychain. Export files are downloaded to a temporary file, parsed, and
-/// deleted — the raw export never persists on this device.
+/// deleted; the raw export never persists on this device.
 @MainActor
 @Observable
 final class GoogleDriveService: NSObject {
@@ -100,7 +100,7 @@ final class GoogleDriveService: NSObject {
         }
     }
 
-    /// The newest Instagram export zip(s) — several, because Meta splits
+    /// The newest Instagram export zip(s): several, because Meta splits
     /// large exports into multiple parts uploaded together. When
     /// `folderName` is non-empty, only that folder is searched; otherwise
     /// the whole Drive is queried for Instagram-looking zip files.
@@ -177,7 +177,7 @@ final class GoogleDriveService: NSObject {
     }
 
     /// Downloads a file's content to a temporary file on disk (exports can
-    /// be large — never buffered whole in memory) and returns its URL. The
+    /// be large; never buffered whole in memory) and returns its URL. The
     /// caller is responsible for deleting it when done.
     func downloadToTemporaryFile(fileID: String) async throws -> URL {
         let token = try await validAccessToken()
@@ -241,7 +241,7 @@ final class GoogleDriveService: NSObject {
         return sanitized
     }
 
-    /// Same paste-cleanup as `GoogleCalendarService.sanitizeClientID` — see
+    /// Same paste-cleanup as `GoogleCalendarService.sanitizeClientID`: see
     /// the doc comment there for why this matters (a stray URL scheme in
     /// the pasted ID crashes ASWebAuthenticationSession).
     private static func sanitizeClientID(_ raw: String) -> String? {
@@ -385,7 +385,7 @@ enum GoogleDriveError: LocalizedError {
         case .missingClientID:
             "Add your Google OAuth Client ID in Settings first."
         case .invalidClientID:
-            "That doesn't look like a Google Client ID — it should end in \".apps.googleusercontent.com\"."
+            "That doesn't look like a Google Client ID. It should end in \".apps.googleusercontent.com\"."
         case .authCanceled:
             "Sign-in was canceled before it finished."
         case .tokenExchangeFailed:

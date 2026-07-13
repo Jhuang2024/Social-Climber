@@ -90,7 +90,7 @@ enum InteractionSaver {
         )
         context.insert(reminder)
         // A follow-up the user asked to remember is a strong "why reminders
-        // help" moment — request permission contextually, then schedule.
+        // help" moment: request permission contextually, then schedule.
         Task {
             await NotificationService.shared.requestPermissionContextually()
             NotificationService.shared.schedule(reminder: reminder)

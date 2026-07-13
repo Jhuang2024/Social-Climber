@@ -2,9 +2,9 @@ import Foundation
 import Speech
 import AVFoundation
 
-/// The one transcription service for the whole app. Every audio entry point —
-/// Quick Capture, interaction logging, notes, debriefs, event capture, and
-/// anything added later — routes through here so behaviour is identical
+/// The one transcription service for the whole app. Every audio entry point
+/// (Quick Capture, interaction logging, notes, debriefs, event capture, and
+/// anything added later) routes through here so behaviour is identical
 /// everywhere: on-device recognition, confidence-aware segments, timestamps,
 /// per-chunk retry, and honest failure states.
 ///
@@ -42,7 +42,7 @@ actor TranscriptionService {
     /// Transcribes `fileName` (in `VoiceNote.directory`). Splits long audio into
     /// overlapping chunks, transcribes each with retry, and recombines them into
     /// one timestamped transcript. `contactNames` are used only as cleanup
-    /// hints — never to invent or force-replace spoken names.
+    /// hints: never to invent or force-replace spoken names.
     func transcribe(fileName: String, contactNames: [String]) async -> TranscriptionResult {
         let status = await Self.requestAuthorization()
         guard status == .authorized else {
@@ -160,7 +160,7 @@ actor TranscriptionService {
 
     /// Prefers a recognizer for the device's current language, falling back to
     /// the default. True auto-detect isn't offered by `SFSpeechRecognizer`, so
-    /// we honour the user's locale — the closest the provider allows to
+    /// we honour the user's locale, the closest the provider allows to
     /// multilingual handling.
     private func makeRecognizer() -> SFSpeechRecognizer? {
         if let preferred = Locale.preferredLanguages.first,

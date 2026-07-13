@@ -30,7 +30,7 @@ struct SocialClimberApp: App {
         // Register the actionable categories (post-event follow-up prompts plus
         // the reminder/contact/capture categories) and route their actions
         // before the first notification could ever arrive. No permission prompt
-        // here — that stays contextual (see requestPermissionContextually).
+        // here; that stays contextual (see requestPermissionContextually).
         NotificationService.shared.registerNotificationCategories()
         UNUserNotificationCenter.current().delegate = NotificationActionHandler.shared
     }

@@ -12,7 +12,7 @@ struct TranscriptSegment: Codable, Hashable, Identifiable, Sendable {
     /// Verbatim recognised text for this span.
     var text: String
     /// Start time in seconds from the beginning of the *whole* recording, not
-    /// the chunk it was transcribed in — the chunker re-bases these on
+    /// the chunk it was transcribed in; the chunker re-bases these on
     /// recombination so timestamps always refer to the original audio.
     var start: TimeInterval
     /// End time in seconds from the beginning of the whole recording.
@@ -30,7 +30,7 @@ struct TranscriptSegment: Codable, Hashable, Identifiable, Sendable {
         self.confidence = confidence
     }
 
-    /// Spans at or below this confidence are treated as uncertain — flagged
+    /// Spans at or below this confidence are treated as uncertain, flagged
     /// internally rather than dropped, per the "mark, don't invent" rule.
     static let uncertainThreshold: Double = 0.3
 

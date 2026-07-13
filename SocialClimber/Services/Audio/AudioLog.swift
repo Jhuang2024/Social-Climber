@@ -6,7 +6,7 @@ import OSLog
 ///
 /// The cardinal rule: **transcript text, note bodies, and contact names are
 /// never passed to these functions.** Log durations, counts, states, error
-/// descriptions, and route types — never what was said. Callers that need to
+/// descriptions, and route types: never what was said. Callers that need to
 /// reference content should log a length or a redacted marker instead.
 enum AudioLog {
     private static let logger = Logger(subsystem: "com.jerryhuang.SocialClimber", category: "audio")
@@ -30,7 +30,7 @@ enum AudioLog {
     }
 
     /// Convenience for logging that some text was processed without logging the
-    /// text — reports only its character count.
+    /// text; reports only its character count.
     static func redactedLength(_ label: String, _ text: String) {
         debug("\(label): \(text.count) chars")
     }

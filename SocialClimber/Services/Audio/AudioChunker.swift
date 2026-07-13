@@ -9,7 +9,7 @@ import Foundation
 /// `overlapDuration` so a word straddling a cut is heard whole in at least one
 /// window; the recombiner then drops duplicates that fall inside the overlap.
 ///
-/// This type is intentionally pure — it computes *time ranges* and merges
+/// This type is intentionally pure: it computes *time ranges* and merges
 /// *segments*. Extracting the actual audio for a range lives in
 /// `SpeechEnhancer`/`RecordingProcessor`, and is kept separate so the chunk math
 /// (the part with the fiddly edge cases) is unit-testable with no audio files.
@@ -78,7 +78,7 @@ enum AudioChunker {
                 let absoluteStart = entry.chunk.start + local.start
                 let absoluteEnd = entry.chunk.start + local.end
                 // Anything that starts at or before what we've already covered
-                // is overlap-duplicated speech from the seam — skip it.
+                // is overlap-duplicated speech from the seam, skip it.
                 if absoluteStart <= lastEnd { continue }
                 var shifted = local
                 shifted.start = absoluteStart

@@ -43,7 +43,7 @@ enum AudioFileMerger {
                 AudioLog.error("Segment merge write failed: \(error.localizedDescription)")
                 return first
             }
-            // Merge succeeded — remove the now-redundant segments.
+            // Merge succeeded; remove the now-redundant segments.
             for name in segmentFileNames {
                 try? FileManager.default.removeItem(at: dir.appendingPathComponent(name))
             }

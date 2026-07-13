@@ -4,7 +4,7 @@ import Foundation
 /// text (selected Messages bubbles, a paragraph from anywhere) and/or
 /// image files (screenshots), waiting to be imported as a capture the next
 /// time the app runs. The main app turns each entry into a durable
-/// `CapturedMemory` and processes it automatically — the user is never told
+/// `CapturedMemory` and processes it automatically; the user is never told
 /// to "open the app to finish logging".
 struct SharedImportEntry: Codable, Identifiable, Equatable {
     let id: UUID
@@ -87,7 +87,7 @@ enum SharedImportInbox {
     }
 
     /// Removes a single entry once the app has durably persisted it as a
-    /// capture. `deletingImages` also cleans up its staged image files —
+    /// capture. `deletingImages` also cleans up its staged image files:
     /// pass true only after they've been copied out of the App Group.
     static func remove(_ id: UUID, deletingImages: Bool = false) {
         guard let defaults else { return }

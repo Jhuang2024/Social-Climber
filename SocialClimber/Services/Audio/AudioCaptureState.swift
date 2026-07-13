@@ -6,7 +6,7 @@ import Foundation
 /// can be unit-tested without any AVFoundation or SwiftData involvement.
 ///
 /// This is the single source of truth the whole shared pipeline reports
-/// against — `VoiceRecorder`, `RecordingProcessor`, and the capture screens all
+/// against: `VoiceRecorder`, `RecordingProcessor`, and the capture screens all
 /// speak in these states rather than inventing their own booleans.
 enum AudioCaptureState: String, Codable, CaseIterable, Sendable {
     /// Nothing captured yet.
@@ -51,7 +51,7 @@ enum AudioCaptureState: String, Codable, CaseIterable, Sendable {
 
 /// Why a capture could not be completed. Surfaced to the user as an actionable
 /// message and stored on the `VoiceNote` so a failed capture is never silently
-/// dropped — every one of these is retryable.
+/// dropped; every one of these is retryable.
 enum AudioCaptureFailure: String, Codable, CaseIterable, Sendable {
     case microphonePermissionDenied
     case audioSessionUnavailable
@@ -79,11 +79,11 @@ enum AudioCaptureFailure: String, Codable, CaseIterable, Sendable {
         case .excessiveBackgroundNoise:
             return "There was too much background noise to transcribe clearly. Retry in a quieter spot, or type the note."
         case .transcriptionUnavailable:
-            return "On-device transcription isn't available right now. The audio is saved — you can retry, or type the note."
+            return "On-device transcription isn't available right now. The audio is saved, you can retry, or type the note."
         case .partialTranscription:
             return "Only part of the recording could be transcribed. Review the text, then retry the rest if you like."
         case .unknown:
-            return "Something went wrong while processing this recording. The audio is saved — you can retry."
+            return "Something went wrong while processing this recording. The audio is saved. You can retry."
         }
     }
 

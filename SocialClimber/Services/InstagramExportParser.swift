@@ -1,7 +1,7 @@
 import Foundation
 
 /// Parses the JSON files inside an Instagram "Download Your Information"
-/// export — message threads, followers, and following lists. Pure and
+/// export: message threads, followers, and following lists. Pure and
 /// stateless: bytes in, DTOs out. Nothing here touches SwiftData or the
 /// network.
 enum InstagramExportParser {
@@ -15,7 +15,7 @@ enum InstagramExportParser {
     }
 
     struct Thread {
-        /// Thread title as Instagram exported it — usually the other
+        /// Thread title as Instagram exported it, usually the other
         /// person's display name for DMs, or a group chat name.
         let title: String
         let participants: [String]
@@ -103,7 +103,7 @@ enum InstagramExportParser {
                   let content = message.content, !content.isEmpty else { return nil }
             let text = fixMojibake(content)
             // Instagram represents likes/reactions and "sent an attachment"
-            // as content too — skip the pure-noise ones.
+            // as content too; skip the pure-noise ones.
             if text.hasSuffix("sent an attachment.") || text.hasSuffix("to your message") { return nil }
             return Message(
                 sender: fixMojibake(sender),

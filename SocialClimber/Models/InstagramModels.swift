@@ -4,7 +4,7 @@ import SwiftData
 
 /// One point-in-time capture of the Instagram follower/following lists,
 /// taken from a "Download Your Information" export each time a sync runs.
-/// Snapshots exist so consecutive syncs can be diffed — that diff is what
+/// Snapshots exist so consecutive syncs can be diffed: that diff is what
 /// produces `FollowerEvent`s. Only usernames are stored, nothing else from
 /// the export is persisted here.
 @Model
@@ -59,7 +59,7 @@ enum FollowerEventKind: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-/// A single detected change between two follower snapshots — someone
+/// A single detected change between two follower snapshots: someone
 /// followed or unfollowed you (or you them). Persisted separately from the
 /// snapshots so history survives snapshot pruning.
 @Model

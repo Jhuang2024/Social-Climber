@@ -1,12 +1,12 @@
 import Foundation
 import Compression
 
-/// A minimal, read-only ZIP reader — just enough to pull the JSON files out
+/// A minimal, read-only ZIP reader: just enough to pull the JSON files out
 /// of an Instagram "Download Your Information" export without any
 /// third-party dependency. Supports stored and deflate entries, plus the
 /// ZIP64 extensions Meta uses for large archives. Reads from disk via
 /// FileHandle so a multi-gigabyte export (media included) never has to fit
-/// in memory — only the individual entries actually requested are inflated.
+/// in memory; only the individual entries actually requested are inflated.
 struct ZipArchiveReader {
     struct Entry {
         let name: String

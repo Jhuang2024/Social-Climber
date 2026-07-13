@@ -84,7 +84,7 @@ final class NotificationActionHandler: NSObject, UNUserNotificationCenterDelegat
             break
         }
 
-        // Default tap (no explicit action) — route by category.
+        // Default tap (no explicit action): route by category.
         let category = (userInfo["category"] as? String).flatMap(NotificationCategory.init(rawValue:))
         switch category {
         case .captureReview:

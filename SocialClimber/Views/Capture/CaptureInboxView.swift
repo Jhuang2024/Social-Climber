@@ -222,6 +222,7 @@ struct CaptureDetailView: View {
         .socialClimberPageBackground()
         .navigationTitle("Capture")
         .navigationBarTitleDisplayMode(.inline)
+        .keyboardDoneButton()
         .sheet(isPresented: $showAssign) {
             NavigationStack {
                 PersonMultiPicker(selected: $assignSelection)

@@ -34,7 +34,7 @@ struct NotificationSettingsView: View {
     @AppStorage(K.defaultSnoozeMinutes) private var snoozeMinutes = 60
     @AppStorage(K.reviewFrequencyDays) private var reviewFrequencyDays = 30
 
-    // Shared with the "Check-In Cadence Defaults" section — same keys, so they
+    // Shared with the "Check-In Cadence Defaults" section: same keys, so they
     // stay in lock-step wherever the user edits them.
     @AppStorage("defaultCadenceClose") private var cadenceClose = 21
     @AppStorage("defaultCadenceRegular") private var cadenceRegular = 60
@@ -47,7 +47,7 @@ struct NotificationSettingsView: View {
                     .tint(.green)
                     .onChange(of: masterEnabled) { handleMasterChange() }
             } footer: {
-                Text("Everything fires locally on this iPhone — nothing is ever sent anywhere.")
+                Text("Everything fires locally on this iPhone. Nothing is ever sent anywhere.")
             }
 
             Section("Categories") {

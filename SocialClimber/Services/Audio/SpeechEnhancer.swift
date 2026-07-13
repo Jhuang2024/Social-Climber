@@ -4,7 +4,7 @@ import Accelerate
 
 /// A conservative, offline speech-enhancement pass applied to a *copy* of a
 /// recording before transcription. The goal is intelligibility for pocket
-/// audio — not a studio-clean sound — so every stage is deliberately gentle and
+/// audio, not a studio-clean sound, so every stage is deliberately gentle and
 /// the original file is never touched.
 ///
 /// The chain, ordered for audio quality (the product spec lists the same
@@ -16,7 +16,7 @@ import Accelerate
 ///      without gating speech.
 ///   4. Speech-presence EQ (light low cut + a small 2–4 kHz lift).
 ///   5. Light, soft-knee compression so quiet speech rises without clipping.
-///   6. Guarded make-up gain to a target level — skipped when the signal is
+///   6. Guarded make-up gain to a target level: skipped when the signal is
 ///      essentially silence/noise so we never amplify a hiss into "speech".
 ///
 /// Aggressive denoising is intentionally avoided: it eats consonants and
@@ -31,7 +31,7 @@ enum SpeechEnhancer {
         var snrDB: Double
         var durationSeconds: Double
 
-        /// Almost nothing above the noise floor — treat as no usable speech.
+        /// Almost nothing above the noise floor, treat as no usable speech.
         var isEffectivelySilent: Bool { speechLevelDBFS < -45 && snrDB < 3 }
         /// There is signal, but it's very quiet relative to full scale.
         var isTooQuiet: Bool { speechLevelDBFS < -38 }
@@ -49,7 +49,7 @@ enum SpeechEnhancer {
     /// Target speech level for make-up gain. Comfortably below full scale to
     /// leave headroom for the compressor's peaks.
     private static let targetSpeechDBFS: Double = -18
-    /// Never apply more than this much make-up gain — prevents turning a quiet,
+    /// Never apply more than this much make-up gain: prevents turning a quiet,
     /// noisy pocket recording into a wall of amplified hiss.
     private static let maxMakeupGainDB: Double = 18
 
@@ -86,7 +86,7 @@ enum SpeechEnhancer {
         let rawAnalysis = analyze(samples: samples, sampleRate: sampleRate, duration: duration)
         AudioLog.debug("Enhance analysis: speech=\(Int(rawAnalysis.speechLevelDBFS))dBFS noise=\(Int(rawAnalysis.noiseFloorDBFS))dBFS snr=\(Int(rawAnalysis.snrDB))dB dur=\(Int(duration))s")
 
-        // If there's essentially nothing there, don't fabricate signal — return
+        // If there's essentially nothing there, don't fabricate signal, return
         // the analysis so the caller can raise the right failure state.
         guard !rawAnalysis.isEffectivelySilent else {
             return Result(enhancedFileName: nil, analysis: rawAnalysis)
@@ -100,7 +100,7 @@ enum SpeechEnhancer {
         applyDownwardExpander(&samples, threshold: Float(gateThreshold), ratio: 1.5, sampleRate: sampleRate)
 
         // 4. Speech-presence EQ: a shallow low-shelf cut and a modest presence
-        //    peak. Small gains only — enough to lift intelligibility.
+        //    peak. Small gains only: enough to lift intelligibility.
         applyBiquad(&samples, coeff: Biquad.lowShelf(fc: 200, sampleRate: sampleRate, gainDB: -2))
         applyBiquad(&samples, coeff: Biquad.peaking(fc: 3000, sampleRate: sampleRate, q: 1.0, gainDB: 3))
 
@@ -112,7 +112,7 @@ enum SpeechEnhancer {
         if !post.isEffectivelySilent {
             var gainDB = targetSpeechDBFS - post.speechLevelDBFS
             gainDB = min(maxMakeupGainDB, max(0, gainDB)) // only ever raise, and cap it
-            // Don't amplify a noisy signal hard — scale the gain back the
+            // Don't amplify a noisy signal hard; scale the gain back the
             // noisier it is, so we never blast up pure background.
             if post.snrDB < 10 { gainDB *= max(0.3, post.snrDB / 10) }
             applyGain(&samples, db: gainDB)
@@ -162,7 +162,7 @@ enum SpeechEnhancer {
         )
     }
 
-    /// Analyses a file without enhancing it — used by the processor to decide
+    /// Analyses a file without enhancing it; used by the processor to decide
     /// failure states even when enhancement is skipped.
     static func analyzeFile(_ fileName: String) -> Analysis? {
         let url = VoiceNote.directory.appendingPathComponent(fileName)

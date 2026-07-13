@@ -4,7 +4,7 @@ import SwiftData
 @Model
 final class VoiceNote {
     /// File name inside the app's Documents/VoiceNotes directory. This is the
-    /// preserved *original* recording — enhancement and transcription never
+    /// preserved *original* recording; enhancement and transcription never
     /// overwrite it.
     var audioFileName: String?
 
@@ -25,7 +25,7 @@ final class VoiceNote {
     /// File name of the enhanced audio copy used for transcription. Never the
     /// original; may be nil when enhancement was skipped.
     var enhancedAudioFileName: String?
-    /// Encoded `[TranscriptSegment]` — timed, confidence-tagged spans that let
+    /// Encoded `[TranscriptSegment]`: timed, confidence-tagged spans that let
     /// the UI jump from text back to audio and flag uncertain words.
     var segmentsData: Data?
     /// Detected/used recognition language (BCP-47), when known.
@@ -37,7 +37,7 @@ final class VoiceNote {
     var processingStateRaw: String = AudioCaptureState.completed.rawValue
     /// Failure reason when `processingState == .failed`.
     var failureReasonRaw: String?
-    /// When processing last finished — the idempotency guard. A note with a set
+    /// When processing last finished: the idempotency guard. A note with a set
     /// `processedAt` is never re-processed on relaunch unless the user asks.
     var processedAt: Date?
     /// How many times transcription has been attempted, for backoff/telemetry.

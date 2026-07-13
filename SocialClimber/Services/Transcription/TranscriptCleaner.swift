@@ -1,6 +1,6 @@
 import Foundation
 
-/// Turns verbatim recogniser output into a lightly-cleaned reading copy —
+/// Turns verbatim recogniser output into a lightly-cleaned reading copy,
 /// without ever inventing words. The raw text is always preserved separately;
 /// this only *removes* disfluency and *normalises* things it is highly
 /// confident about.
@@ -8,13 +8,13 @@ import Foundation
 /// Design rules, straight from the product requirements:
 ///   • Remove meaningless filler and immediate repeated fragments only.
 ///   • Repair obvious fragmentation using adjacent context, never hallucinate.
-///   • Use known contacts as *hints* only — a spoken name is replaced with a
+///   • Use known contacts as *hints* only; a spoken name is replaced with a
 ///     contact's canonical spelling only on a sufficiently strong match.
 ///
 /// Pure and deterministic so every rule is unit-testable.
 enum TranscriptCleaner {
 
-    /// Standalone disfluencies safe to drop. Deliberately conservative — words
+    /// Standalone disfluencies safe to drop. Deliberately conservative: words
     /// that can be meaningful ("like", "so", "well", "right") are NOT included,
     /// because removing them can change meaning.
     private static let fillerTokens: Set<String> = [
@@ -60,7 +60,7 @@ enum TranscriptCleaner {
     /// match is strong and unambiguous:
     ///   • exact case-insensitive match → normalise casing (always safe), or
     ///   • single-edit typo of a name ≥5 chars, and exactly one contact matches.
-    /// Anything weaker is left exactly as spoken — a hint, never a rewrite.
+    /// Anything weaker is left exactly as spoken: a hint, never a rewrite.
     static func normalizeNames(in text: String, contactNames: [String]) -> String {
         guard !contactNames.isEmpty else { return text }
         // Build a lookup of individual name words (first names, etc.).
@@ -148,7 +148,7 @@ enum TranscriptCleaner {
 }
 
 private extension String {
-    /// Lowercased, with surrounding punctuation stripped — the comparison core
+    /// Lowercased, with surrounding punctuation stripped, the comparison core
     /// of a token.
     var lowercasedWordCore: String {
         lowercased().trimmingCharacters(in: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "'")).inverted)

@@ -6,10 +6,10 @@ import SwiftData
 /// notes) write the result back idempotently.
 ///
 /// Two entry points share one core:
-///   • `processInMemory` — used by the live capture flow before a `VoiceNote`
+///   • `processInMemory`: used by the live capture flow before a `VoiceNote`
 ///     exists, so the review screen can show a transcript without a
 ///     loading-screen wait or a half-saved record.
-///   • `process(note:)` — used to (re)process or retry a saved `VoiceNote`,
+///   • `process(note:)`: used to (re)process or retry a saved `VoiceNote`,
 ///     guarded so relaunching the app or reopening a note never reprocesses an
 ///     already-finished one or runs two passes at once.
 @MainActor
@@ -131,7 +131,7 @@ final class RecordingProcessor {
 
     /// Re-runs any saved notes that never finished (failed or left mid-process
     /// by a crash). Called when the app becomes active so pending work isn't
-    /// stranded. Skips notes already completed — idempotent by construction.
+    /// stranded. Skips notes already completed; idempotent by construction.
     func processPending(context: ModelContext, contactNames: [String]) async {
         let descriptor = FetchDescriptor<VoiceNote>()
         guard let notes = try? context.fetch(descriptor) else { return }
