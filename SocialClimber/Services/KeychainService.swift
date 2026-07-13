@@ -7,6 +7,7 @@ enum KeychainService {
     private static let bazaarLinkAccount = "bazaarlink-api-key"
     private static let googleRefreshTokenAccount = "google-calendar-refresh-token"
     private static let lastKnownRecordCountAccount = "last-known-record-count"
+    private static let googleDriveRefreshTokenAccount = "google-drive-refresh-token"
 
     static func openRouterAPIKey() throws -> String {
         guard let key = try read(account: openRouterAccount), !key.isEmpty else {
@@ -87,6 +88,23 @@ enum KeychainService {
 
     static func setLastKnownRecordCount(_ count: Int) {
         try? save(String(count), account: lastKnownRecordCountAccount)
+    }
+
+    static func googleDriveRefreshToken() throws -> String? {
+        try read(account: googleDriveRefreshTokenAccount)
+    }
+
+    static func hasGoogleDriveRefreshToken() -> Bool {
+        (try? googleDriveRefreshToken())?.isEmpty == false
+    }
+
+    static func saveGoogleDriveRefreshToken(_ token: String) throws {
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            try delete(account: googleDriveRefreshTokenAccount)
+        } else {
+            try save(trimmed, account: googleDriveRefreshTokenAccount)
+        }
     }
 
     private static func read(account: String) throws -> String? {

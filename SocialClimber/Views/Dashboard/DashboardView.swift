@@ -150,6 +150,7 @@ struct DashboardView: View {
                         if !capturesNeedingContext.isEmpty { needsContextCard }
                         if !failedCaptures.isEmpty { failedCapturesCard }
                         statsStrip
+                        socialHealthLink
                         if let readiness { readinessCard(readiness) }
                         secondaryActions
                         if !recentCaptures.isEmpty { recentCapturesCard }
@@ -230,6 +231,33 @@ struct DashboardView: View {
     }
 
     // MARK: Sections
+
+    private var socialHealthLink: some View {
+        NavigationLink { SocialHealthView() } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "heart.text.square.fill")
+                    .font(.title3)
+                    .foregroundStyle(.white)
+                    .frame(width: 36, height: 36)
+                    .background(.pink.gradient, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Social Health")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text("Your whole social life, one explainable score")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(14)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: SCTheme.cardRadius, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
 
     private var brandHeader: some View {
         HStack(spacing: 12) {

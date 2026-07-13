@@ -243,6 +243,8 @@ enum ExportImportService {
         var location: String
         var contactMethods: [ContactMethod]
         var tags: [String]
+        /// Optional so archives exported before this field existed still decode.
+        var instagramUsername: String?
         var avatarData: Data?
         var giftIdeas: [GiftDTO]
         var reminders: [ReminderDTO]
@@ -252,7 +254,7 @@ enum ExportImportService {
             case uuid, name, nickname, relationshipToMe, category, closeness, priority, birthday
             case lastContactedAt, lastMetAt, lastMessagedAt, lastCalledAt, isArchived, checkInCadenceDays
             case notes, personalityNotes, interests, dislikes, familyMembers, schoolOrWork, location
-            case contactMethods, tags, avatarData, giftIdeas, reminders, importantDates
+            case contactMethods, tags, instagramUsername, avatarData, giftIdeas, reminders, importantDates
         }
 
         init(
@@ -261,7 +263,8 @@ enum ExportImportService {
             lastMessagedAt: Date?, lastCalledAt: Date?, isArchived: Bool, checkInCadenceDays: Int?,
             notes: String, personalityNotes: String, interests: [String], dislikes: [String],
             familyMembers: [String], schoolOrWork: String, location: String, contactMethods: [ContactMethod],
-            tags: [String], avatarData: Data?, giftIdeas: [GiftDTO], reminders: [ReminderDTO], importantDates: [DateDTO]
+            tags: [String], instagramUsername: String?, avatarData: Data?,
+            giftIdeas: [GiftDTO], reminders: [ReminderDTO], importantDates: [DateDTO]
         ) {
             self.uuid = uuid
             self.name = name
@@ -286,6 +289,7 @@ enum ExportImportService {
             self.location = location
             self.contactMethods = contactMethods
             self.tags = tags
+            self.instagramUsername = instagramUsername
             self.avatarData = avatarData
             self.giftIdeas = giftIdeas
             self.reminders = reminders
@@ -321,6 +325,7 @@ enum ExportImportService {
             location = try c.decode(String.self, forKey: .location)
             contactMethods = try c.decode([ContactMethod].self, forKey: .contactMethods)
             tags = try c.decode([String].self, forKey: .tags)
+            instagramUsername = (try? c.decodeIfPresent(String.self, forKey: .instagramUsername)) ?? nil
             avatarData = try c.decodeIfPresent(Data.self, forKey: .avatarData)
             giftIdeas = try c.decode([GiftDTO].self, forKey: .giftIdeas)
             reminders = try c.decode([ReminderDTO].self, forKey: .reminders)
@@ -464,7 +469,8 @@ enum ExportImportService {
                 notes: p.notes, personalityNotes: p.personalityNotes,
                 interests: p.interests, dislikes: p.dislikes, familyMembers: p.familyMembers,
                 schoolOrWork: p.schoolOrWork, location: p.location,
-                contactMethods: p.contactMethods, tags: p.tags, avatarData: p.avatarData,
+                contactMethods: p.contactMethods, tags: p.tags,
+                instagramUsername: p.instagramUsername, avatarData: p.avatarData,
                 giftIdeas: p.giftIdeas.map { GiftDTO(title: $0.title, notes: $0.notes, priceRange: $0.priceRange, occasion: $0.occasion, status: $0.statusRaw, sourceCaptureUUID: $0.sourceCaptureUUID) },
                 reminders: p.reminders.map { ReminderDTO(title: $0.title, dueDate: $0.dueDate, type: $0.typeRaw, completed: $0.completed, notes: $0.notes, sourceCaptureUUID: $0.sourceCaptureUUID) },
                 importantDates: p.importantDates.map { DateDTO(title: $0.title, date: $0.date, repeatsYearly: $0.repeatsYearly, notes: $0.notes, sourceCaptureUUID: $0.sourceCaptureUUID) }
@@ -593,6 +599,9 @@ enum ExportImportService {
             person.location = dto.location
             person.contactMethods = dto.contactMethods
             person.tags = dto.tags
+            if let username = dto.instagramUsername, !username.isEmpty {
+                person.instagramUsername = username
+            }
             if let avatar = dto.avatarData { person.avatarData = avatar }
 
             // Replace child collections wholesale to avoid duplicates.

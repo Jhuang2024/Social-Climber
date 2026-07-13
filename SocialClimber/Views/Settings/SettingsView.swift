@@ -33,10 +33,17 @@ struct SettingsView: View {
     @State private var testingConnection = false
     @State private var connectionTestResult: String?
     @State private var isConnectingGoogleCalendar = false
+    @State private var isConnectingGoogleDrive = false
+    @State private var instagramSyncResult: InstagramSyncResultBox?
     @State private var notificationsAuthDenied = false
     @State private var message: String?
 
+    @AppStorage(InstagramSyncService.folderDefaultsKey) private var instagramDriveFolder = ""
+    @AppStorage("instagramSyncReminderEnabled") private var instagramReminderEnabled = false
+
     private var googleCalendar: GoogleCalendarService { GoogleCalendarService.shared }
+    private var googleDrive: GoogleDriveService { GoogleDriveService.shared }
+    private var instagramSync: InstagramSyncService { InstagramSyncService.shared }
 
     var body: some View {
         NavigationStack {
@@ -178,6 +185,70 @@ struct SettingsView: View {
                         .tint(.red)
                     }
                     Text("Read-only. Create a free \"iOS\" OAuth Client ID in Google Cloud Console (enable the Google Calendar API, set the bundle ID to match this app's) and paste it above; no client secret needed. Only a refresh token is stored, in the iOS Keychain; events are fetched on demand and never saved.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Instagram via Google Drive") {
+                    LabeledContent("Status", value: googleDrive.isConnected ? "Connected" : "Not connected")
+                    if !googleDrive.isConnected {
+                        if !googleCalendar.isConnected {
+                            TextField("OAuth Client ID (Google Cloud Console)", text: $googleClientID)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .submitLabel(.done)
+                        }
+                        Button {
+                            connectGoogleDrive()
+                        } label: {
+                            if isConnectingGoogleDrive {
+                                ProgressView()
+                            } else {
+                                Label("Connect Google Drive", systemImage: "externaldrive.badge.plus")
+                            }
+                        }
+                        .disabled(googleClientID.trimmingCharacters(in: .whitespaces).isEmpty || isConnectingGoogleDrive)
+                    } else {
+                        TextField("Drive folder name (optional)", text: $instagramDriveFolder)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .submitLabel(.done)
+                        Button {
+                            runInstagramSync()
+                        } label: {
+                            if instagramSync.isSyncing {
+                                HStack(spacing: 8) {
+                                    ProgressView()
+                                    Text(instagramSync.progressText)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            } else {
+                                Label("Sync Now", systemImage: "arrow.triangle.2.circlepath")
+                            }
+                        }
+                        .disabled(instagramSync.isSyncing)
+                        if let lastSync = instagramSync.lastSyncAt {
+                            LabeledContent("Last synced", value: lastSync.relativeLabel)
+                        }
+                        Toggle("Daily sync reminder (8 PM)", isOn: $instagramReminderEnabled)
+                            .tint(.green)
+                            .onChange(of: instagramReminderEnabled) {
+                                if instagramReminderEnabled {
+                                    NotificationService.shared.scheduleInstagramSyncReminder()
+                                } else {
+                                    NotificationService.shared.cancelInstagramSyncReminder()
+                                }
+                            }
+                        Button(role: .destructive) {
+                            googleDrive.disconnect()
+                            message = "Disconnected from Google Drive."
+                        } label: {
+                            Label("Disconnect Google Drive", systemImage: "externaldrive.badge.minus")
+                        }
+                        .tint(.red)
+                    }
+                    Text("Set up Instagram's \"Download your information\" to deliver a daily export to Google Drive (in your Meta Accounts Center), then sync here to refresh messages, followers, and unfollows. Same OAuth Client ID as Google Calendar — just enable the Google Drive API on that Cloud project too. Read-only; exports are parsed on-device and the raw files are deleted immediately. Leave the folder blank to search Drive for the newest Instagram zip. iOS can't run this on a schedule in the background, so the optional daily reminder nudges you to open the app instead.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -334,6 +405,9 @@ struct SettingsView: View {
             .sheet(isPresented: $showBackupRestore) {
                 BackupRestoreView(mode: .voluntary)
             }
+            .sheet(item: $instagramSyncResult) { box in
+                InstagramSyncReviewView(result: box.result)
+            }
             .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json]) { result in
                 switch result {
                 case .success(let url):
@@ -389,6 +463,32 @@ struct SettingsView: View {
         notificationsAuthDenied = status == .denied
         if status == .denied {
             notificationsEnabled = false
+        }
+    }
+
+    private func connectGoogleDrive() {
+        isConnectingGoogleDrive = true
+        Task {
+            do {
+                try await googleDrive.connect()
+                Haptics.success()
+                message = "Connected to Google Drive."
+            } catch {
+                message = error.localizedDescription
+            }
+            isConnectingGoogleDrive = false
+        }
+    }
+
+    private func runInstagramSync() {
+        Task {
+            do {
+                let result = try await instagramSync.sync(people: people, context: context)
+                Haptics.success()
+                instagramSyncResult = InstagramSyncResultBox(result: result)
+            } catch {
+                message = error.localizedDescription
+            }
         }
     }
 
@@ -501,6 +601,12 @@ struct SettingsView: View {
         hasOpenRouterAPIKey = KeychainService.hasOpenRouterAPIKey()
         hasBazaarLinkAPIKey = KeychainService.hasBazaarLinkAPIKey()
     }
+}
+
+/// Wraps a sync result so it can drive a `.sheet(item:)`.
+struct InstagramSyncResultBox: Identifiable {
+    let id = UUID()
+    let result: InstagramSyncService.SyncResult
 }
 
 struct ShareURL: Identifiable {

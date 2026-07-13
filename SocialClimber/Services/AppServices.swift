@@ -13,6 +13,7 @@ enum AppServices {
             Person.self, Interaction.self, GiftIdea.self, Reminder.self,
             ImportantDate.self, VoiceNote.self, ConversationSummary.self,
             Event.self, CapturedMemory.self, MemoryFact.self,
+            FollowerSnapshot.self, FollowerEvent.self,
         ])
         // Resolved the same way `ModelContainer(for: schema)` resolves it
         // internally, so this reflects the real store location even before
