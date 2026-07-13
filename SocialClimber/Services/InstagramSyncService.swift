@@ -63,6 +63,12 @@ final class InstagramSyncService {
         /// True when the export contained no follower lists (e.g. the
         /// scheduled export was configured to include only messages).
         var hadFollowerData = false
+        /// The newest message timestamp anywhere in the export — the
+        /// content-based high-water mark the next sync's cutoff should
+        /// advance to. Never wall-clock "now": exports are generated hours
+        /// or days before they're synced, and messages sent in that gap
+        /// would be silently lost forever if the cutoff overshot them.
+        var newestMessageDate: Date?
     }
 
     // MARK: Sync
@@ -107,10 +113,22 @@ final class InstagramSyncService {
 
         progressText = "Collecting new messages…"
         buildThreadCandidates(export: export, people: people, into: &result)
+        result.newestMessageDate = export.threads.flatMap { $0.messages.map(\.date) }.max()
 
-        UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: Self.lastSyncDefaultsKey)
         try? context.save()
         return result
+    }
+
+    /// Advances the message cutoff to the export's own newest message.
+    /// Called only after the user applies a review — cancelling the review
+    /// sheet must leave the cutoff untouched, or every conversation in that
+    /// batch would be skipped forever on the next sync.
+    func commitCutoff(_ result: SyncResult) {
+        guard let newest = result.newestMessageDate else { return }
+        let current = UserDefaults.standard.double(forKey: Self.lastSyncDefaultsKey)
+        if newest.timeIntervalSince1970 > current {
+            UserDefaults.standard.set(newest.timeIntervalSince1970, forKey: Self.lastSyncDefaultsKey)
+        }
     }
 
     // MARK: Follower diff
@@ -120,32 +138,42 @@ final class InstagramSyncService {
         let following = Set(export.followerLists.following)
         guard !followers.isEmpty || !following.isEmpty else { return }
         result.hadFollowerData = true
-        result.followerCount = followers.count
-        result.followingCount = following.count
 
         let previous = (try? context.fetch(
             FetchDescriptor<FollowerSnapshot>(sortBy: [SortDescriptor(\.takenAt, order: .reverse)])
         )) ?? []
+        let last = previous.first
 
-        if let last = previous.first {
+        // Each side is diffed only when this export actually contains it —
+        // a messages-only export (or one corrupt part-zip) must never be
+        // read as "everyone unfollowed you". A missing side carries the
+        // previous snapshot's values forward so the baseline stays honest.
+        if !followers.isEmpty, let last {
             let lastFollowers = Set(last.followerUsernames)
-            let lastFollowing = Set(last.followingUsernames)
             let gained = followers.subtracting(lastFollowers).sorted()
             let lost = lastFollowers.subtracting(followers).sorted()
-            let startedFollowing = following.subtracting(lastFollowing).sorted()
-            let stoppedFollowing = lastFollowing.subtracting(following).sorted()
-
             result.newFollowers = gained
             result.lostFollowers = lost
             for username in gained { context.insert(FollowerEvent(username: username, kind: .gainedFollower)) }
             for username in lost { context.insert(FollowerEvent(username: username, kind: .lostFollower)) }
-            for username in startedFollowing { context.insert(FollowerEvent(username: username, kind: .startedFollowing)) }
-            for username in stoppedFollowing { context.insert(FollowerEvent(username: username, kind: .stoppedFollowing)) }
+        }
+        if !following.isEmpty, let last {
+            let lastFollowing = Set(last.followingUsernames)
+            for username in following.subtracting(lastFollowing).sorted() {
+                context.insert(FollowerEvent(username: username, kind: .startedFollowing))
+            }
+            for username in lastFollowing.subtracting(following).sorted() {
+                context.insert(FollowerEvent(username: username, kind: .stoppedFollowing))
+            }
         }
 
+        let effectiveFollowers = followers.isEmpty ? Set(last?.followerUsernames ?? []) : followers
+        let effectiveFollowing = following.isEmpty ? Set(last?.followingUsernames ?? []) : following
+        result.followerCount = effectiveFollowers.count
+        result.followingCount = effectiveFollowing.count
         context.insert(FollowerSnapshot(
-            followerUsernames: followers.sorted(),
-            followingUsernames: following.sorted()
+            followerUsernames: effectiveFollowers.sorted(),
+            followingUsernames: effectiveFollowing.sorted()
         ))
 
         // Prune oldest snapshots beyond the cap (events derived from them
@@ -169,9 +197,11 @@ final class InstagramSyncService {
         for thread in export.threads {
             let fresh = thread.messages.filter { $0.date > cutoff }
             guard !fresh.isEmpty else { continue }
-            // Skip threads where the only new activity is the owner talking
-            // to themselves (notes-to-self threads exist).
             let others = Set(thread.participants).subtracting([owner].compactMap { $0 })
+            // Skip notes-to-self threads — with no other participant the
+            // title is the owner's own name, which could otherwise
+            // auto-match a Person who happens to share it.
+            if owner != nil && others.isEmpty { continue }
             let otherParticipant = others.count == 1 ? (others.first ?? "") : ""
             let displayTitle = thread.title.isEmpty ? (otherParticipant.isEmpty ? "Group chat" : otherParticipant) : thread.title
 

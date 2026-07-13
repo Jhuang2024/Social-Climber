@@ -123,10 +123,30 @@ final class GoogleDriveService: NSObject {
         guard let newest = candidates.first, let newestTime = newest.modifiedTime else {
             return Array(candidates.prefix(1))
         }
-        return candidates.filter {
+        // Multi-part exports share a name stem and land together; requiring
+        // both the stem match and the time window keeps an older, unrelated
+        // export (or a re-requested one from yesterday) from being merged
+        // into this parse and poisoning the follower diff.
+        let newestStem = Self.exportStem(newest.name)
+        let group = candidates.filter {
             guard let time = $0.modifiedTime else { return false }
             return newestTime.timeIntervalSince(time) < 48 * 3600
+                && Self.exportStem($0.name) == newestStem
         }
+        return group.isEmpty ? [newest] : group
+    }
+
+    /// A zip's name with the extension and any trailing part number
+    /// ("-part-2", "_3", " (1)") stripped, for grouping multi-part exports.
+    private static func exportStem(_ name: String) -> String {
+        var stem = name.lowercased()
+        if let range = stem.range(of: ".zip") { stem = String(stem[..<range.lowerBound]) }
+        stem = stem.replacingOccurrences(
+            of: #"[-_. ()]*(part)?[-_. ()]*\d+$"#,
+            with: "",
+            options: .regularExpression
+        )
+        return stem
     }
 
     private func findFolder(named name: String) async throws -> DriveFile? {

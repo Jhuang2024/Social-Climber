@@ -169,15 +169,10 @@ struct SocialHealthView: View {
         }
     }
 
+    /// Same matcher the sync uses — keeping the two consistent means a
+    /// person matched during import review is also matched here.
     private func matchedPerson(for username: String) -> Person? {
-        let needle = username.lowercased()
-        return people.first { person in
-            person.instagramUsername.lowercased() == needle
-                || person.contactMethods.contains {
-                    $0.label.localizedCaseInsensitiveContains("instagram")
-                        && $0.value.lowercased().replacingOccurrences(of: "@", with: "") == needle
-                }
-        }
+        InstagramSyncService.shared.match(nameOrUsername: username, people: people)
     }
 
     // MARK: Momentum

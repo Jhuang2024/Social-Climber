@@ -147,7 +147,9 @@ struct ZipArchiveReader {
             // in order, by 8-byte values inside extra field id 0x0001.
             if compressedSize == 0xFFFFFFFF || uncompressedSize == 0xFFFFFFFF || localHeaderOffset == 0xFFFFFFFF {
                 var extraOffset = nameStart + nameLength
-                let extraEnd = extraOffset + extraLength
+                // Clamp so a corrupt extraLength throws via the normal
+                // bounds instead of trapping on an out-of-range subscript.
+                let extraEnd = min(extraOffset + extraLength, directory.count)
                 while extraOffset + 4 <= extraEnd {
                     let fieldID = directory.readUInt16(at: extraOffset)
                     let fieldSize = Int(directory.readUInt16(at: extraOffset + 2))

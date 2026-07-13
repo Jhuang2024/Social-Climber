@@ -59,8 +59,15 @@ struct InstagramSyncReviewView: View {
                     if isApplying {
                         ProgressView()
                     } else {
+                        // Disabled while any included row still says
+                        // "Choose person…" — otherwise that conversation
+                        // would be silently dropped, and the advanced
+                        // cutoff means it never comes back.
                         Button("Apply") { applyAll() }
-                            .disabled(!decisions.contains { $0.include && ($0.person != nil || $0.createNew) })
+                            .disabled(
+                                !decisions.contains { $0.include && ($0.person != nil || $0.createNew) }
+                                    || decisions.contains { $0.include && $0.person == nil && !$0.createNew }
+                            )
                     }
                 }
             }
@@ -222,6 +229,7 @@ struct InstagramSyncReviewView: View {
                     context: context
                 )
             }
+            InstagramSyncService.shared.commitCutoff(result)
             try? context.save()
             Haptics.success()
             isApplying = false
