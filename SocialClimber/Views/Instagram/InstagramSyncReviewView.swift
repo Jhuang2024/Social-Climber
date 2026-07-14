@@ -45,7 +45,7 @@ struct InstagramSyncReviewView: View {
                     } header: {
                         Text("New Conversations (\(decisions.count))")
                     } footer: {
-                        Text("Included conversations are analyzed with your selected AI provider (or the offline fallback) and logged as Instagram interactions. Interests, reminders, and dates found in them are applied to the matched person.")
+                        Text("Included conversations become Instagram interactions and Recent Captures. Learned details stay evidence-linked and reviewable; dates, reminders, and gift ideas are suggestions until you confirm them.")
                     }
                 }
             }
