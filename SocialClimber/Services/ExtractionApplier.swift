@@ -46,6 +46,7 @@ enum ExtractionApplier {
         date: Date = .now,
         quality: Int = 3,
         voiceNote: VoiceNote? = nil,
+        sourceCaptureUUID: UUID? = nil,
         options: Options,
         context: ModelContext
     ) -> Interaction? {
@@ -61,6 +62,7 @@ enum ExtractionApplier {
             }
             for idea in approvedGiftIdeas {
                 let gift = GiftIdea(title: idea, person: person, notes: "From note on \(date.shortFormat)")
+                gift.sourceCaptureUUID = sourceCaptureUUID
                 context.insert(gift)
             }
             for extracted in approvedReminders {
@@ -76,6 +78,7 @@ enum ExtractionApplier {
                     type: .followUp,
                     person: person
                 )
+                reminder.sourceCaptureUUID = sourceCaptureUUID
                 context.insert(reminder)
                 NotificationService.shared.schedule(reminder: reminder)
             }
@@ -86,6 +89,7 @@ enum ExtractionApplier {
                     NotificationService.shared.scheduleBirthday(for: person)
                 } else {
                     let important = ImportantDate(title: extracted.title, date: dateValue, person: person)
+                    important.sourceCaptureUUID = sourceCaptureUUID
                     context.insert(important)
                     NotificationService.shared.schedule(importantDate: important)
                 }
@@ -110,6 +114,7 @@ enum ExtractionApplier {
             followUpNeeded: !approvedReminders.isEmpty,
             messageSummary: extraction.summary
         )
+        interaction.sourceCaptureUUID = sourceCaptureUUID
         interaction.people = people
         context.insert(interaction)
         // Only nudge closeness when this call is logging the interaction
