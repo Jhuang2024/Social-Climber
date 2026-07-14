@@ -45,9 +45,11 @@ struct NotificationSettingsView: View {
     @State private var authorizationStatus: UNAuthorizationStatus = .notDetermined
     @State private var alertSetting: UNNotificationSetting = .notSupported
     @State private var soundSetting: UNNotificationSetting = .notSupported
+    @State private var timeSensitiveSetting: UNNotificationSetting = .notSupported
     @State private var pendingNotificationCount = 0
     @State private var instagramReminderScheduled = false
     @State private var deliveryMessage: String?
+    @State private var lastSchedulingError: String?
     @State private var isSendingDeliveryTest = false
 
     var body: some View {
@@ -64,7 +66,13 @@ struct NotificationSettingsView: View {
                 // without attaching a debugger.
                 LabeledContent("Alert style", value: settingLabel(alertSetting))
                 LabeledContent("Sound", value: settingLabel(soundSetting))
+                LabeledContent("Time Sensitive", value: settingLabel(timeSensitiveSetting))
                 LabeledContent("Scheduled alerts", value: "\(pendingNotificationCount)")
+                if let lastSchedulingError {
+                    Label(lastSchedulingError, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
                 if UserDefaults.standard.bool(forKey: "instagramSyncReminderEnabled") {
                     Label(
                         instagramReminderScheduled ? "10 AM Instagram reminder is scheduled" : "10 AM Instagram reminder is not scheduled",
@@ -234,8 +242,10 @@ struct NotificationSettingsView: View {
         authorizationStatus = result.authorizationStatus
         alertSetting = result.alertSetting
         soundSetting = result.soundSetting
+        timeSensitiveSetting = result.timeSensitiveSetting
         pendingNotificationCount = result.pendingCount
         instagramReminderScheduled = result.instagramReminderScheduled
+        lastSchedulingError = result.lastSchedulingError
     }
 
     private var authorizationLabel: String {

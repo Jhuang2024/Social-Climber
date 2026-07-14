@@ -1,5 +1,12 @@
 # Patch Notes
 
+## Unreleased — Notification delivery reliability
+
+- Fixed date-only reminders due today being converted into already-past 9 AM triggers and silently never firing.
+- Overdue follow-ups now use the existing overdue category and schedule for the next reminder window instead of being dropped.
+- Birthdays and important dates scheduled after 9 AM on the day now alert shortly instead of skipping to the following year.
+- Production notification requests now record and display scheduling errors, and Settings exposes the actual iOS Time Sensitive permission state.
+
 ## Unreleased: Instagram Google Drive folder imports
 
 - Fixed Instagram sync incorrectly requiring a zip inside the selected Drive folder.

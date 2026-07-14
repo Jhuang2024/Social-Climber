@@ -33,10 +33,12 @@ final class NotificationService {
         let authorizationStatus: UNAuthorizationStatus
         let alertSetting: UNNotificationSetting
         let soundSetting: UNNotificationSetting
+        let timeSensitiveSetting: UNNotificationSetting
         let notificationCenterSetting: UNNotificationSetting
         let lockScreenSetting: UNNotificationSetting
         let pendingCount: Int
         let instagramReminderScheduled: Bool
+        let lastSchedulingError: String?
     }
 
     /// Reads what iOS actually has, rather than inferring delivery from
@@ -53,6 +55,7 @@ final class NotificationService {
             diagnostics: auth=\(String(describing: notificationSettings.authorizationStatus), privacy: .public) \
             alert=\(String(describing: notificationSettings.alertSetting), privacy: .public) \
             sound=\(String(describing: notificationSettings.soundSetting), privacy: .public) \
+            timeSensitive=\(String(describing: notificationSettings.timeSensitiveSetting), privacy: .public) \
             notifCenter=\(String(describing: notificationSettings.notificationCenterSetting), privacy: .public) \
             lockScreen=\(String(describing: notificationSettings.lockScreenSetting), privacy: .public) \
             pendingCount=\(pending.count, privacy: .public)
@@ -61,11 +64,30 @@ final class NotificationService {
             authorizationStatus: notificationSettings.authorizationStatus,
             alertSetting: notificationSettings.alertSetting,
             soundSetting: notificationSettings.soundSetting,
+            timeSensitiveSetting: notificationSettings.timeSensitiveSetting,
             notificationCenterSetting: notificationSettings.notificationCenterSetting,
             lockScreenSetting: notificationSettings.lockScreenSetting,
             pendingCount: pending.count,
-            instagramReminderScheduled: pending.contains { $0.identifier == Self.instagramReminderID }
+            instagramReminderScheduled: pending.contains { $0.identifier == Self.instagramReminderID },
+            lastSchedulingError: UserDefaults.standard.string(forKey: Self.lastSchedulingErrorKey)
         )
+    }
+
+    private static let lastSchedulingErrorKey = "notificationLastSchedulingError"
+
+    /// Submit through one checked path. Previously every production
+    /// `center.add` discarded its error, so a rejected request appeared to
+    /// have scheduled successfully.
+    private func enqueue(_ request: UNNotificationRequest, source: String) {
+        center.add(request) { [logger] error in
+            if let error {
+                let message = "\(source) [\(request.identifier)]: \(error.localizedDescription)"
+                UserDefaults.standard.set(message, forKey: Self.lastSchedulingErrorKey)
+                logger.error("schedule failed: \(message, privacy: .public)")
+            } else {
+                logger.info("scheduled \(source, privacy: .public) id=\(request.identifier, privacy: .public)")
+            }
+        }
     }
 
     static let deliveryTestID = "notification-delivery-test"
@@ -232,11 +254,25 @@ final class NotificationService {
         Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: day) ?? day
     }
 
+    /// Date-only records alert at 9 AM. When scheduling today's record after
+    /// 9, use a short interval instead of creating a calendar trigger in the
+    /// past (which iOS accepts but never fires).
+    private func fireDateAtNine(for day: Date, now: Date = .now) -> Date? {
+        let nine = adjustedDate(dateAt(hour: nonQuietHour(9), on: day))
+        if nine > now { return nine }
+        guard Calendar.current.isDate(day, inSameDayAs: now) else { return nil }
+        return adjustedDate(now.addingTimeInterval(60))
+    }
+
     // MARK: Reminders
 
     func schedule(reminder: Reminder) {
-        let category: NotificationCategory = reminder.type == .followUp ? .followUp : .explicitReminder
-        guard !reminder.completed, reminder.dueDate > .now else { return }
+        guard !reminder.completed else { return }
+        let isOverdue = reminder.dueDate < Calendar.current.startOfDay(for: .now)
+        let category: NotificationCategory = reminder.type == .followUp
+            ? (isOverdue ? .overdueFollowUp : .followUp)
+            : .explicitReminder
+        guard !isOverdue || reminder.type == .followUp else { return }
         guard enabled, settings.isEnabled(category) else {
             requestPermissionThenRetry { [weak self] in self?.schedule(reminder: reminder) }
             return
@@ -254,10 +290,18 @@ final class NotificationService {
         content.userInfo = ["kind": "reminder"]
         applyPrivacy(content, category: category)
 
-        var comps = Calendar.current.dateComponents([.year, .month, .day], from: reminder.dueDate)
-        comps.hour = nonQuietHour(9)
+        let fireDate: Date
+        if isOverdue {
+            let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: .now)) ?? .now
+            fireDate = adjustedDate(dateAt(hour: nonQuietHour(9), on: tomorrow))
+        } else if let scheduled = fireDateAtNine(for: reminder.dueDate) {
+            fireDate = scheduled
+        } else {
+            return
+        }
+        let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
-        center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
+        enqueue(UNNotificationRequest(identifier: id, content: content, trigger: trigger), source: "reminder")
     }
 
     func cancel(reminder: Reminder) {
@@ -289,8 +333,17 @@ final class NotificationService {
 
         var comps = Calendar.current.dateComponents([.month, .day], from: birthday)
         comps.hour = nonQuietHour(9)
-        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
-        center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
+        let isBirthdayToday = Calendar.current.component(.month, from: birthday) == Calendar.current.component(.month, from: .now)
+            && Calendar.current.component(.day, from: birthday) == Calendar.current.component(.day, from: .now)
+        let trigger: UNNotificationTrigger
+        if isBirthdayToday, dateAt(hour: nonQuietHour(9), on: .now) <= .now {
+            // A repeating month/day trigger created after today's matching
+            // time would otherwise skip straight to next year.
+            trigger = UNTimeIntervalNotificationTrigger(timeInterval: 60, repeats: false)
+        } else {
+            trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
+        }
+        enqueue(UNNotificationRequest(identifier: id, content: content, trigger: trigger), source: "birthday")
     }
 
     /// Cancels a person's standing birthday notification without touching
@@ -324,8 +377,15 @@ final class NotificationService {
             ? Calendar.current.dateComponents([.month, .day], from: next)
             : Calendar.current.dateComponents([.year, .month, .day], from: next)
         comps.hour = nonQuietHour(9)
-        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: importantDate.repeatsYearly)
-        center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
+        let today = Calendar.current.isDate(next, inSameDayAs: .now)
+        let nineToday = dateAt(hour: nonQuietHour(9), on: .now)
+        let trigger: UNNotificationTrigger
+        if today && nineToday <= .now {
+            trigger = UNTimeIntervalNotificationTrigger(timeInterval: 60, repeats: false)
+        } else {
+            trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: importantDate.repeatsYearly)
+        }
+        enqueue(UNNotificationRequest(identifier: id, content: content, trigger: trigger), source: "important-date")
     }
 
     func cancel(importantDate: ImportantDate) {
@@ -358,7 +418,7 @@ final class NotificationService {
         let fireDate = adjustedDate(event.date)
         let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
-        center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
+        enqueue(UNNotificationRequest(identifier: id, content: content, trigger: trigger), source: "event")
     }
 
     func cancel(event: Event) {
@@ -445,7 +505,7 @@ final class NotificationService {
 
         let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
-        center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
+        enqueue(UNNotificationRequest(identifier: id, content: content, trigger: trigger), source: "event-follow-up")
     }
 
     func cancelFollowUp(for event: Event) {
@@ -505,7 +565,7 @@ final class NotificationService {
 
         let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
-        center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
+        enqueue(UNNotificationRequest(identifier: id, content: content, trigger: trigger), source: "calendar-follow-up")
     }
 
     // MARK: Instagram sync reminder
@@ -532,7 +592,7 @@ final class NotificationService {
         var comps = DateComponents()
         comps.hour = 10
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
-        center.add(UNNotificationRequest(identifier: Self.instagramReminderID, content: content, trigger: trigger))
+        enqueue(UNNotificationRequest(identifier: Self.instagramReminderID, content: content, trigger: trigger), source: "instagram-sync")
     }
 
     func cancelInstagramSyncReminder() {
@@ -541,6 +601,7 @@ final class NotificationService {
 
     /// Re-sync every pending notification from current data.
     func rescheduleAll(people: [Person], reminders: [Reminder], importantDates: [ImportantDate], events: [Event]) {
+        UserDefaults.standard.removeObject(forKey: Self.lastSchedulingErrorKey)
         center.removeAllPendingNotificationRequests()
         for reminder in reminders where !reminder.completed {
             reminder.notificationID = nil
@@ -597,8 +658,9 @@ final class NotificationService {
         applyPrivacy(content, category: .relationshipMaintenance)
 
         let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
-        center.add(UNNotificationRequest(identifier: id, content: content,
-                                         trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)))
+        enqueue(UNNotificationRequest(identifier: id, content: content,
+                                      trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)),
+                source: "relationship-maintenance")
     }
 
     /// Optional periodic review nudge for prioritised contacts, anchored to
@@ -628,8 +690,9 @@ final class NotificationService {
         applyPrivacy(content, category: .periodicReview)
 
         let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
-        center.add(UNNotificationRequest(identifier: id, content: content,
-                                         trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)))
+        enqueue(UNNotificationRequest(identifier: id, content: content,
+                                      trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)),
+                source: "periodic-review")
     }
 
     /// A single grouped alert for captures needing review, scheduled shortly
@@ -653,8 +716,9 @@ final class NotificationService {
 
         let fire = adjustedDate(Date().addingTimeInterval(30 * 60))
         let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fire)
-        center.add(UNNotificationRequest(identifier: id, content: content,
-                                         trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)))
+        enqueue(UNNotificationRequest(identifier: id, content: content,
+                                      trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)),
+                source: "capture-review")
     }
 
     /// Comprehensive reconciliation used on launch and whenever data changes.
@@ -685,9 +749,9 @@ final class NotificationService {
     private func upgradeAuthorizationOptionsIfNeeded() {
         let key = "hasRequestedTimeSensitiveOption"
         guard enabled, !UserDefaults.standard.bool(forKey: key) else { return }
-        UserDefaults.standard.set(true, forKey: key)
         Task {
             let granted = await requestAuthorization()
+            if granted { UserDefaults.standard.set(true, forKey: key) }
             logger.info("upgradeAuthorizationOptions: requestAuthorization()=\(granted, privacy: .public)")
         }
     }

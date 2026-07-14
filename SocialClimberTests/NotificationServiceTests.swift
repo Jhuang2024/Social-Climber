@@ -83,6 +83,19 @@ final class NotificationServiceTests: XCTestCase {
         XCTAssertNil(reminder.notificationID)
     }
 
+    func testReminderDueTodayStillSchedules() {
+        let reminder = makeReminder(daysOut: 0)
+        NotificationService.shared.schedule(reminder: reminder)
+        XCTAssertNotNil(reminder.notificationID)
+    }
+
+    func testOverdueFollowUpSchedulesForNextReminderWindow() {
+        let reminder = makeReminder(daysOut: -2)
+        reminder.type = .followUp
+        NotificationService.shared.schedule(reminder: reminder)
+        XCTAssertNotNil(reminder.notificationID)
+    }
+
     func testDisabledCategoryDoesNotSchedule() {
         UserDefaults.standard.set(false, forKey: NotificationSettings.Key.explicitReminders)
         let reminder = makeReminder()
