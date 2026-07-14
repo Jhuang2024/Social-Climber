@@ -146,10 +146,10 @@ final class GoogleDriveService: NSObject {
 
         // Meta can deliver an already-expanded directory instead of a zip.
         // With no explicit folder name, use the newest matching folder.
-        if let folder = candidates
-            .filter(\.isFolder)
+        let matchingFolders = candidates
+            .filter { $0.isFolder }
             .sorted { ($0.modifiedTime ?? .distantPast) > ($1.modifiedTime ?? .distantPast) }
-            .first {
+        if let folder = matchingFolders.first {
             return try await exportSource(in: folder)
         }
         return InstagramExportSource(archives: [], looseFiles: [])
