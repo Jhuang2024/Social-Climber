@@ -133,10 +133,18 @@ struct InstagramSyncReviewView: View {
                     )
                 }
                 if result.newFollowers.isEmpty && result.lostFollowers.isEmpty {
-                    Label("No follower changes since the last sync.", systemImage: "checkmark.circle")
+                    Label(
+                        result.establishedFollowerBaseline
+                            ? "Baseline saved. Gains and losses start with the next export."
+                            : "No follower changes since the last sync.",
+                        systemImage: "checkmark.circle"
+                    )
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                Text("These are the current accounts contained in Meta's latest export, not followers gained this month. Parsed \(result.followerFileCount) follower file\(result.followerFileCount == 1 ? "" : "s") and \(result.followingFileCount) following file\(result.followingFileCount == 1 ? "" : "s").")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
         }
     }
