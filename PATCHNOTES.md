@@ -13,9 +13,13 @@
 - Instagram-derived dates, reminders, gifts, interests, and personality details are now reviewable evidence-linked suggestions instead of silently mutating profiles or scheduling notifications.
 - Added an idempotent legacy repair that collapses duplicate Instagram interactions and removes the repeated generic dates, auto-follow-ups, and raw transcript lines created by the original importer.
 - Fixed Social Health showing the disconnected hint after a successful first sync; it now recognizes Drive independently from whether any gain/loss events exist.
-- Added explicit current follower/following totals, last-updated time, and separate 30-day gained/lost/net metrics.
+- Added last-updated status and separate 30-day follower change metrics.
 - Made follower parsing accept every Meta wrapper shape and every username in grouped `string_list_data`, with source-file counts shown after sync.
 - Large partial-to-complete export jumps now replace the baseline instead of being misreported as hundreds of overnight follows or unfollows.
+- Removed misleading follower/following totals for date-limited Meta exports; Social Health now focuses only on detected changes between snapshots.
+- Added person-level history for all four Instagram changes: followed you, unfollowed you, you followed, and you unfollowed.
+- Added a smoothed, selectable Social Health score chart with week, month, year, and all-time ranges; dragging shows the exact score and date.
+- Fixed the daily Instagram reminder appearing enabled while master notifications were off, and added live iOS permission, pending-request diagnostics, and a test notification.
 - Raw downloaded files are still temporary, parsed on-device, and deleted immediately after the sync.
 
 ## Unreleased — Audio pipeline & notifications overhaul
