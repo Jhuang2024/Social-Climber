@@ -2,6 +2,8 @@
 
 ## Unreleased — Notification delivery reliability
 
+- Fixed foreground alerts omitting the Notification Center `.list` presentation option, which let iOS report a test as delivered even though it vanished when its banner was suppressed.
+- Delivery tests now clear stale delivered tests first and record whether `willPresent` actually ran, rather than blaming Focus based on an old notification with the same identifier.
 - Fixed date-only reminders due today being converted into already-past 9 AM triggers and silently never firing.
 - Overdue follow-ups now use the existing overdue category and schedule for the next reminder window instead of being dropped.
 - Birthdays and important dates scheduled after 9 AM on the day now alert shortly instead of skipping to the following year.

@@ -39,6 +39,8 @@ final class NotificationService {
         let pendingCount: Int
         let instagramReminderScheduled: Bool
         let lastSchedulingError: String?
+        let lastForegroundPresentationID: String?
+        let lastForegroundPresentationAt: Date?
     }
 
     /// Reads what iOS actually has, rather than inferring delivery from
@@ -69,11 +71,24 @@ final class NotificationService {
             lockScreenSetting: notificationSettings.lockScreenSetting,
             pendingCount: pending.count,
             instagramReminderScheduled: pending.contains { $0.identifier == Self.instagramReminderID },
-            lastSchedulingError: UserDefaults.standard.string(forKey: Self.lastSchedulingErrorKey)
+            lastSchedulingError: UserDefaults.standard.string(forKey: Self.lastSchedulingErrorKey),
+            lastForegroundPresentationID: UserDefaults.standard.string(forKey: Self.lastForegroundPresentationIDKey),
+            lastForegroundPresentationAt: UserDefaults.standard.object(forKey: Self.lastForegroundPresentationAtKey) as? Date
         )
     }
 
     private static let lastSchedulingErrorKey = "notificationLastSchedulingError"
+    private static let lastForegroundPresentationIDKey = "notificationLastForegroundPresentationID"
+    private static let lastForegroundPresentationAtKey = "notificationLastForegroundPresentationAt"
+
+    /// Called only by `UNUserNotificationCenterDelegate.willPresent`, proving
+    /// that iOS fired the request while the app was foregrounded and invoked
+    /// the app's presentation path.
+    func recordForegroundPresentation(requestID: String) {
+        UserDefaults.standard.set(requestID, forKey: Self.lastForegroundPresentationIDKey)
+        UserDefaults.standard.set(Date.now, forKey: Self.lastForegroundPresentationAtKey)
+        logger.info("willPresent invoked for id=\(requestID, privacy: .public); requesting banner, list, sound, badge")
+    }
 
     /// Submit through one checked path. Previously every production
     /// `center.add` discarded its error, so a rejected request appeared to
@@ -95,11 +110,11 @@ final class NotificationService {
     enum DeliveryTestOutcome {
         /// The 3-second trigger hasn't fired yet.
         case stillPending
-        /// iOS fired it and it's sitting in Notification Center/lock screen —
-        /// scheduling and delivery both worked. If the user still didn't see
-        /// a banner/sound, the cause is a device-level presentation setting
-        /// (Focus, alert style, sound), not this app's code.
-        case delivered
+        /// iOS fired it while the app was active and invoked `willPresent`.
+        case presentedInForeground
+        /// iOS delivered it without invoking the foreground delegate, meaning
+        /// the app was backgrounded/inactive when it fired.
+        case deliveredInBackground
         /// Neither pending nor delivered after the trigger should have
         /// fired — `center.add` likely threw, or iOS silently dropped it
         /// before delivery (rare, but seen with corrupted notification
@@ -115,8 +130,15 @@ final class NotificationService {
             logger.info("deliveryTest: still pending")
             return .stillPending
         }
+        let defaults = UserDefaults.standard
+        if defaults.string(forKey: Self.lastForegroundPresentationIDKey) == Self.deliveryTestID {
+            logger.info("deliveryTest: foreground delegate invoked")
+            return .presentedInForeground
+        }
         let delivered = await center.deliveredNotifications()
-        let outcome: DeliveryTestOutcome = delivered.contains { $0.request.identifier == Self.deliveryTestID } ? .delivered : .missing
+        let outcome: DeliveryTestOutcome = delivered.contains { $0.request.identifier == Self.deliveryTestID }
+            ? .deliveredInBackground
+            : .missing
         logger.info("deliveryTest: outcome=\(String(describing: outcome), privacy: .public) deliveredCount=\(delivered.count, privacy: .public)")
         return outcome
     }
@@ -160,6 +182,12 @@ final class NotificationService {
             trigger: UNTimeIntervalNotificationTrigger(timeInterval: 3, repeats: false)
         )
         center.removePendingNotificationRequests(withIdentifiers: [request.identifier])
+        // A prior test used the same stable identifier. Leaving it in the
+        // delivered list made `checkDeliveryTestOutcome` mistake stale history
+        // for proof that the new test fired.
+        center.removeDeliveredNotifications(withIdentifiers: [request.identifier])
+        UserDefaults.standard.removeObject(forKey: Self.lastForegroundPresentationIDKey)
+        UserDefaults.standard.removeObject(forKey: Self.lastForegroundPresentationAtKey)
         do {
             try await center.add(request)
             logger.info("deliveryTest: center.add succeeded, firing in 3s")

@@ -19,7 +19,15 @@ final class NotificationActionHandler: NSObject, UNUserNotificationCenterDelegat
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        [.banner, .sound, .badge]
+        // The delivery test is fired while Settings is open, so this delegate
+        // decides whether the alert is visible. `.banner` alone does not put a
+        // foreground notification in Notification Center; if the banner is
+        // suppressed the alert appears to vanish despite iOS reporting it as
+        // delivered. Always request `.list` as the durable fallback.
+        NotificationService.shared.recordForegroundPresentation(
+            requestID: notification.request.identifier
+        )
+        return [.banner, .list, .sound, .badge]
     }
 
     func userNotificationCenter(

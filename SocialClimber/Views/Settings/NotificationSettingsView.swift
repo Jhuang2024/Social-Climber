@@ -50,6 +50,8 @@ struct NotificationSettingsView: View {
     @State private var instagramReminderScheduled = false
     @State private var deliveryMessage: String?
     @State private var lastSchedulingError: String?
+    @State private var lastForegroundPresentationID: String?
+    @State private var lastForegroundPresentationAt: Date?
     @State private var isSendingDeliveryTest = false
 
     var body: some View {
@@ -68,6 +70,7 @@ struct NotificationSettingsView: View {
                 LabeledContent("Sound", value: settingLabel(soundSetting))
                 LabeledContent("Time Sensitive", value: settingLabel(timeSensitiveSetting))
                 LabeledContent("Scheduled alerts", value: "\(pendingNotificationCount)")
+                LabeledContent("Foreground delegate", value: foregroundPresentationLabel)
                 if let lastSchedulingError {
                     Label(lastSchedulingError, systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
@@ -221,14 +224,12 @@ struct NotificationSettingsView: View {
                 switch outcome {
                 case .stillPending:
                     deliveryMessage = "Still pending after 4s — the trigger hasn't fired yet. Wait a moment and check again."
-                case .delivered:
-                    if alertSetting == .disabled {
-                        deliveryMessage = "iOS delivered it, but this app's Alert style is set to \"None\" in iOS Settings → Notifications, so no banner/sound shows. Tap \"Open iOS Notification Settings\" and set Alert Style to Banners or Alerts."
-                    } else {
-                        deliveryMessage = "iOS delivered it — check Notification Center or the lock screen. This test is marked Time Sensitive, so it should break through Focus/Do Not Disturb the way Messages and Calendar do. If it still didn't show, open the active Focus in iOS Settings → Focus and confirm \"Time Sensitive Notifications\" is allowed, or add Social Climber to that Focus's allowed apps directly."
-                    }
+                case .presentedInForeground:
+                    deliveryMessage = "The foreground notification delegate ran and requested a banner, Notification Center list entry, sound, and badge."
+                case .deliveredInBackground:
+                    deliveryMessage = "iOS reports this new test as delivered while the app was inactive."
                 case .missing:
-                    deliveryMessage = "iOS never delivered it (not pending, not in Notification Center). This points to a device-level notification issue rather than app code — try again, and if it keeps failing, restart the device."
+                    deliveryMessage = "The new test is neither pending nor delivered, and the foreground delegate never ran. Scheduling/presentation diagnostics have been recorded for inspection."
                 }
             } catch {
                 deliveryMessage = error.localizedDescription
@@ -246,6 +247,8 @@ struct NotificationSettingsView: View {
         pendingNotificationCount = result.pendingCount
         instagramReminderScheduled = result.instagramReminderScheduled
         lastSchedulingError = result.lastSchedulingError
+        lastForegroundPresentationID = result.lastForegroundPresentationID
+        lastForegroundPresentationAt = result.lastForegroundPresentationAt
     }
 
     private var authorizationLabel: String {
@@ -266,6 +269,14 @@ struct NotificationSettingsView: View {
         case .enabled: "On"
         @unknown default: "Unknown"
         }
+    }
+
+    private var foregroundPresentationLabel: String {
+        guard let id = lastForegroundPresentationID, let date = lastForegroundPresentationAt else {
+            return "Not invoked"
+        }
+        let kind = id == NotificationService.deliveryTestID ? "Test" : id
+        return "\(kind) · \(date.formatted(date: .omitted, time: .standard))"
     }
 
     /// Rebuilds the scheduled set from current settings + data. Idempotent.
