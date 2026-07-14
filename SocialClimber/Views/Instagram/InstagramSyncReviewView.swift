@@ -110,12 +110,7 @@ struct InstagramSyncReviewView: View {
     @ViewBuilder
     private var followersSection: some View {
         if result.hadFollowerData {
-            Section("Followers") {
-                HStack(spacing: 10) {
-                    followerStat(value: result.followerCount, label: "followers")
-                    followerStat(value: result.followingCount, label: "following")
-                }
-                .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
+            Section("Follower & Following Changes") {
                 if !result.newFollowers.isEmpty {
                     followerChangeRow(
                         label: "New followers",
@@ -132,9 +127,18 @@ struct InstagramSyncReviewView: View {
                         icon: "person.badge.minus"
                     )
                 }
-                if result.newFollowers.isEmpty && result.lostFollowers.isEmpty {
+                if !result.startedFollowing.isEmpty {
+                    followerChangeRow(label: "You followed", usernames: result.startedFollowing, color: SCTheme.Accents.cool, icon: "plus.circle")
+                }
+                if !result.stoppedFollowing.isEmpty {
+                    followerChangeRow(label: "You unfollowed", usernames: result.stoppedFollowing, color: SCTheme.Accents.warm, icon: "minus.circle")
+                }
+                if result.newFollowers.isEmpty && result.lostFollowers.isEmpty
+                    && result.startedFollowing.isEmpty && result.stoppedFollowing.isEmpty {
                     Label(
-                        result.establishedFollowerBaseline
+                        result.followerDataIsDateLimited
+                            ? "No new dated follower or following activity in this export."
+                            : result.establishedFollowerBaseline
                             ? "Baseline saved. Gains and losses start with the next export."
                             : "No follower changes since the last sync.",
                         systemImage: "checkmark.circle"
@@ -142,27 +146,13 @@ struct InstagramSyncReviewView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Text("These are the current accounts contained in Meta's latest export, not followers gained this month. Parsed \(result.followerFileCount) follower file\(result.followerFileCount == 1 ? "" : "s") and \(result.followingFileCount) following file\(result.followingFileCount == 1 ? "" : "s").")
+                Text(result.followerDataIsDateLimited
+                    ? "This is a date-limited Meta export. Listed follows are recorded by username, but a missing username is not treated as an unfollow. Meta does not reveal who unfollowed you in a monthly partial export."
+                    : "Changes are exact username differences between consecutive full snapshots. Parsed \(result.followerFileCount) follower file\(result.followerFileCount == 1 ? "" : "s") and \(result.followingFileCount) following file\(result.followingFileCount == 1 ? "" : "s").")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
         }
-    }
-
-    private func followerStat(value: Int, label: String) -> some View {
-        VStack(spacing: 2) {
-            Text("\(value)")
-                .font(SCTheme.displayFont(20, weight: .bold))
-                .monospacedDigit()
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-                .tracking(1.0)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(SCTheme.elevatedBackground.opacity(0.6), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func followerChangeRow(label: String, usernames: [String], color: Color, icon: String) -> some View {
