@@ -1,5 +1,7 @@
 import SwiftUI
 import SwiftData
+import UserNotifications
+import UIKit
 
 /// The dedicated Notifications settings screen: master switch, per-category
 /// toggles, quiet hours, preview privacy, snooze, and reminder-frequency
@@ -40,14 +42,44 @@ struct NotificationSettingsView: View {
     @AppStorage("defaultCadenceRegular") private var cadenceRegular = 60
     @AppStorage("defaultCadenceDistant") private var cadenceDistant = 120
 
+    @State private var authorizationStatus: UNAuthorizationStatus = .notDetermined
+    @State private var pendingNotificationCount = 0
+    @State private var instagramReminderScheduled = false
+    @State private var deliveryMessage: String?
+    @State private var isSendingDeliveryTest = false
+
     var body: some View {
         Form {
             Section {
                 Toggle("Notifications", isOn: $masterEnabled)
                     .tint(.green)
                     .onChange(of: masterEnabled) { handleMasterChange() }
+                LabeledContent("iOS permission", value: authorizationLabel)
+                LabeledContent("Scheduled alerts", value: "\(pendingNotificationCount)")
+                if UserDefaults.standard.bool(forKey: "instagramSyncReminderEnabled") {
+                    Label(
+                        instagramReminderScheduled ? "8 PM Instagram reminder is scheduled" : "8 PM Instagram reminder is not scheduled",
+                        systemImage: instagramReminderScheduled ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(instagramReminderScheduled ? Color.green : Color.orange)
+                }
+                Button {
+                    sendDeliveryTest()
+                } label: {
+                    Label("Send Test Notification", systemImage: "bell.badge")
+                }
+                if authorizationStatus == .denied {
+                    Button {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
+                    } label: {
+                        Label("Open iOS Notification Settings", systemImage: "gear")
+                    }
+                }
             } footer: {
-                Text("Everything fires locally on this iPhone. Nothing is ever sent anywhere.")
+                Text(deliveryMessage ?? "Everything fires locally on this iPhone. The status above is read directly from iOS.")
             }
 
             Section("Categories") {
@@ -118,6 +150,7 @@ struct NotificationSettingsView: View {
         .background(SCTheme.pageBackground)
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
+        .task { await refreshDiagnostics() }
     }
 
     private func categoryToggle(_ title: String, systemImage: String, isOn: Binding<Bool>) -> some View {
@@ -129,6 +162,7 @@ struct NotificationSettingsView: View {
     }
 
     private func handleMasterChange() {
+        guard !isSendingDeliveryTest else { return }
         Task {
             if masterEnabled {
                 let granted = await NotificationService.shared.requestAuthorization()
@@ -138,6 +172,49 @@ struct NotificationSettingsView: View {
                 }
             }
             reconcile()
+            await refreshDiagnostics()
+        }
+    }
+
+    private func sendDeliveryTest() {
+        deliveryMessage = "Scheduling test…"
+        Task {
+            isSendingDeliveryTest = true
+            defer { isSendingDeliveryTest = false }
+            do {
+                // Reconciliation clears and rebuilds the pending queue. Do it
+                // before adding the test request so turning the master switch
+                // on cannot immediately erase the test.
+                if !masterEnabled {
+                    let granted = await NotificationService.shared.requestAuthorization()
+                    guard granted else { throw NotificationDeliveryTestError.permissionDenied }
+                    masterEnabled = true
+                    reconcile()
+                }
+                try await NotificationService.shared.scheduleDeliveryTest()
+                deliveryMessage = "Test scheduled for 3 seconds from now."
+            } catch {
+                deliveryMessage = error.localizedDescription
+            }
+            await refreshDiagnostics()
+        }
+    }
+
+    private func refreshDiagnostics() async {
+        let result = await NotificationService.shared.diagnostics()
+        authorizationStatus = result.authorizationStatus
+        pendingNotificationCount = result.pendingCount
+        instagramReminderScheduled = result.instagramReminderScheduled
+    }
+
+    private var authorizationLabel: String {
+        switch authorizationStatus {
+        case .notDetermined: "Not requested"
+        case .denied: "Denied"
+        case .authorized: "Allowed"
+        case .provisional: "Provisional"
+        case .ephemeral: "Temporary"
+        @unknown default: "Unknown"
         }
     }
 
