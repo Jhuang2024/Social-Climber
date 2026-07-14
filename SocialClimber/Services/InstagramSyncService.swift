@@ -98,6 +98,11 @@ final class InstagramSyncService {
         isSyncing = true
         defer { isSyncing = false; progressText = "" }
 
+        // One-time, idempotent migration for data produced by the original
+        // importer, which flattened every AI suggestion directly into the
+        // profile and could repeat the same thread before its cutoff saved.
+        repairLegacyImportArtifacts(people: people, context: context)
+
         progressText = "Looking for the latest export in Drive…"
         let folderName = UserDefaults.standard.string(forKey: Self.folderDefaultsKey) ?? ""
         let source = try await GoogleDriveService.shared.latestInstagramExport(folderName: folderName)
@@ -304,12 +309,13 @@ final class InstagramSyncService {
 
     // MARK: Apply
 
-    /// Applies one approved thread candidate: runs the conversation through
-    /// the same extraction pipeline voice notes use, logs an imported
-    /// Instagram interaction, adds it to Recent Captures, updates the
-    /// person's profile, and remembers the person's Instagram identity for
-    /// future syncs. Matching the raw thread/date makes this idempotent if a
-    /// sync is retried before its cutoff is committed.
+    /// Applies one approved thread through the app's authoritative capture
+    /// pipeline. Instagram messages therefore get the same attribution,
+    /// evidence-linked facts, undo, search, summary, timeline, and dedup
+    /// behavior as typed/voice captures. Imported conversations are
+    /// deliberately conservative: extracted dates, reminders, and gifts are
+    /// suggestions until the user confirms them, never immediate profile or
+    /// notification mutations.
     func apply(candidate: ThreadCandidate, to person: Person, context: ModelContext) async {
         let digest = candidate.digestText
         let capture = existingInstagramCapture(
@@ -341,25 +347,14 @@ final class InstagramSyncService {
             return
         }
 
-        let outcome = await AIExtractionCoordinator.extract(
-            from: digest,
-            knownPeople: [person.displayName]
-        )
-        let interaction = ExtractionApplier.apply(
-            outcome.extraction,
-            to: [person],
-            sourceText: digest,
-            interactionType: .socialMedia,
-            date: candidate.latestDate,
-            quality: 3,
-            sourceCaptureUUID: capture.uuid,
-            options: .allApproved(for: outcome.extraction),
-            context: context
-        )
+        await CaptureProcessor.shared.process(capture, in: context)
+        let interaction = CaptureProcessor.interaction(for: capture, context: context)
         interaction?.isImported = true
         interaction?.platform = .instagram
         interaction?.rawImportText = digest
-        finish(capture: capture, person: person, summary: outcome.extraction.summary)
+        if let interaction {
+            finish(capture: capture, person: person, summary: interaction.messageSummary)
+        }
         rememberInstagramIdentity(candidate: candidate, person: person)
     }
 
@@ -435,5 +430,189 @@ final class InstagramSyncService {
                 person.instagramUsername = normalized
             }
         }
+    }
+
+    // MARK: Legacy importer repair
+
+    /// Repairs only artifacts carrying strong evidence that the original
+    /// Instagram importer created them. The operation is safe to run at the
+    /// start of every sync: exact duplicate interactions collapse to one,
+    /// flattened AI fields become reviewable `MemoryFact`s, generic dates
+    /// and auto-follow-ups are removed, and raw transcript lines are taken
+    /// out of Personality. Manually-created data without an Instagram
+    /// extraction match is untouched.
+    @discardableResult
+    func repairLegacyImportArtifacts(people: [Person], context: ModelContext) -> Int {
+        var changes = 0
+        var imported = ((try? context.fetch(FetchDescriptor<Interaction>())) ?? []).filter {
+            $0.isImported && $0.platform == .instagram
+        }
+
+        // Old retries could insert one interaction per tap. Prefer a record
+        // already linked to a capture, then the oldest original.
+        var seen: [String: Interaction] = [:]
+        for interaction in imported.sorted(by: {
+            if ($0.sourceCaptureUUID != nil) != ($1.sourceCaptureUUID != nil) {
+                return $0.sourceCaptureUUID != nil
+            }
+            return $0.createdAt < $1.createdAt
+        }) {
+            let peopleKey = interaction.people.map(\.uuid.uuidString).sorted().joined(separator: "|")
+            let key = "\(interaction.date.timeIntervalSince1970)|\(peopleKey)|\(interaction.rawImportText)"
+            if seen[key] != nil {
+                InteractionSaver.reverseClosenessImpact(of: interaction)
+                context.delete(interaction)
+                changes += 1
+            } else {
+                seen[key] = interaction
+            }
+        }
+        imported = Array(seen.values)
+
+        // Backfill the durable capture record even when the Drive cutoff has
+        // already advanced and the old conversation will never be offered
+        // in the review sheet again. This makes existing Instagram imports
+        // appear in Recent Captures immediately after the next sync.
+        var captures = (try? context.fetch(FetchDescriptor<CapturedMemory>())) ?? []
+        for interaction in imported where interaction.sourceCaptureUUID == nil {
+            let linkedPeople = interaction.people
+            guard !linkedPeople.isEmpty else { continue }
+            let matching = captures.first {
+                $0.source == .instagram
+                    && $0.rawText == interaction.rawImportText
+                    && abs($0.capturedAt.timeIntervalSince(interaction.date)) < 1
+                    && Set($0.trustedPersonIDs) == Set(linkedPeople.map(\.uuid))
+            }
+            let capture: CapturedMemory
+            if let matching {
+                capture = matching
+            } else {
+                capture = CapturedMemory(
+                    rawText: interaction.rawImportText,
+                    source: .instagram,
+                    capturedAt: interaction.date,
+                    trustedPeople: linkedPeople,
+                    typeHint: .socialMedia
+                )
+                context.insert(capture)
+                captures.append(capture)
+                changes += 1
+            }
+            capture.resolvedPersonIDs = linkedPeople.map(\.uuid)
+            capture.resolvedPersonNames = linkedPeople.map(\.name)
+            capture.title = "Instagram with \(linkedPeople.map(\.firstName).joined(separator: " & "))"
+            capture.detail = interaction.messageSummary.isEmpty ? "Imported Instagram messages" : interaction.messageSummary
+            capture.status = .processed
+            interaction.sourceCaptureUUID = capture.uuid
+            changes += 1
+        }
+
+        let existingFacts = (try? context.fetch(FetchDescriptor<MemoryFact>())) ?? []
+        var factKeys = Set(existingFacts.map {
+            "\($0.person?.uuid.uuidString ?? "none")|\($0.typeRaw)|\($0.value.lowercased())"
+        })
+
+        func addSuggestion(_ value: String, type: MemoryFactType, person: Person, interaction: Interaction) {
+            let cleaned = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !cleaned.isEmpty else { return }
+            let key = "\(person.uuid.uuidString)|\(type.rawValue)|\(cleaned.lowercased())"
+            guard factKeys.insert(key).inserted else { return }
+            let fact = MemoryFact(
+                type: type,
+                value: cleaned,
+                person: person,
+                confidence: interaction.aiSummary?.confidence ?? 0.5,
+                status: .suggested,
+                sourceCaptureUUID: interaction.sourceCaptureUUID,
+                sourceInteractionUUID: interaction.uuid
+            )
+            context.insert(fact)
+            changes += 1
+        }
+
+        for person in people {
+            let personImports = imported.filter { interaction in
+                interaction.people.contains(where: { $0.uuid == person.uuid })
+            }
+            guard !personImports.isEmpty else { continue }
+
+            let rawLines = Set(personImports.flatMap { $0.rawImportText.components(separatedBy: .newlines) }
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                .filter { !$0.isEmpty })
+
+            // Undo flattened AI fields while preserving their useful content
+            // as individually rejectable, provenance-linked suggestions.
+            var legacyInterests = Set<String>()
+            var legacyPersonality = Set<String>()
+            for interaction in personImports {
+                interaction.followUpNeeded = false
+                interaction.followUpDate = nil
+                interaction.nextMove = ""
+                guard let summary = interaction.aiSummary else { continue }
+                for value in summary.interests {
+                    legacyInterests.insert(value.lowercased())
+                    addSuggestion(value, type: .interest, person: person, interaction: interaction)
+                }
+                for value in summary.personalityNotes {
+                    legacyPersonality.insert(value.lowercased())
+                    if !rawLines.contains(value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()) {
+                        addSuggestion(value, type: .personality, person: person, interaction: interaction)
+                    }
+                }
+                for value in summary.giftIdeas {
+                    addSuggestion(value, type: .giftIdea, person: person, interaction: interaction)
+                }
+                for value in summary.importantDates {
+                    addSuggestion(value, type: .importantDate, person: person, interaction: interaction)
+                }
+                for value in summary.reminders {
+                    addSuggestion(value, type: .reminderSuggestion, person: person, interaction: interaction)
+                }
+            }
+
+            let beforeInterests = person.interests.count
+            person.interests.removeAll { legacyInterests.contains($0.lowercased()) }
+            changes += beforeInterests - person.interests.count
+
+            let oldLines = person.personalityNotes.components(separatedBy: .newlines)
+            let cleanedLines = oldLines.filter {
+                let normalized = $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                return !rawLines.contains(normalized) && !legacyPersonality.contains(normalized)
+            }
+            if cleanedLines != oldLines {
+                person.personalityNotes = cleanedLines.joined(separator: "\n")
+                changes += oldLines.count - cleanedLines.count
+            }
+
+            let importTimes = personImports.map(\.createdAt)
+            func wasCreatedWithImport(_ date: Date) -> Bool {
+                importTimes.contains { abs($0.timeIntervalSince(date)) < 600 }
+            }
+
+            for date in person.importantDates where date.sourceCaptureUUID == nil
+                && date.title.caseInsensitiveCompare("Important date") == .orderedSame
+                && wasCreatedWithImport(date.createdAt) {
+                NotificationService.shared.cancel(importantDate: date)
+                context.delete(date)
+                changes += 1
+            }
+            for reminder in person.reminders where reminder.sourceCaptureUUID == nil
+                && reminder.type == .followUp
+                && wasCreatedWithImport(reminder.createdAt) {
+                NotificationService.shared.cancel(reminder: reminder)
+                context.delete(reminder)
+                changes += 1
+            }
+            for gift in person.giftIdeas where gift.sourceCaptureUUID == nil
+                && gift.notes.hasPrefix("From note on ")
+                && wasCreatedWithImport(gift.createdAt) {
+                context.delete(gift)
+                changes += 1
+            }
+            person.recomputeContactDates()
+        }
+
+        if changes > 0 { try? context.save() }
+        return changes
     }
 }
