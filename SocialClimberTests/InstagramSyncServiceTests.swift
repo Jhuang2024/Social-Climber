@@ -58,4 +58,62 @@ final class InstagramSyncServiceTests: XCTestCase {
         XCTAssertEqual(interaction.sourceCaptureUUID, captures.first?.uuid)
         XCTAssertEqual(try context.fetch(FetchDescriptor<Interaction>()).count, 1)
     }
+
+    func testLegacyInstagramArtifactsAreMigratedToSuggestionsAndDeduplicated() throws {
+        let context = container.mainContext
+        let person = Person(name: "Tony Yang")
+        person.interests = ["Golf", "Selling my grades"]
+        person.personalityNotes = "Existing manual note\nTony Yang: that's not always true"
+        context.insert(person)
+
+        let date = Date(timeIntervalSince1970: 1_800_000_000)
+        func makeImport() -> Interaction {
+            let interaction = Interaction(type: .socialMedia, date: date, note: "Tony Yang: that's not always true")
+            interaction.isImported = true
+            interaction.platform = .instagram
+            interaction.rawImportText = "Tony Yang: that's not always true"
+            interaction.followUpNeeded = true
+            interaction.people = [person]
+            let extraction = AIExtraction(
+                summary: "Talked about school.",
+                interests: ["Selling my grades"],
+                importantDates: [ExtractedDate(title: "Important date", date: date, display: "May 1")],
+                reminders: [ExtractedReminder(title: "Follow up about deadlines", dueDate: date)],
+                personalityNotes: ["Tony Yang: that's not always true"]
+            )
+            let summary = ConversationSummary(extraction: extraction)
+            summary.interaction = interaction
+            context.insert(interaction)
+            context.insert(summary)
+            return interaction
+        }
+        let first = makeImport()
+        _ = makeImport()
+
+        let badDate = ImportantDate(title: "Important date", date: date, person: person)
+        let badReminder = Reminder(title: "Follow up about deadlines", dueDate: date, type: .followUp, person: person)
+        badDate.createdAt = first.createdAt
+        badReminder.createdAt = first.createdAt
+        context.insert(badDate)
+        context.insert(badReminder)
+
+        InstagramSyncService.shared.repairLegacyImportArtifacts(people: [person], context: context)
+
+        XCTAssertEqual(try context.fetch(FetchDescriptor<Interaction>()).count, 1)
+        let keptInteraction = try XCTUnwrap(context.fetch(FetchDescriptor<Interaction>()).first)
+        XCTAssertFalse(keptInteraction.followUpNeeded)
+        let captures = try context.fetch(FetchDescriptor<CapturedMemory>())
+        XCTAssertEqual(captures.count, 1)
+        XCTAssertEqual(captures.first?.source, .instagram)
+        XCTAssertEqual(keptInteraction.sourceCaptureUUID, captures.first?.uuid)
+        XCTAssertEqual(person.interests, ["Golf"])
+        XCTAssertEqual(person.personalityNotes, "Existing manual note")
+        XCTAssertTrue(person.importantDates.isEmpty)
+        XCTAssertTrue(person.reminders.isEmpty)
+        let facts = try context.fetch(FetchDescriptor<MemoryFact>())
+        XCTAssertTrue(facts.contains { $0.type == .interest && $0.value == "Selling my grades" && $0.status == .suggested })
+        XCTAssertTrue(facts.contains { $0.type == .importantDate && $0.status == .suggested })
+        XCTAssertTrue(facts.contains { $0.type == .reminderSuggestion && $0.status == .suggested })
+        XCTAssertFalse(facts.contains { $0.type == .personality && $0.value.contains("Tony Yang:") })
+    }
 }
