@@ -9,6 +9,9 @@
 - Updated setup guidance to require JSON format and explain both folder and zip deliveries.
 - Instagram conversations applied from Drive now appear in Recent Captures with their Instagram source, person, summary, and capture-linked results.
 - Retrying the same import backfills older Instagram interactions instead of creating duplicate captures or interactions.
+- Routed Instagram conversations through the full capture pipeline so summaries, learned facts, search, undo, and provenance all use the same system as typed and voice captures.
+- Instagram-derived dates, reminders, gifts, interests, and personality details are now reviewable evidence-linked suggestions instead of silently mutating profiles or scheduling notifications.
+- Added an idempotent legacy repair that collapses duplicate Instagram interactions and removes the repeated generic dates, auto-follow-ups, and raw transcript lines created by the original importer.
 - Raw downloaded files are still temporary, parsed on-device, and deleted immediately after the sync.
 
 ## Unreleased — Audio pipeline & notifications overhaul
