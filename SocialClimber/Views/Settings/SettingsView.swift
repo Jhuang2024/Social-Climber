@@ -244,7 +244,7 @@ struct SettingsView: View {
                             }
                         }
                         .disabled(instagramSync.isSyncing)
-                        Toggle("Daily sync reminder (8 PM)", isOn: $instagramReminderEnabled)
+                        Toggle("Daily sync reminder (10 AM)", isOn: $instagramReminderEnabled)
                             .tint(.green)
                             .onChange(of: instagramReminderEnabled) {
                                 if instagramReminderEnabled {
