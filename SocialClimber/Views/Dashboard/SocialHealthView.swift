@@ -8,6 +8,10 @@ struct SocialHealthView: View {
     @Query(sort: \Person.name) private var people: [Person]
     @Query(sort: \Interaction.date, order: .reverse) private var interactions: [Interaction]
     @Query(sort: \FollowerEvent.date, order: .reverse) private var followerEvents: [FollowerEvent]
+    @Query(sort: \FollowerSnapshot.takenAt, order: .reverse) private var followerSnapshots: [FollowerSnapshot]
+
+    private var googleDrive: GoogleDriveService { GoogleDriveService.shared }
+    private var latestFollowerSnapshot: FollowerSnapshot? { followerSnapshots.first }
 
     private var report: SocialHealthReport {
         SocialHealthReport.compute(people: people, interactions: interactions, followerEvents: followerEvents)
@@ -40,11 +44,12 @@ struct SocialHealthView: View {
                 } else {
                     scoreCard
                     factorsCard
+                    if googleDrive.isConnected || latestFollowerSnapshot != nil { instagramCard }
                     if !unfollowers.isEmpty { unfollowersCard }
                     if !newFollowers.isEmpty { newFollowersCard }
                     momentumCard
                     if !coolingPeople.isEmpty { coolingCard }
-                    if followerEvents.isEmpty { instagramHint }
+                    if !googleDrive.isConnected && latestFollowerSnapshot == nil { instagramHint }
                 }
             }
             .padding(.horizontal)
@@ -149,6 +154,57 @@ struct SocialHealthView: View {
     }
 
     // MARK: Followers
+
+    private var instagramCard: some View {
+        FormSectionCard("Instagram", icon: "camera.fill") {
+            if let snapshot = latestFollowerSnapshot {
+                HStack(spacing: 10) {
+                    instagramStat(value: snapshot.followerUsernames.count, label: "current followers")
+                    instagramStat(value: snapshot.followingUsernames.count, label: "current following")
+                }
+
+                HStack {
+                    Label(googleDrive.isConnected ? "Drive connected" : "Last saved snapshot", systemImage: googleDrive.isConnected ? "checkmark.circle.fill" : "externaldrive")
+                        .foregroundStyle(googleDrive.isConnected ? SCTheme.Accents.growth : Color.secondary)
+                    Spacer()
+                    Text("Updated \(snapshot.takenAt.relativeLabel)")
+                        .foregroundStyle(.secondary)
+                }
+                .font(.caption2.weight(.medium))
+
+                let net = newFollowers.count - unfollowers.count
+                Text("Last 30 days: +\(newFollowers.count) followed · −\(unfollowers.count) unfollowed · \(net >= 0 ? "+" : "")\(net) net")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Text("Totals come from the latest Meta export; the 30-day numbers are changes between snapshots. If the current total is far below Instagram, recreate the export with date range “All time” and include both Followers and Following.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            } else {
+                Label("Google Drive is connected", systemImage: "checkmark.circle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SCTheme.Accents.growth)
+                Text("Run Instagram Sync in Settings once to save the first follower/following baseline. The first list is a baseline—not followers gained that day.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func instagramStat(value: Int, label: String) -> some View {
+        VStack(spacing: 3) {
+            Text("\(value)")
+                .font(SCTheme.displayFont(24, weight: .bold))
+                .monospacedDigit()
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(SCTheme.elevatedBackground.opacity(0.6), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
 
     private var unfollowersCard: some View {
         FormSectionCard("Unfollowed You (30 days)", icon: "person.badge.minus") {
@@ -288,7 +344,7 @@ struct SocialHealthView: View {
 
     private var instagramHint: some View {
         FormSectionCard("Instagram", icon: "camera.fill") {
-            Text("Connect Google Drive in Settings and run an Instagram sync to see who followed and unfollowed you here; the follower trend then feeds into this score.")
+            Text("Connect Google Drive in Settings and run Instagram Sync once. Social Health will show current follower/following totals plus changes between your sync snapshots over the last 30 days.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
