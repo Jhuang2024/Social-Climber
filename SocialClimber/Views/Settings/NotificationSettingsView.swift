@@ -58,7 +58,7 @@ struct NotificationSettingsView: View {
                 LabeledContent("Scheduled alerts", value: "\(pendingNotificationCount)")
                 if UserDefaults.standard.bool(forKey: "instagramSyncReminderEnabled") {
                     Label(
-                        instagramReminderScheduled ? "8 PM Instagram reminder is scheduled" : "8 PM Instagram reminder is not scheduled",
+                        instagramReminderScheduled ? "10 AM Instagram reminder is scheduled" : "10 AM Instagram reminder is not scheduled",
                         systemImage: instagramReminderScheduled ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
                     )
                     .font(.caption)
