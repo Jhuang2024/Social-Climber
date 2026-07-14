@@ -376,7 +376,7 @@ final class NotificationService {
 
     /// iOS background execution is too unreliable to run the Drive sync on
     /// a real schedule, so this daily nudge asks the user to open the app
-    /// and run it instead. Fires every evening at 8 PM while the toggle in
+    /// and run it instead. Fires every morning at 10 AM while the toggle in
     /// Settings is on.
     private static let instagramReminderID = "instagram-sync-reminder"
 
@@ -394,7 +394,7 @@ final class NotificationService {
         content.sound = .default
 
         var comps = DateComponents()
-        comps.hour = 20
+        comps.hour = 10
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
         center.add(UNNotificationRequest(identifier: Self.instagramReminderID, content: content, trigger: trigger))
     }
