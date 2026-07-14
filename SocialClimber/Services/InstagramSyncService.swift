@@ -529,6 +529,32 @@ final class InstagramSyncService {
     @discardableResult
     func repairLegacyImportArtifacts(people: [Person], context: ModelContext) -> Int {
         var changes = 0
+
+        // Purge the junk the keyword heuristics previously "learned" from
+        // imported chat transcripts: machine-origin facts (never confirmed,
+        // edited, or rejected by the user) whose source capture is an
+        // Instagram import that was processed without a real AI provider —
+        // either the AI call degraded to the local fallback, or the Mock
+        // provider (the default) was selected, which runs the same
+        // heuristics with `usedLocalFallback` still false. The capture and
+        // its interaction stay; only the noise suggestions go.
+        let allCaptures = (try? context.fetch(FetchDescriptor<CapturedMemory>())) ?? []
+        let heuristicProviderSelected = AIProvider.currentCase == .mock
+        let heuristicInstagramCaptureIDs = Set(
+            allCaptures
+                .filter { $0.source == .instagram && ($0.usedLocalFallback || heuristicProviderSelected) }
+                .map(\.uuid)
+        )
+        if !heuristicInstagramCaptureIDs.isEmpty {
+            let allFacts = (try? context.fetch(FetchDescriptor<MemoryFact>())) ?? []
+            for fact in allFacts where !fact.isUserTouched {
+                if let sourceID = fact.sourceCaptureUUID, heuristicInstagramCaptureIDs.contains(sourceID) {
+                    context.delete(fact)
+                    changes += 1
+                }
+            }
+        }
+
         var imported = ((try? context.fetch(FetchDescriptor<Interaction>())) ?? []).filter {
             $0.isImported && $0.platform == .instagram
         }
@@ -634,16 +660,26 @@ final class InstagramSyncService {
                 interaction.followUpDate = nil
                 interaction.nextMove = ""
                 guard let summary = interaction.aiSummary else { continue }
+                // A legacy extraction that came from the keyword heuristics
+                // (degraded fallback, or the Mock provider selected) is the
+                // same transcript noise the purge above just removed; still
+                // scrub it out of the flattened profile fields below, but
+                // never convert it back into suggestions.
+                let fromHeuristics = heuristicProviderSelected
+                    || interaction.sourceCaptureUUID.map(heuristicInstagramCaptureIDs.contains) == true
                 for value in summary.interests {
                     legacyInterests.insert(value.lowercased())
-                    addSuggestion(value, type: .interest, person: person, interaction: interaction)
+                    if !fromHeuristics {
+                        addSuggestion(value, type: .interest, person: person, interaction: interaction)
+                    }
                 }
                 for value in summary.personalityNotes {
                     legacyPersonality.insert(value.lowercased())
-                    if !rawLines.contains(value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()) {
+                    if !fromHeuristics && !rawLines.contains(value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()) {
                         addSuggestion(value, type: .personality, person: person, interaction: interaction)
                     }
                 }
+                guard !fromHeuristics else { continue }
                 for value in summary.giftIdeas {
                     addSuggestion(value, type: .giftIdea, person: person, interaction: interaction)
                 }

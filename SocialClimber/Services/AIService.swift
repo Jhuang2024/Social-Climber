@@ -1316,19 +1316,23 @@ final class MockAIService: AIService {
         let lower = sentence.lowercased()
         for (index, month) in months.enumerated() {
             guard let monthRange = lower.range(of: month) else { continue }
+            // A month name is only a date when a day number follows it.
+            // Requiring the day kills two classes of junk at once: ordinary
+            // words that double as months ("may", "march") firing on plain
+            // prose, and half-dates that used to silently invent day 1.
             let tail = lower[monthRange.upperBound...].trimmingCharacters(in: .whitespaces)
             let dayString = tail.prefix { $0.isNumber }
+            guard let day = Int(dayString), (1...31).contains(day) else { continue }
             var comps = DateComponents()
             comps.month = index + 1
-            comps.day = Int(dayString) ?? 1
+            comps.day = day
             comps.year = Calendar.current.component(.year, from: .now)
             let date = Calendar.current.date(from: comps)
             let title = lower.contains("birthday") ? "Birthday"
                 : lower.contains("anniversary") ? "Anniversary"
                 : lower.contains("graduat") ? "Graduation"
                 : "Important date"
-            let display = "\(title): \(month.capitalized) \(dayString.isEmpty ? "" : String(dayString))"
-                .trimmingCharacters(in: .whitespaces)
+            let display = "\(title): \(month.capitalized) \(day)"
             return ExtractedDate(title: title, date: date, display: display)
         }
         return nil

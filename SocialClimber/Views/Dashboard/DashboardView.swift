@@ -331,9 +331,18 @@ struct DashboardView: View {
 
     private var statsStrip: some View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-            StatCard(title: "People", value: "\(people.count)", icon: "person.2.fill", color: SCTheme.Accents.primary)
-            StatCard(title: "This Week", value: "\(interactionsThisWeek)", icon: "bubble.left.and.bubble.right.fill", color: SCTheme.Accents.growth)
-            StatCard(title: "Follow-ups Due", value: "\(followUpsDueCount)", icon: "bell.badge.fill", color: SCTheme.Accents.alert)
+            NavigationLink { DashboardPeopleListView() } label: {
+                StatCard(title: "People", value: "\(people.count)", icon: "person.2.fill", color: SCTheme.Accents.primary)
+            }
+            .buttonStyle(.pressable)
+            NavigationLink { DashboardWeekView() } label: {
+                StatCard(title: "This Week", value: "\(interactionsThisWeek)", icon: "bubble.left.and.bubble.right.fill", color: SCTheme.Accents.growth)
+            }
+            .buttonStyle(.pressable)
+            NavigationLink { RemindersView() } label: {
+                StatCard(title: "Follow-ups Due", value: "\(followUpsDueCount)", icon: "bell.badge.fill", color: SCTheme.Accents.alert)
+            }
+            .buttonStyle(.pressable)
             if let strongest {
                 NavigationLink(value: strongest) {
                     StatCard(title: "Strongest", value: strongest.firstName, icon: "flame.fill", color: SCTheme.Accents.warm)
@@ -705,6 +714,87 @@ struct DashboardView: View {
                     TimelineRowView(interaction: interaction)
                 }
                 .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+/// Pushed from the "People" stat card. The People tab owns its own
+/// NavigationStack, so it can't be pushed here; this is a lightweight
+/// pushable list over the same rows.
+private struct DashboardPeopleListView: View {
+    @Query(sort: \Person.name) private var allPeople: [Person]
+
+    private var people: [Person] { allPeople.filter { !$0.isArchived } }
+
+    var body: some View {
+        List {
+            ForEach(people, id: \.persistentModelID) { person in
+                NavigationLink(value: person) {
+                    PersonRowView(person: person)
+                }
+                .listRowSeparator(.hidden)
+                .listRowBackground(
+                    RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous)
+                        .fill(SCTheme.cardBackground)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                )
+            }
+        }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .socialClimberPageBackground()
+        .navigationTitle("People")
+        .overlay {
+            if people.isEmpty {
+                EmptyStateView(
+                    icon: "person.2",
+                    title: "No people yet",
+                    message: "Add someone from the Home screen to get started."
+                )
+                .padding(.horizontal)
+            }
+        }
+    }
+}
+
+/// Pushed from the "This Week" stat card: every interaction logged in the
+/// last 7 days, the same set that number counts.
+private struct DashboardWeekView: View {
+    @Query(sort: \Interaction.date, order: .reverse) private var interactions: [Interaction]
+
+    private var thisWeek: [Interaction] {
+        interactions.filter { $0.date.daysAgo <= 7 }
+    }
+
+    var body: some View {
+        List {
+            ForEach(thisWeek, id: \.persistentModelID) { interaction in
+                NavigationLink { InteractionDetailView(interaction: interaction) } label: {
+                    TimelineRowView(interaction: interaction)
+                }
+                .listRowSeparator(.hidden)
+                .listRowBackground(
+                    RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous)
+                        .fill(SCTheme.cardBackground)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                )
+            }
+        }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .socialClimberPageBackground()
+        .navigationTitle("This Week")
+        .overlay {
+            if thisWeek.isEmpty {
+                EmptyStateView(
+                    icon: "bubble.left.and.bubble.right",
+                    title: "Nothing logged this week",
+                    message: "Interactions you log or capture in the last 7 days show up here."
+                )
+                .padding(.horizontal)
             }
         }
     }

@@ -209,11 +209,26 @@ final class CaptureProcessor {
         // Explicit reminders (scheduled or unscheduled-suggestion),
         // evidence-linked facts, gift ideas, important dates: every one
         // individually attributed, never defaulted to `people.first`.
+        //
+        // Exception: an Instagram DM digest that only got the keyword
+        // heuristics (no AI) produces no suggestions at all. Those markers
+        // were written for the user's own dictated notes ("Had coffee with
+        // Jimmy, he loves climbing…"); run over a raw chat transcript they
+        // fire on casual banter and flood "Learned Automatically" with
+        // incomplete fragments and bogus dates. The interaction and its
+        // summary are still recorded; facts wait for a real extraction.
         var createdReminderDates: [Date] = []
-        applyReminders(from: extraction, localParse: localParse, capture: capture, interaction: interaction, people: people, createdDueDates: &createdReminderDates, context: processingContext)
-        applyFacts(from: extraction, capture: capture, interaction: interaction, people: people, context: processingContext)
-        applyGiftIdeas(from: extraction, capture: capture, interaction: interaction, people: people, context: processingContext)
-        applyImportantDates(from: extraction, capture: capture, interaction: interaction, people: people, context: processingContext)
+        // Heuristic output either because the AI call failed and degraded,
+        // or because the selected provider IS the heuristic Mock (the
+        // default configuration, where `usedLocalFallback` stays false).
+        let heuristicExtraction = output.usedLocalFallback || AIProvider.currentCase == .mock
+        let skipHeuristicSuggestions = capture.source == .instagram && heuristicExtraction
+        if !skipHeuristicSuggestions {
+            applyReminders(from: extraction, localParse: localParse, capture: capture, interaction: interaction, people: people, createdDueDates: &createdReminderDates, context: processingContext)
+            applyFacts(from: extraction, capture: capture, interaction: interaction, people: people, context: processingContext)
+            applyGiftIdeas(from: extraction, capture: capture, interaction: interaction, people: people, context: processingContext)
+            applyImportantDates(from: extraction, capture: capture, interaction: interaction, people: people, context: processingContext)
+        }
 
         // Done. Compose the feed presentation and finish.
         capture.title = feedTitle(for: capture, people: people, interaction: interaction)
@@ -328,10 +343,15 @@ final class CaptureProcessor {
         context: ModelContext
     ) {
         // Merge AI + local explicit reminders, deduplicated by title.
+        // Instagram digests skip the local merge: phrases like "need to" or
+        // "don't forget" inside someone else's chat messages are not the
+        // user instructing Social Climber, and pull in half-sentence junk.
         var explicit: [(title: String, dueDate: Date?, personNames: [String])] = extraction.reminders.map { ($0.title, $0.dueDate, $0.personNames) }
-        for local in localParse.reminders {
-            if !explicit.contains(where: { $0.title.caseInsensitiveCompare(local.title) == .orderedSame }) {
-                explicit.append(local)
+        if capture.source != .instagram {
+            for local in localParse.reminders {
+                if !explicit.contains(where: { $0.title.caseInsensitiveCompare(local.title) == .orderedSame }) {
+                    explicit.append(local)
+                }
             }
         }
 
