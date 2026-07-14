@@ -12,6 +12,10 @@
 - Routed Instagram conversations through the full capture pipeline so summaries, learned facts, search, undo, and provenance all use the same system as typed and voice captures.
 - Instagram-derived dates, reminders, gifts, interests, and personality details are now reviewable evidence-linked suggestions instead of silently mutating profiles or scheduling notifications.
 - Added an idempotent legacy repair that collapses duplicate Instagram interactions and removes the repeated generic dates, auto-follow-ups, and raw transcript lines created by the original importer.
+- Fixed Social Health showing the disconnected hint after a successful first sync; it now recognizes Drive independently from whether any gain/loss events exist.
+- Added explicit current follower/following totals, last-updated time, and separate 30-day gained/lost/net metrics.
+- Made follower parsing accept every Meta wrapper shape and every username in grouped `string_list_data`, with source-file counts shown after sync.
+- Large partial-to-complete export jumps now replace the baseline instead of being misreported as hundreds of overnight follows or unfollows.
 - Raw downloaded files are still temporary, parsed on-device, and deleted immediately after the sync.
 
 ## Unreleased — Audio pipeline & notifications overhaul
