@@ -142,7 +142,7 @@ enum BriefFeedPublisher {
                 }
             }
             var line = "Logged \(dayInteractions.count) interactions"
-            if !names.isEmpty { line += " — \(nameList(names))" }
+            if !names.isEmpty { line += " · \(nameList(names))" }
             lines.append(line)
         } else {
             lines.append(contentsOf: dayInteractions.map { line(for: $0) })
@@ -163,9 +163,9 @@ enum BriefFeedPublisher {
         if !added.isEmpty {
             let names = added.map(\.firstName)
             if added.count > 3 {
-                lines.append("Added \(added.count) people — \(nameList(names))")
+                lines.append("Added \(added.count) people · \(nameList(names))")
             } else {
-                lines.append("Added \(names.joined(separator: ", ")) to your people")
+                lines.append("Added \(nameList(names)) to your people")
             }
         }
 
@@ -176,9 +176,9 @@ enum BriefFeedPublisher {
         let dayCaptures = captures
             .filter { $0.status == .processed && calendar.isDate($0.capturedAt, inSameDayAs: day) }
         if dayCaptures.count == 1, let capture = dayCaptures.first, !capture.title.isEmpty {
-            lines.append("Captured “\(capture.title)”")
+            lines.append("Saved a memory: “\(capture.title)”")
         } else if !dayCaptures.isEmpty {
-            lines.append("Captured \(dayCaptures.count) \(dayCaptures.count == 1 ? "memory" : "memories")")
+            lines.append("Saved \(dayCaptures.count) \(dayCaptures.count == 1 ? "memory" : "memories")")
         }
 
         // 5. Long-form voice notes (the quick voice-capture flow already
@@ -210,10 +210,12 @@ enum BriefFeedPublisher {
     }
 
     /// One interaction as a name-forward line, e.g.
-    /// "Called Sarah — went well". Sentiment only gets a tail when it says
-    /// something (neutral is the default, so spelling it out is noise);
-    /// a neutral interaction falls back to its own summary/note preview,
-    /// which is usually the more interesting detail anyway.
+    /// "Called Sarah · went well". Middle dots, not dashes, so these read
+    /// like the metric lines LockedInFit feeds into the same brief.
+    /// Sentiment only gets a tail when it says something (neutral is the
+    /// default, so spelling it out is noise); a neutral interaction falls
+    /// back to its own summary/note preview, which is usually the more
+    /// interesting detail anyway.
     private static func line(for interaction: Interaction) -> String {
         let names = interaction.people.map(\.firstName)
         let subject = names.isEmpty ? "someone" : nameList(names)
@@ -228,25 +230,26 @@ enum BriefFeedPublisher {
         case .favor, .intro, .other: "Caught up with \(subject) (\(interaction.type.label.lowercased()))"
         }
         switch interaction.sentiment {
-        case .great: line += " — went great"
-        case .good: line += " — went well"
-        case .bad: line += " — felt off"
+        case .great: line += " · went great"
+        case .good: line += " · went well"
+        case .bad: line += " · felt strained"
         case .neutral:
             let preview = interaction.preview.trimmingCharacters(in: .whitespacesAndNewlines)
             if !preview.isEmpty {
-                line += " — \(preview.count > 60 ? String(preview.prefix(60)) + "…" : preview)"
+                line += " · \(preview.count > 60 ? String(preview.prefix(60)) + "…" : preview)"
             }
         }
         return line
     }
 
-    /// One attended event as a line, e.g. "Climbing night with Sarah, Mike"
-    /// or "Company mixer (12 people)" once naming everyone stops scaling.
+    /// One attended event as a line, e.g. "Climbing night with Sarah and
+    /// Mike" or "Company mixer (12 people)" once naming everyone stops
+    /// scaling.
     private static func line(for event: Event) -> String {
         let name = event.name.isEmpty ? "Untitled event" : event.name
         switch event.attendees.count {
         case 0: return name
-        case 1...3: return "\(name) with \(event.attendeeNames)"
+        case 1...3: return "\(name) with \(nameList(event.attendees.map(\.firstName)))"
         default: return "\(name) (\(event.attendees.count) people)"
         }
     }
@@ -279,10 +282,10 @@ enum BriefFeedPublisher {
             var title = reminder.title.isEmpty ? reminder.type.label : reminder.title
             // Person-prefixed so the brief reads name-forward, unless the
             // title already names them ("Text Sarah back" shouldn't become
-            // "Sarah — Text Sarah back").
+            // "Sarah: Text Sarah back").
             if let person = reminder.person, !person.firstName.isEmpty,
                !title.localizedCaseInsensitiveContains(person.firstName) {
-                title = "\(person.firstName) — \(title)"
+                title = "\(person.firstName): \(title)"
             }
             let notes = reminder.notes.trimmingCharacters(in: .whitespacesAndNewlines)
             entries.append(SocialClimberBriefFeed.ReminderEntry(
@@ -327,7 +330,7 @@ enum BriefFeedPublisher {
             var title = importantDate.title.isEmpty ? "Important date" : importantDate.title
             if let person = importantDate.person, !person.firstName.isEmpty,
                !title.localizedCaseInsensitiveContains(person.firstName) {
-                title = "\(person.firstName) — \(title)"
+                title = "\(person.firstName): \(title)"
             }
             let notes = importantDate.notes.trimmingCharacters(in: .whitespacesAndNewlines)
             entries.append(SocialClimberBriefFeed.ReminderEntry(
@@ -345,7 +348,7 @@ enum BriefFeedPublisher {
         // kind where Brief should show the clock.
         for event in events {
             guard event.date >= now, event.date < windowEnd else { continue }
-            let attendees = event.attendeeNames
+            let attendees = nameList(event.attendees.map(\.firstName))
             let location = event.location.trimmingCharacters(in: .whitespacesAndNewlines)
             entries.append(SocialClimberBriefFeed.ReminderEntry(
                 id: stableID(event.persistentModelID),
@@ -420,12 +423,20 @@ enum BriefFeedPublisher {
         String(describing: id)
     }
 
-    /// "Sarah, Mike, +3 more" — every name up to the limit, then a count,
-    /// so a big group never turns a summary line into a paragraph.
+    /// Names joined the way a person would say them: "Sarah", "Sarah and
+    /// Mike", "Sarah, Mike and Priya", and past the limit "Sarah, Mike and
+    /// 3 others" — so a big group never turns a summary line into a
+    /// paragraph, and a small one never reads like a database row.
     private static func nameList(_ names: [String], limit: Int = 3) -> String {
-        guard names.count > limit else { return names.joined(separator: ", ") }
+        if names.count <= limit {
+            switch names.count {
+            case 0: return ""
+            case 1: return names[0]
+            default: return names.dropLast().joined(separator: ", ") + " and \(names[names.count - 1])"
+            }
+        }
         let shown = names.prefix(limit - 1)
-        return shown.joined(separator: ", ") + ", +\(names.count - shown.count) more"
+        return shown.joined(separator: ", ") + " and \(names.count - shown.count) others"
     }
 
     /// "12 days quiet" / "3 weeks quiet" / "4 months quiet" — coarse on
