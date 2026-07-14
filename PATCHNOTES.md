@@ -1,5 +1,14 @@
 # Patch Notes
 
+## Unreleased: Instagram Google Drive folder imports
+
+- Fixed Instagram sync incorrectly requiring a zip inside the selected Drive folder.
+- Added recursive support for Meta's expanded folder delivery, including nested message, follower, and following JSON files.
+- Kept existing single-part and multi-part zip support.
+- Added Drive pagination so exports with more than 100 files or folders are fully discovered.
+- Updated setup guidance to require JSON format and explain both folder and zip deliveries.
+- Raw downloaded files are still temporary, parsed on-device, and deleted immediately after the sync.
+
 ## Unreleased — Audio pipeline & notifications overhaul
 
 Two production-focused upgrades. No existing feature, data model, capture flow,
