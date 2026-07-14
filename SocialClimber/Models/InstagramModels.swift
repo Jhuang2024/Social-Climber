@@ -12,11 +12,21 @@ final class FollowerSnapshot {
     var takenAt: Date = Date()
     var followerUsernames: [String] = []
     var followingUsernames: [String] = []
+    var followerListIsPartial: Bool = false
+    var followingListIsPartial: Bool = false
 
-    init(takenAt: Date = .now, followerUsernames: [String], followingUsernames: [String]) {
+    init(
+        takenAt: Date = .now,
+        followerUsernames: [String],
+        followingUsernames: [String],
+        followerListIsPartial: Bool = false,
+        followingListIsPartial: Bool = false
+    ) {
         self.takenAt = takenAt
         self.followerUsernames = followerUsernames
         self.followingUsernames = followingUsernames
+        self.followerListIsPartial = followerListIsPartial
+        self.followingListIsPartial = followingListIsPartial
     }
 }
 
@@ -31,6 +41,15 @@ enum FollowerEventKind: String, Codable, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .gainedFollower: "New follower"
+        case .lostFollower: "Unfollowed you"
+        case .startedFollowing: "You followed"
+        case .stoppedFollowing: "You unfollowed"
+        }
+    }
+
+    var shortLabel: String {
+        switch self {
+        case .gainedFollower: "Followed you"
         case .lostFollower: "Unfollowed you"
         case .startedFollowing: "You followed"
         case .stoppedFollowing: "You unfollowed"
