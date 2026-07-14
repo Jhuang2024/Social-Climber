@@ -3,6 +3,27 @@ import XCTest
 @testable import SocialClimber
 
 final class GoogleDriveServiceTests: XCTestCase {
+    func testExpandedMetaFolderJSONPathsAreRecognized() {
+        XCTAssertTrue(InstagramExportParser.isRelevantEntry(
+            "your_instagram_activity/messages/inbox/jerry/message_1.json"
+        ))
+        XCTAssertTrue(InstagramExportParser.isRelevantEntry(
+            "connections/followers_and_following/followers_1.json"
+        ))
+        XCTAssertTrue(InstagramExportParser.isRelevantEntry(
+            "connections/followers_and_following/following.json"
+        ))
+    }
+
+    func testExpandedMetaFolderIgnoresMediaAndHTML() {
+        XCTAssertFalse(InstagramExportParser.isRelevantEntry(
+            "your_instagram_activity/messages/inbox/jerry/photos/photo.jpg"
+        ))
+        XCTAssertFalse(InstagramExportParser.isRelevantEntry(
+            "your_instagram_activity/messages/inbox/jerry/message_1.html"
+        ))
+    }
+
     func testDisabledDriveAPIReturnsConfigurationError() {
         let payload = #"{"error":{"code":403,"message":"Google Drive API has not been used in project 123 before or it is disabled.","errors":[{"reason":"accessNotConfigured"}]}}"#
 
