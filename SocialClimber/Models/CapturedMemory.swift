@@ -11,6 +11,7 @@ enum CaptureSource: String, Codable, CaseIterable, Identifiable {
     case intent
     case contactFollowUp
     case event
+    case instagram
 
     var id: String { rawValue }
 
@@ -23,6 +24,7 @@ enum CaptureSource: String, Codable, CaseIterable, Identifiable {
         case .intent: "Siri / Shortcut"
         case .contactFollowUp: "Contact follow-up"
         case .event: "Event"
+        case .instagram: "Instagram"
         }
     }
 
@@ -35,6 +37,7 @@ enum CaptureSource: String, Codable, CaseIterable, Identifiable {
         case .intent: "sparkles"
         case .contactFollowUp: "phone.arrow.up.right"
         case .event: "party.popper"
+        case .instagram: "camera.fill"
         }
     }
 }
