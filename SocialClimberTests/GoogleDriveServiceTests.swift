@@ -24,6 +24,13 @@ final class GoogleDriveServiceTests: XCTestCase {
         ))
     }
 
+    func testHTMLExportErrorExplainsHowToFixTheFormat() {
+        XCTAssertEqual(
+            GoogleDriveError.htmlExportUnsupported.errorDescription,
+            "This Meta export uses HTML format, but Instagram sync requires JSON. In Meta Accounts Center, create a new download in JSON format and select its Drive folder."
+        )
+    }
+
     func testDisabledDriveAPIReturnsConfigurationError() {
         let payload = #"{"error":{"code":403,"message":"Google Drive API has not been used in project 123 before or it is disabled.","errors":[{"reason":"accessNotConfigured"}]}}"#
 
