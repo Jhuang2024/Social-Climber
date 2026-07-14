@@ -20,7 +20,7 @@
 - Added person-level history for all four Instagram changes: followed you, unfollowed you, you followed, and you unfollowed.
 - Added a smoothed, selectable Social Health score chart with week, month, year, and all-time ranges; dragging shows the exact score and date.
 - Removed Social Health chart drag lag by caching historical score points and isolating high-frequency selection updates from the rest of the screen.
-- Fixed the daily Instagram reminder appearing enabled while master notifications were off, and added live iOS permission, pending-request diagnostics, and a test notification.
+- Fixed the daily Instagram reminder appearing enabled while master notifications were off, moved it to 10 AM, and added live iOS permission, pending-request diagnostics, and a test notification.
 - Raw downloaded files are still temporary, parsed on-device, and deleted immediately after the sync.
 
 ## Unreleased — Audio pipeline & notifications overhaul
