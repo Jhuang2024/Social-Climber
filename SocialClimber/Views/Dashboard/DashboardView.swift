@@ -223,11 +223,13 @@ struct DashboardView: View {
     }
 
     /// Publishes Social Climber's own public context snapshot for Locked In
-    /// Fit and reads back its readiness context, if any. Both directions
-    /// are best-effort and silent: no App Group, no file, a stale
-    /// timestamp, or corrupted JSON all just mean `readiness` stays `nil`.
+    /// Fit, the morning-brief feed for Brief, and reads back Locked In
+    /// Fit's readiness context, if any. All directions are best-effort and
+    /// silent: no App Group, no file, a stale timestamp, or corrupted JSON
+    /// all just mean `readiness` stays `nil`.
     private func refreshCrossAppContext() {
         CrossAppIntegrationManager.publish(reminders: reminders, events: events)
+        CrossAppIntegrationManager.publishBriefFeed(context: context)
         readiness = CrossAppIntegrationManager.readinessMode()
     }
 

@@ -1,19 +1,25 @@
 import Foundation
+import SwiftData
 
-/// Social Climber's side of the small App Group bridge with LockedInFit.
-/// This is the only file that knows LockedInFit exists: the filenames, the
-/// App Group identifier, and both Codable schemas live here (or in the two
-/// context model files this reads/writes). Everywhere else in Social
-/// Climber only ever sees plain values this manager hands back
-/// (`SocialReadinessMode`, `LinkStatus`), never `LockedInFitPublicContext`
-/// directly.
+/// Social Climber's side of the small App Group bridge with LockedInFit,
+/// plus the richer one-way "brief feed" written for Brief (the user's
+/// morning-briefing app). This is the only file that knows either app
+/// exists: the filenames, the App Group identifier, and the schemas live
+/// here (or in the context/feed model files this reads/writes). Everywhere
+/// else in Social Climber only ever sees plain values this manager hands
+/// back (`SocialReadinessMode`, `LinkStatus`), never
+/// `LockedInFitPublicContext` directly.
 enum CrossAppIntegrationManager {
-    /// Shared with LockedInFit; both apps' App Group entitlements must list
-    /// this identifier for the bridge to activate.
+    /// Shared with LockedInFit and Brief; every app's App Group
+    /// entitlements must list this identifier for its side of the bridge to
+    /// activate.
     static let appGroupID = "group.com.jerry.personalOS"
 
     private static let outgoingFilename = "socialclimber_public_context_v1.json"
     private static let incomingFilename = "lockedinfit_public_context_v1.json"
+    /// The morning-brief feed for Brief. Contract documented in the Brief
+    /// repo's LINKED_APPS.md; schema changes must stay additive.
+    private static let briefFeedFilename = "socialclimber_brief_feed_v1.json"
 
     /// A snapshot older than this is treated as absent: showing nothing is
     /// safer than showing wrong context.
@@ -105,6 +111,18 @@ enum CrossAppIntegrationManager {
             now: now
         )
         store.write(snapshot, to: outgoingFilename)
+    }
+
+    /// Publishes the morning-brief feed for Brief. Gated on the same
+    /// sharing flag as the LockedInFit snapshot — one toggle governs
+    /// everything that leaves the app through the App Group — and equally
+    /// safe to call often: each write atomically overwrites the same file.
+    /// A no-op when sharing is off or the App Group container is
+    /// unavailable, and the build itself is fail-silent, so this can never
+    /// affect the app's own behavior.
+    static func publishBriefFeed(context: ModelContext, now: Date = .now) {
+        guard isSharingEnabled else { return }
+        store.write(BriefFeedPublisher.makeFeed(context: context, now: now), to: briefFeedFilename)
     }
 }
 

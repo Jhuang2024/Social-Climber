@@ -41,6 +41,16 @@ Free-account builds expire after 7 days; just hit Run again to reinstall (data i
 - **Demo data**: available only in SwiftUI previews or the debug-only **Load Demo Data** action in Settings.
 - **Privacy**: local-first by default. Contacts import is selected-contact only, Google Calendar and location are opt-in, and voice notes stay local unless explicitly analyzed with the selected LLM provider.
 
+## Cross-app integrations
+
+Social Climber shares the `group.com.jerry.personalOS` App Group with the other personal apps on the same phone. Everything below is gated by one toggle (Settings → Locked In Fit → sharing), is local-only (files in the shared container, no network), and fails silently — if the App Group isn't provisioned, nothing changes in the app itself.
+
+- **Locked In Fit bridge**: publishes a deliberately anonymized snapshot of today's social load (`socialclimber_public_context_v1.json`) and reads back Locked In Fit's readiness context, which quiets low-priority nudges on low-recovery days.
+
+### Morning brief feed
+
+For **Brief** (the morning-briefing app), Social Climber also writes a richer, one-way feed — `socialclimber_brief_feed_v1.json` — every time the dashboard refreshes: up to 3 recent days of human-readable activity lines (interactions, events, new people, captures, Instagram follower changes) plus today's social reminders (follow-ups, birthdays and important dates, upcoming events, check-in nudges). Unlike the peer-bridge snapshot, this feed is written for your own eyes, so it carries real names and titles. The schema contract lives in the Brief repo's `LINKED_APPS.md`; changes must stay additive.
+
 ## Layout
 
 ```
