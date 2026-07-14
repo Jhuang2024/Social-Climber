@@ -92,34 +92,110 @@ final class GoogleDriveService: NSObject {
         let mimeType: String
         let modifiedTime: Date?
         let size: Int64?
+        let relativePath: String
 
         var isFolder: Bool { mimeType == "application/vnd.google-apps.folder" }
         var isZip: Bool {
             mimeType == "application/zip" || mimeType == "application/x-zip-compressed"
                 || name.lowercased().hasSuffix(".zip")
         }
+
+        func located(at relativePath: String) -> DriveFile {
+            DriveFile(
+                id: id,
+                name: name,
+                mimeType: mimeType,
+                modifiedTime: modifiedTime,
+                size: size,
+                relativePath: relativePath
+            )
+        }
     }
 
-    /// The newest Instagram export zip(s): several, because Meta splits
-    /// large exports into multiple parts uploaded together. When
-    /// `folderName` is non-empty, only that folder is searched; otherwise
-    /// the whole Drive is queried for Instagram-looking zip files.
-    /// Parts are grouped by "uploaded within 48 hours of the newest one".
-    func latestInstagramExportFiles(folderName: String) async throws -> [DriveFile] {
-        var query: String
-        if folderName.trimmingCharacters(in: .whitespaces).isEmpty {
-            query = "(name contains 'instagram' or name contains 'meta') and trashed = false"
-        } else {
-            guard let folder = try await findFolder(named: folderName) else {
-                throw GoogleDriveError.folderNotFound(folderName)
+    struct InstagramExportSource {
+        let archives: [DriveFile]
+        let looseFiles: [DriveFile]
+
+        var isEmpty: Bool { archives.isEmpty && looseFiles.isEmpty }
+    }
+
+    /// Finds the latest Instagram export in either format Google Drive may
+    /// receive from Meta: one or more zip archives, or an expanded folder
+    /// tree containing the JSON files directly.
+    func latestInstagramExport(folderName: String) async throws -> InstagramExportSource {
+        let trimmedName = folderName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedName.isEmpty {
+            guard let folder = try await findFolder(named: trimmedName) else {
+                throw GoogleDriveError.folderNotFound(trimmedName)
             }
-            query = "'\(folder.id)' in parents and trashed = false"
+            return try await exportSource(in: folder)
         }
 
-        let candidates = try await listFiles(query: query)
-            .filter { $0.isZip }
-            .sorted { ($0.modifiedTime ?? .distantPast) > ($1.modifiedTime ?? .distantPast) }
+        let candidates = try await listFiles(
+            query: "(name contains 'instagram' or name contains 'meta') and trashed = false"
+        )
+        let archives = groupedArchives(from: candidates.filter { $0.isZip })
+        if !archives.isEmpty {
+            return InstagramExportSource(archives: archives, looseFiles: [])
+        }
 
+        // Meta can deliver an already-expanded directory instead of a zip.
+        // With no explicit folder name, use the newest matching folder.
+        if let folder = candidates
+            .filter(\.isFolder)
+            .sorted { ($0.modifiedTime ?? .distantPast) > ($1.modifiedTime ?? .distantPast) }
+            .first {
+            return try await exportSource(in: folder)
+        }
+        return InstagramExportSource(archives: [], looseFiles: [])
+    }
+
+    private func exportSource(in rootFolder: DriveFile) async throws -> InstagramExportSource {
+        let descendants = try await relevantDescendants(in: rootFolder)
+        let archives = groupedArchives(from: descendants.filter { $0.isZip })
+        if !archives.isEmpty {
+            return InstagramExportSource(archives: archives, looseFiles: [])
+        }
+        return InstagramExportSource(
+            archives: [],
+            looseFiles: descendants.filter { InstagramExportParser.isRelevantEntry($0.relativePath) }
+        )
+    }
+
+    /// Recursively walks an expanded Meta export. Drive folders are not
+    /// downloadable objects, so every relevant JSON file must be discovered
+    /// and downloaded individually. Only relevant JSON and zip files are
+    /// retained, keeping unrelated photos and media out of memory and disk.
+    private func relevantDescendants(in rootFolder: DriveFile) async throws -> [DriveFile] {
+        var queue: [(folderID: String, path: String)] = [(rootFolder.id, "")]
+        var queueIndex = 0
+        var visitedFolderIDs: Set<String> = []
+        var results: [DriveFile] = []
+
+        while queueIndex < queue.count {
+            let next = queue[queueIndex]
+            queueIndex += 1
+            guard visitedFolderIDs.insert(next.folderID).inserted else { continue }
+            let children = try await listFiles(
+                query: "'\(next.folderID)' in parents and trashed = false"
+            )
+            for child in children {
+                let path = next.path.isEmpty ? child.name : "\(next.path)/\(child.name)"
+                let located = child.located(at: path)
+                if child.isFolder {
+                    queue.append((child.id, path))
+                } else if child.isZip || InstagramExportParser.isRelevantEntry(path) {
+                    results.append(located)
+                }
+            }
+        }
+        return results
+    }
+
+    private func groupedArchives(from candidates: [DriveFile]) -> [DriveFile] {
+        let candidates = candidates.sorted {
+            ($0.modifiedTime ?? .distantPast) > ($1.modifiedTime ?? .distantPast)
+        }
         guard let newest = candidates.first, let newestTime = newest.modifiedTime else {
             return Array(candidates.prefix(1))
         }
@@ -156,32 +232,41 @@ final class GoogleDriveService: NSObject {
     }
 
     private func listFiles(query: String) async throws -> [DriveFile] {
-        var components = URLComponents(string: "https://www.googleapis.com/drive/v3/files")!
-        components.queryItems = [
-            URLQueryItem(name: "q", value: query),
-            URLQueryItem(name: "fields", value: "files(id,name,mimeType,modifiedTime,size)"),
-            URLQueryItem(name: "pageSize", value: "100"),
-            URLQueryItem(name: "orderBy", value: "modifiedTime desc"),
-        ]
-        guard let url = components.url else { throw GoogleDriveError.requestFailed }
+        var files: [DriveFile] = []
+        var pageToken: String?
+        repeat {
+            var components = URLComponents(string: "https://www.googleapis.com/drive/v3/files")!
+            var queryItems = [
+                URLQueryItem(name: "q", value: query),
+                URLQueryItem(name: "fields", value: "nextPageToken,files(id,name,mimeType,modifiedTime,size)"),
+                URLQueryItem(name: "pageSize", value: "1000"),
+                URLQueryItem(name: "orderBy", value: "modifiedTime desc"),
+            ]
+            if let pageToken {
+                queryItems.append(URLQueryItem(name: "pageToken", value: pageToken))
+            }
+            components.queryItems = queryItems
+            guard let url = components.url else { throw GoogleDriveError.requestFailed }
 
-        let (data, _) = try await authorizedData(operation: "list files") { token in
-            var request = URLRequest(url: url)
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            return request
-        }
-        do {
-            let decoded = try JSONDecoder().decode(FileListResponse.self, from: data)
-            return decoded.files.map { $0.asDriveFile }
-        } catch {
-            throw GoogleDriveError.invalidResponse(operation: "list files", detail: error.localizedDescription)
-        }
+            let (data, _) = try await authorizedData(operation: "list files") { token in
+                var request = URLRequest(url: url)
+                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                return request
+            }
+            do {
+                let decoded = try JSONDecoder().decode(FileListResponse.self, from: data)
+                files.append(contentsOf: decoded.files.map { $0.asDriveFile })
+                pageToken = decoded.nextPageToken
+            } catch {
+                throw GoogleDriveError.invalidResponse(operation: "list files", detail: error.localizedDescription)
+            }
+        } while pageToken != nil
+        return files
     }
 
-    /// Downloads a file's content to a temporary file on disk (exports can
-    /// be large; never buffered whole in memory) and returns its URL. The
-    /// caller is responsible for deleting it when done.
-    func downloadToTemporaryFile(fileID: String) async throws -> URL {
+    /// Downloads either a zip or one JSON file from an expanded export.
+    /// The caller is responsible for deleting the returned temporary file.
+    func downloadToTemporaryFile(fileID: String, filename: String) async throws -> URL {
         guard var components = URLComponents(string: "https://www.googleapis.com/drive/v3/files/\(fileID)") else {
             throw GoogleDriveError.requestFailed
         }
@@ -195,8 +280,10 @@ final class GoogleDriveService: NSObject {
         }
         // Move it out of URLSession's temp location so it survives until the
         // caller is finished with it.
+        let fileExtension = (filename as NSString).pathExtension
+        let suffix = fileExtension.isEmpty ? "" : ".\(fileExtension)"
         let destination = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ig-export-\(UUID().uuidString).zip")
+            .appendingPathComponent("ig-export-\(UUID().uuidString)\(suffix)")
         try FileManager.default.moveItem(at: tempURL, to: destination)
         return destination
     }
@@ -404,6 +491,7 @@ final class GoogleDriveService: NSObject {
 
     private struct FileListResponse: Decodable {
         let files: [WireFile]
+        let nextPageToken: String?
     }
 
     private struct GoogleAPIErrorEnvelope: Decodable {
@@ -432,7 +520,8 @@ final class GoogleDriveService: NSObject {
                 name: name,
                 mimeType: mimeType,
                 modifiedTime: modifiedTime.flatMap { Self.iso.date(from: $0) ?? Self.isoPlain.date(from: $0) },
-                size: size.flatMap { Int64($0) }
+                size: size.flatMap { Int64($0) },
+                relativePath: name
             )
         }
 
@@ -505,7 +594,7 @@ enum GoogleDriveError: LocalizedError {
         case .folderNotFound(let name):
             "No Drive folder named \"\(name)\" was found. Check the folder name in Settings."
         case .noExportFound:
-            "No Instagram export zip was found in Google Drive. Make sure Instagram's scheduled export to Drive has run at least once."
+            "No Instagram export data was found in Google Drive. The selected folder must contain either Meta's export zip or its expanded JSON folder tree."
         }
     }
 
