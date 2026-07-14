@@ -86,6 +86,11 @@ final class InstagramSyncService {
         var threads: [ThreadCandidate] = []
         var followerCount = 0
         var followingCount = 0
+        var followerFileCount = 0
+        var followingFileCount = 0
+        /// The first complete list creates a baseline; it is not interpreted
+        /// as hundreds of people following on the day the feature was enabled.
+        var establishedFollowerBaseline = false
         /// True when the export contained no follower lists (e.g. the
         /// scheduled export was configured to include only messages).
         var hadFollowerData = false
@@ -192,12 +197,26 @@ final class InstagramSyncService {
             FetchDescriptor<FollowerSnapshot>(sortBy: [SortDescriptor(\.takenAt, order: .reverse)])
         )) ?? []
         let last = previous.first
+        result.followerFileCount = export.followerLists.followerFiles.count
+        result.followingFileCount = export.followerLists.followingFiles.count
+        let followerBaselineReplacement = last.map {
+            Self.isLikelyBaselineReplacement(previous: $0.followerUsernames.count, current: followers.count)
+        } ?? false
+        let followingBaselineReplacement = last.map {
+            Self.isLikelyBaselineReplacement(previous: $0.followingUsernames.count, current: following.count)
+        } ?? false
+        result.establishedFollowerBaseline = last == nil
+            || (!followers.isEmpty && (last?.followerUsernames.isEmpty ?? true))
+            || (!following.isEmpty && (last?.followingUsernames.isEmpty ?? true))
+            || followerBaselineReplacement
+            || followingBaselineReplacement
 
         // Each side is diffed only when this export actually contains it:
         // a messages-only export (or one corrupt part-zip) must never be
         // read as "everyone unfollowed you". A missing side carries the
         // previous snapshot's values forward so the baseline stays honest.
-        if !followers.isEmpty, let last {
+        if !followers.isEmpty, let last, !last.followerUsernames.isEmpty,
+           !followerBaselineReplacement {
             let lastFollowers = Set(last.followerUsernames)
             let gained = followers.subtracting(lastFollowers).sorted()
             let lost = lastFollowers.subtracting(followers).sorted()
@@ -206,7 +225,8 @@ final class InstagramSyncService {
             for username in gained { context.insert(FollowerEvent(username: username, kind: .gainedFollower)) }
             for username in lost { context.insert(FollowerEvent(username: username, kind: .lostFollower)) }
         }
-        if !following.isEmpty, let last {
+        if !following.isEmpty, let last, !last.followingUsernames.isEmpty,
+           !followingBaselineReplacement {
             let lastFollowing = Set(last.followingUsernames)
             for username in following.subtracting(lastFollowing).sorted() {
                 context.insert(FollowerEvent(username: username, kind: .startedFollowing))
@@ -233,6 +253,16 @@ final class InstagramSyncService {
                 context.delete(snapshot)
             }
         }
+    }
+
+    /// A partial/date-limited Meta export followed by a complete export can
+    /// jump from tens to thousands of accounts. Treat that as a corrected
+    /// baseline, not as 1,400 people following overnight (and vice versa).
+    nonisolated static func isLikelyBaselineReplacement(previous: Int, current: Int) -> Bool {
+        guard previous > 0, current > 0 else { return false }
+        let larger = max(previous, current)
+        let smaller = min(previous, current)
+        return larger - smaller >= 100 && Double(larger) / Double(smaller) >= 2
     }
 
     // MARK: Thread candidates
