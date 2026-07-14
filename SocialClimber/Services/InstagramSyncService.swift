@@ -306,10 +306,41 @@ final class InstagramSyncService {
 
     /// Applies one approved thread candidate: runs the conversation through
     /// the same extraction pipeline voice notes use, logs an imported
-    /// Instagram interaction, updates the person's profile, and remembers
-    /// the person's Instagram identity for future syncs.
+    /// Instagram interaction, adds it to Recent Captures, updates the
+    /// person's profile, and remembers the person's Instagram identity for
+    /// future syncs. Matching the raw thread/date makes this idempotent if a
+    /// sync is retried before its cutoff is committed.
     func apply(candidate: ThreadCandidate, to person: Person, context: ModelContext) async {
         let digest = candidate.digestText
+        let capture = existingInstagramCapture(
+            digest: digest,
+            date: candidate.latestDate,
+            person: person,
+            context: context
+        ) ?? makeInstagramCapture(
+            candidate: candidate,
+            person: person,
+            context: context
+        )
+
+        // Older app versions created the imported interaction directly. If
+        // it is already present, backfill capture provenance instead of
+        // running extraction again and duplicating the interaction/profile
+        // changes on the next Drive sync.
+        if let existing = existingInstagramInteraction(
+            digest: digest,
+            date: candidate.latestDate,
+            person: person,
+            context: context
+        ) {
+            if existing.sourceCaptureUUID == nil {
+                existing.sourceCaptureUUID = capture.uuid
+            }
+            finish(capture: capture, person: person, summary: existing.messageSummary)
+            rememberInstagramIdentity(candidate: candidate, person: person)
+            return
+        }
+
         let outcome = await AIExtractionCoordinator.extract(
             from: digest,
             knownPeople: [person.displayName]
@@ -321,12 +352,80 @@ final class InstagramSyncService {
             interactionType: .socialMedia,
             date: candidate.latestDate,
             quality: 3,
+            sourceCaptureUUID: capture.uuid,
             options: .allApproved(for: outcome.extraction),
             context: context
         )
         interaction?.isImported = true
         interaction?.platform = .instagram
         interaction?.rawImportText = digest
+        finish(capture: capture, person: person, summary: outcome.extraction.summary)
+        rememberInstagramIdentity(candidate: candidate, person: person)
+    }
+
+    private func makeInstagramCapture(
+        candidate: ThreadCandidate,
+        person: Person,
+        context: ModelContext
+    ) -> CapturedMemory {
+        let capture = CapturedMemory(
+            rawText: candidate.digestText,
+            source: .instagram,
+            capturedAt: candidate.latestDate,
+            trustedPeople: [person],
+            typeHint: .socialMedia
+        )
+        context.insert(capture)
+        return capture
+    }
+
+    private func existingInstagramCapture(
+        digest: String,
+        date: Date,
+        person: Person,
+        context: ModelContext
+    ) -> CapturedMemory? {
+        let captures = (try? context.fetch(FetchDescriptor<CapturedMemory>())) ?? []
+        return captures.first {
+            $0.source == .instagram
+                && $0.rawText == digest
+                && abs($0.capturedAt.timeIntervalSince(date)) < 1
+                && $0.trustedPersonIDs.contains(person.uuid)
+        }
+    }
+
+    private func existingInstagramInteraction(
+        digest: String,
+        date: Date,
+        person: Person,
+        context: ModelContext
+    ) -> Interaction? {
+        let interactions = (try? context.fetch(FetchDescriptor<Interaction>())) ?? []
+        return interactions.first {
+            $0.isImported
+                && $0.platform == .instagram
+                && $0.rawImportText == digest
+                && abs($0.date.timeIntervalSince(date)) < 1
+                && $0.people.contains(where: { $0.uuid == person.uuid })
+        }
+    }
+
+    private func finish(
+        capture: CapturedMemory,
+        person: Person,
+        summary: String
+    ) {
+        capture.resolvedPersonIDs = [person.uuid]
+        capture.resolvedPersonNames = [person.name]
+        capture.title = "Instagram with \(person.firstName)"
+        capture.detail = summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "Imported Instagram messages"
+            : summary
+        capture.errorMessage = ""
+        capture.status = .processed
+    }
+
+    private func rememberInstagramIdentity(candidate: ThreadCandidate, person: Person) {
 
         if person.instagramUsername.isEmpty, !candidate.otherParticipant.isEmpty {
             // Thread participants are display names, not handles; only
