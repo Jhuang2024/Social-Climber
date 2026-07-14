@@ -100,29 +100,54 @@ final class InstagramSyncService {
 
         progressText = "Looking for the latest export in Drive…"
         let folderName = UserDefaults.standard.string(forKey: Self.folderDefaultsKey) ?? ""
-        let files = try await GoogleDriveService.shared.latestInstagramExportFiles(folderName: folderName)
-        guard !files.isEmpty else { throw GoogleDriveError.noExportFound }
+        let source = try await GoogleDriveService.shared.latestInstagramExport(folderName: folderName)
+        guard !source.isEmpty else { throw GoogleDriveError.noExportFound }
 
         var localURLs: [URL] = []
         defer { for url in localURLs { try? FileManager.default.removeItem(at: url) } }
-        for (index, file) in files.enumerated() {
-            progressText = "Downloading export (\(index + 1) of \(files.count))…"
-            localURLs.append(try await GoogleDriveService.shared.downloadToTemporaryFile(fileID: file.id))
+        var archives: [URL] = []
+        var looseFiles: [(path: String, url: URL)] = []
+        let totalFiles = source.archives.count + source.looseFiles.count
+        var downloadedCount = 0
+        for file in source.archives {
+            downloadedCount += 1
+            progressText = "Downloading export (\(downloadedCount) of \(totalFiles))…"
+            let url = try await GoogleDriveService.shared.downloadToTemporaryFile(
+                fileID: file.id,
+                filename: file.name
+            )
+            localURLs.append(url)
+            archives.append(url)
+        }
+        for file in source.looseFiles {
+            downloadedCount += 1
+            progressText = "Downloading export data (\(downloadedCount) of \(totalFiles))…"
+            let url = try await GoogleDriveService.shared.downloadToTemporaryFile(
+                fileID: file.id,
+                filename: file.name
+            )
+            localURLs.append(url)
+            looseFiles.append((file.relativePath, url))
         }
 
         // Unzipping and JSON parsing are CPU-bound; keep them off the main
         // actor so the UI stays responsive during a big export.
         progressText = "Reading export…"
-        let urls = localURLs
+        let archiveURLs = archives
+        let expandedFiles = looseFiles
         let export = try await Task.detached(priority: .userInitiated) {
             var export = InstagramExportParser.Export()
-            for url in urls {
+            for url in archiveURLs {
                 let reader = try ZipArchiveReader(url: url)
                 defer { reader.close() }
                 for entry in reader.entries where InstagramExportParser.isRelevantEntry(entry.name) {
                     guard let data = try? reader.data(for: entry) else { continue }
                     InstagramExportParser.ingest(path: entry.name, data: data, into: &export)
                 }
+            }
+            for file in expandedFiles {
+                guard let data = try? Data(contentsOf: file.url) else { continue }
+                InstagramExportParser.ingest(path: file.path, data: data, into: &export)
             }
             return export
         }.value
