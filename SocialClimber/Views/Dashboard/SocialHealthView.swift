@@ -137,7 +137,14 @@ struct SocialHealthView: View {
                     Text(selectedPoint.date.formatted(date: .abbreviated, time: .omitted))
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                 }
+                // The exact-value readout is deliberately outside the plot
+                // instead of attached to a mark. A fixed, constrained row
+                // cannot overflow when the first or last point is selected.
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .clipped()
             }
 
             Chart {
