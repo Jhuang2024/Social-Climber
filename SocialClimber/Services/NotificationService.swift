@@ -20,6 +20,57 @@ final class NotificationService {
         await center.notificationSettings().authorizationStatus
     }
 
+    struct Diagnostics {
+        let authorizationStatus: UNAuthorizationStatus
+        let pendingCount: Int
+        let instagramReminderScheduled: Bool
+    }
+
+    /// Reads what iOS actually has, rather than inferring delivery from
+    /// toggles in UserDefaults. Used by Settings to make silent scheduling
+    /// failures visible.
+    func diagnostics() async -> Diagnostics {
+        let notificationSettings = await center.notificationSettings()
+        let pending = await center.pendingNotificationRequests()
+        return Diagnostics(
+            authorizationStatus: notificationSettings.authorizationStatus,
+            pendingCount: pending.count,
+            instagramReminderScheduled: pending.contains { $0.identifier == Self.instagramReminderID }
+        )
+    }
+
+    /// A short, explicit end-to-end delivery test. It requests permission if
+    /// needed, enables the app master switch, then asks iOS to fire in 3 sec.
+    func scheduleDeliveryTest() async throws {
+        let status = await authorizationStatus()
+        let authorized: Bool
+        switch status {
+        case .authorized, .provisional, .ephemeral:
+            authorized = true
+        case .notDetermined:
+            authorized = await requestAuthorization()
+        case .denied:
+            authorized = false
+        @unknown default:
+            authorized = false
+        }
+        guard authorized else { throw NotificationDeliveryTestError.permissionDenied }
+        UserDefaults.standard.set(true, forKey: "notificationsEnabled")
+
+        let content = UNMutableNotificationContent()
+        content.title = "Social Climber notifications work"
+        content.body = "This is a test alert from this iPhone."
+        content.sound = .default
+        content.userInfo = ["kind": "deliveryTest"]
+        let request = UNNotificationRequest(
+            identifier: "notification-delivery-test",
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 3, repeats: false)
+        )
+        center.removePendingNotificationRequests(withIdentifiers: [request.identifier])
+        try await center.add(request)
+    }
+
     /// Category/quiet-hours/preview preferences, read fresh each call.
     private var settings: NotificationSettings { NotificationSettings() }
 
@@ -339,7 +390,7 @@ final class NotificationService {
 
         let content = UNMutableNotificationContent()
         content.title = "📸 Instagram sync"
-        content.body = "Pull today's export from Google Drive to refresh people, messages, and followers."
+        content.body = "Pull the latest export from Google Drive to refresh people, messages, and follower activity."
         content.sound = .default
 
         var comps = DateComponents()
@@ -479,5 +530,13 @@ final class NotificationService {
 
     func cancelAll() {
         center.removeAllPendingNotificationRequests()
+    }
+}
+
+enum NotificationDeliveryTestError: LocalizedError {
+    case permissionDenied
+
+    var errorDescription: String? {
+        "Notifications are disabled in iOS Settings."
     }
 }
