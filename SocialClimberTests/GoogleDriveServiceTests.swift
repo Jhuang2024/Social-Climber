@@ -13,6 +13,9 @@ final class GoogleDriveServiceTests: XCTestCase {
         XCTAssertTrue(InstagramExportParser.isRelevantEntry(
             "connections/followers_and_following/following.json"
         ))
+        XCTAssertTrue(InstagramExportParser.isRelevantEntry(
+            "connections/followers_and_following/recently_unfollowed_accounts.json"
+        ))
     }
 
     func testExpandedMetaFolderIgnoresMediaAndHTML() {
@@ -47,6 +50,18 @@ final class GoogleDriveServiceTests: XCTestCase {
             Set(InstagramExportParser.parseUsernameList(data, arrayKey: nil)),
             Set(["jerry", "tony"])
         )
+    }
+
+    func testRelationshipParserPreservesUsernameTimestamp() throws {
+        let data = Data(#"[
+          {"string_list_data": [{"value": "Tony", "timestamp": 1783987200}]}
+        ]"#.utf8)
+
+        let record = try XCTUnwrap(
+            InstagramExportParser.parseRelationshipRecords(data, arrayKey: nil).first
+        )
+        XCTAssertEqual(record.username, "tony")
+        XCTAssertEqual(record.date?.timeIntervalSince1970, 1_783_987_200)
     }
 
     func testHTMLExportErrorExplainsHowToFixTheFormat() {
