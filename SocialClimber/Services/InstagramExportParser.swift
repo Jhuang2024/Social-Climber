@@ -25,6 +25,8 @@ enum InstagramExportParser {
     struct FollowerLists {
         var followers: [String] = []
         var following: [String] = []
+        var followerFiles: Set<String> = []
+        var followingFiles: Set<String> = []
     }
 
     struct Export {
@@ -74,8 +76,10 @@ enum InstagramExportParser {
             }
         } else if file.hasPrefix("followers") {
             export.followerLists.followers.append(contentsOf: parseUsernameList(data, arrayKey: nil))
+            export.followerLists.followerFiles.insert(lower)
         } else if file.hasPrefix("following") {
             export.followerLists.following.append(contentsOf: parseUsernameList(data, arrayKey: "relationships_following"))
+            export.followerLists.followingFiles.insert(lower)
         }
     }
 
@@ -129,25 +133,30 @@ enum InstagramExportParser {
         let string_list_data: [StringListItem]?
     }
 
-    /// `followers_N.json` is a bare array of relationship objects;
-    /// `following.json` wraps the same array under a key.
+    /// `followers_N.json` is normally a bare array while `following.json`
+    /// normally wraps it under `relationships_following`. Meta has shipped
+    /// both shapes for both lists, so accept the requested wrapper, the two
+    /// known relationship wrappers, or a bare array. Also flatten every
+    /// `string_list_data` item: assuming one item per relationship silently
+    /// under-counts exports that group several usernames in one object.
     static func parseUsernameList(_ data: Data, arrayKey: String?) -> [String] {
         let relationships: [WireRelationship]
-        if let arrayKey {
-            guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let rawArray = object[arrayKey],
+        if let decoded = try? JSONDecoder().decode([WireRelationship].self, from: data) {
+            relationships = decoded
+        } else if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            let keys = [arrayKey, "relationships_followers", "relationships_following"].compactMap { $0 }
+            guard let rawArray = keys.compactMap({ object[$0] }).first,
                   let arrayData = try? JSONSerialization.data(withJSONObject: rawArray),
-                  let decoded = try? JSONDecoder().decode([WireRelationship].self, from: arrayData) else {
-                return []
-            }
+                  let decoded = try? JSONDecoder().decode([WireRelationship].self, from: arrayData) else { return [] }
             relationships = decoded
         } else {
-            guard let decoded = try? JSONDecoder().decode([WireRelationship].self, from: data) else { return [] }
-            relationships = decoded
+            return []
         }
-        return relationships.compactMap { $0.string_list_data?.first?.value }
+        return Array(Set(relationships.flatMap { relationship in
+            (relationship.string_list_data ?? []).compactMap(\.value)
+        }
             .map { fixMojibake($0).lowercased() }
-            .filter { !$0.isEmpty }
+            .filter { !$0.isEmpty }))
     }
 
     // MARK: Encoding fix
