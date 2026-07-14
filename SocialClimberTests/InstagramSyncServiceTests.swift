@@ -25,6 +25,13 @@ final class InstagramSyncServiceTests: XCTestCase {
         super.tearDown()
     }
 
+    func testLargePartialExportJumpReplacesBaseline() {
+        XCTAssertTrue(InstagramSyncService.isLikelyBaselineReplacement(previous: 73, current: 1_500))
+        XCTAssertTrue(InstagramSyncService.isLikelyBaselineReplacement(previous: 1_500, current: 73))
+        XCTAssertFalse(InstagramSyncService.isLikelyBaselineReplacement(previous: 1_500, current: 1_510))
+        XCTAssertFalse(InstagramSyncService.isLikelyBaselineReplacement(previous: 73, current: 80))
+    }
+
     func testExistingInstagramInteractionIsBackfilledAsOneRecentCapture() async throws {
         let context = container.mainContext
         let person = Person(name: "Alex Rivera")
