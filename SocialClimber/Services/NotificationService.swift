@@ -94,6 +94,33 @@ final class NotificationService {
         return granted
     }
 
+    /// Guards against `reconcile()` walking dozens of people/reminders in one
+    /// pass and each of them independently kicking off a permission request
+    /// before the first one has set `hasRequestedNotificationPermission`.
+    private var isRequestingPermission = false
+
+    /// Called by a `schedule*` method once its own data preconditions have
+    /// passed but `enabled` is false. Only 3 of the app's ~15 scheduling
+    /// call sites (creating a Reminder or Important Date, and the
+    /// follow-up-needed auto-reminder) used to call
+    /// `requestPermissionContextually()` themselves — every other path
+    /// (birthdays, events, Quick Capture, relationship maintenance, …)
+    /// skipped straight to a `schedule*` call and silently no-opped forever
+    /// on a fresh install, since permission was never actually requested.
+    /// Centralizing the contextual ask here means every entry point gets it
+    /// for free. A no-op after the first ask (or if disabled for another
+    /// reason, e.g. a per-category toggle) — `retry` re-checks `enabled`
+    /// itself, so this can't loop or re-prompt.
+    private func requestPermissionThenRetry(_ retry: @escaping () -> Void) {
+        guard !UserDefaults.standard.bool(forKey: "hasRequestedNotificationPermission"), !isRequestingPermission else { return }
+        isRequestingPermission = true
+        Task {
+            await requestPermissionContextually()
+            isRequestingPermission = false
+            retry()
+        }
+    }
+
     // MARK: Quiet hours + privacy helpers
 
     /// Returns `preferred` unless it lands in quiet hours, in which case the
@@ -133,7 +160,11 @@ final class NotificationService {
 
     func schedule(reminder: Reminder) {
         let category: NotificationCategory = reminder.type == .followUp ? .followUp : .explicitReminder
-        guard enabled, settings.isEnabled(category), !reminder.completed, reminder.dueDate > .now else { return }
+        guard !reminder.completed, reminder.dueDate > .now else { return }
+        guard enabled, settings.isEnabled(category) else {
+            requestPermissionThenRetry { [weak self] in self?.schedule(reminder: reminder) }
+            return
+        }
         let id = reminder.notificationID ?? UUID().uuidString
         reminder.notificationID = id
         center.removePendingNotificationRequests(withIdentifiers: [id])
@@ -164,7 +195,11 @@ final class NotificationService {
         // Name-keyed so the ID is stable across launches.
         let id = "birthday-\(person.name)"
         center.removePendingNotificationRequests(withIdentifiers: [id])
-        guard enabled, settings.isEnabled(.birthday), let birthday = person.birthday, !person.isArchived else { return }
+        guard let birthday = person.birthday, !person.isArchived else { return }
+        guard enabled, settings.isEnabled(.birthday) else {
+            requestPermissionThenRetry { [weak self] in self?.scheduleBirthday(for: person) }
+            return
+        }
 
         let content = UNMutableNotificationContent()
         content.title = "🎂 \(person.firstName)'s birthday today"
@@ -192,7 +227,11 @@ final class NotificationService {
         let id = importantDate.notificationID ?? UUID().uuidString
         importantDate.notificationID = id
         center.removePendingNotificationRequests(withIdentifiers: [id])
-        guard enabled, settings.isEnabled(.importantDate), let next = importantDate.nextOccurrence else { return }
+        guard let next = importantDate.nextOccurrence else { return }
+        guard enabled, settings.isEnabled(.importantDate) else {
+            requestPermissionThenRetry { [weak self] in self?.schedule(importantDate: importantDate) }
+            return
+        }
 
         let content = UNMutableNotificationContent()
         content.title = "⭐ \(importantDate.title)"
@@ -222,7 +261,11 @@ final class NotificationService {
         let id = event.notificationID ?? UUID().uuidString
         event.notificationID = id
         center.removePendingNotificationRequests(withIdentifiers: [id])
-        guard enabled, settings.isEnabled(.event), event.date > .now else { return }
+        guard event.date > .now else { return }
+        guard enabled, settings.isEnabled(.event) else {
+            requestPermissionThenRetry { [weak self] in self?.schedule(event: event) }
+            return
+        }
 
         let content = UNMutableNotificationContent()
         content.title = "📅 \(event.name.isEmpty ? "Event" : event.name) today"
@@ -302,9 +345,13 @@ final class NotificationService {
             center.removePendingNotificationRequests(withIdentifiers: [existing])
             event.followUpNotificationID = nil
         }
-        guard enabled, !event.attendees.isEmpty, event.loggedAt == nil, event.followUpDismissedAt == nil else { return }
+        guard !event.attendees.isEmpty, event.loggedAt == nil, event.followUpDismissedAt == nil else { return }
         let fireDate = event.effectiveEndDate.addingTimeInterval(15 * 60)
         guard fireDate > .now else { return }
+        guard enabled else {
+            requestPermissionThenRetry { [weak self] in self?.scheduleFollowUp(for: event) }
+            return
+        }
 
         let id = "event-followup-\(UUID().uuidString)"
         event.followUpNotificationID = id
@@ -340,13 +387,22 @@ final class NotificationService {
         attendeeIDs: [UUID],
         attendeeNames: [String]
     ) {
-        guard enabled, !attendeeNames.isEmpty else { return }
+        guard !attendeeNames.isEmpty else { return }
         let defaults = UserDefaults.standard
         var handled = Set(defaults.stringArray(forKey: "gcalFollowUpsScheduledOrHandled") ?? [])
         guard !handled.contains(calendarEventID) else { return }
 
         let fireDate = endDate.addingTimeInterval(15 * 60)
         guard fireDate > .now else { return }
+        guard enabled else {
+            requestPermissionThenRetry { [weak self] in
+                self?.scheduleCalendarFollowUp(
+                    calendarEventID: calendarEventID, title: title, endDate: endDate,
+                    location: location, attendeeIDs: attendeeIDs, attendeeNames: attendeeNames
+                )
+            }
+            return
+        }
 
         handled.insert(calendarEventID)
         defaults.set(Array(handled), forKey: "gcalFollowUpsScheduledOrHandled")
@@ -436,9 +492,13 @@ final class NotificationService {
     func scheduleRelationshipMaintenance(for person: Person) {
         let id = "maintenance-\(person.name)"
         center.removePendingNotificationRequests(withIdentifiers: [id])
-        guard enabled, settings.isEnabled(.relationshipMaintenance), !person.isArchived else { return }
+        guard !person.isArchived else { return }
         let status = person.status
         guard status == .checkInSoon || status == .goingQuiet || status == .dormant else { return }
+        guard enabled, settings.isEnabled(.relationshipMaintenance) else {
+            requestPermissionThenRetry { [weak self] in self?.scheduleRelationshipMaintenance(for: person) }
+            return
+        }
 
         let cadence = RelationshipHealth.expectedCadenceDays(for: person)
         let anchor = person.lastContactedAt ?? person.createdAt
@@ -466,7 +526,11 @@ final class NotificationService {
     func schedulePeriodicReview(for person: Person) {
         let id = "review-\(person.name)"
         center.removePendingNotificationRequests(withIdentifiers: [id])
-        guard enabled, settings.isEnabled(.periodicReview), !person.isArchived, person.priority >= 4 else { return }
+        guard !person.isArchived, person.priority >= 4 else { return }
+        guard enabled, settings.isEnabled(.periodicReview) else {
+            requestPermissionThenRetry { [weak self] in self?.schedulePeriodicReview(for: person) }
+            return
+        }
 
         let anchor = person.lastContactedAt ?? person.createdAt
         var due = Calendar.current.date(byAdding: .day, value: settings.reviewFrequencyDays, to: anchor) ?? .now
@@ -493,7 +557,11 @@ final class NotificationService {
     func scheduleCaptureReview(pendingCount: Int) {
         let id = "capture-review"
         center.removePendingNotificationRequests(withIdentifiers: [id])
-        guard enabled, settings.isEnabled(.captureReview), pendingCount > 0 else { return }
+        guard pendingCount > 0 else { return }
+        guard enabled, settings.isEnabled(.captureReview) else {
+            requestPermissionThenRetry { [weak self] in self?.scheduleCaptureReview(pendingCount: pendingCount) }
+            return
+        }
 
         let content = UNMutableNotificationContent()
         content.title = "Capture needs review"
