@@ -7,6 +7,8 @@
 - Kept existing single-part and multi-part zip support.
 - Added Drive pagination so exports with more than 100 files or folders are fully discovered.
 - Updated setup guidance to require JSON format and explain both folder and zip deliveries.
+- Instagram conversations applied from Drive now appear in Recent Captures with their Instagram source, person, summary, and capture-linked results.
+- Retrying the same import backfills older Instagram interactions instead of creating duplicate captures or interactions.
 - Raw downloaded files are still temporary, parsed on-device, and deleted immediately after the sync.
 
 ## Unreleased — Audio pipeline & notifications overhaul
