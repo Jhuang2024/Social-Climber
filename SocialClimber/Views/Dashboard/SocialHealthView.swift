@@ -15,7 +15,11 @@ struct SocialHealthView: View {
     private var latestFollowerSnapshot: FollowerSnapshot? { followerSnapshots.first }
 
     private var report: SocialHealthReport {
-        SocialHealthReport.compute(people: people, interactions: interactions, followerEvents: followerEvents)
+        cachedReport ?? SocialHealthReport.compute(
+            people: people,
+            interactions: interactions,
+            followerEvents: followerEvents
+        )
     }
 
     private var recentEvents: [FollowerEvent] {
@@ -29,7 +33,8 @@ struct SocialHealthView: View {
 
     @State private var ringProgress: CGFloat = 0
     @State private var chartRange: HealthChartRange = .month
-    @State private var selectedChartDate: Date?
+    @State private var cachedReport: SocialHealthReport?
+    @State private var cachedTrendPoints: [HealthChartPoint] = []
 
     var body: some View {
         ScrollView {
@@ -58,15 +63,51 @@ struct SocialHealthView: View {
         // NavigationStack's existing `.navigationDestination(for: Person.self)`;
         // registering it again on this pushed screen would conflict.
         .onAppear {
-            withAnimation(.snappy(duration: 0.8)) {
-                ringProgress = CGFloat(report.total) / 100
-            }
+            rebuildHealthData()
+        }
+        .onChange(of: chartRange) {
+            rebuildTrendPoints()
+        }
+        .onChange(of: chartDataRevision) {
+            rebuildHealthData()
         }
     }
 
     // MARK: Trend
 
-    private var trendPoints: [HealthChartPoint] {
+    /// A cheap change token. Dragging the chart does not touch this parent
+    /// state, while real data changes rebuild the cached series once.
+    private var chartDataRevision: HealthChartDataRevision {
+        HealthChartDataRevision(
+            peopleCount: people.count,
+            interactionCount: interactions.count,
+            latestInteraction: interactions.first?.date,
+            followerEventCount: followerEvents.count,
+            latestFollowerEvent: followerEvents.first?.date
+        )
+    }
+
+    private func rebuildHealthData() {
+        let current = SocialHealthReport.compute(
+            people: people,
+            interactions: interactions,
+            followerEvents: followerEvents
+        )
+        cachedReport = current
+        cachedTrendPoints = makeTrendPoints()
+        withAnimation(.snappy(duration: 0.8)) {
+            ringProgress = CGFloat(current.total) / 100
+        }
+    }
+
+    private func rebuildTrendPoints() {
+        cachedTrendPoints = makeTrendPoints()
+    }
+
+    /// Historical scoring is intentionally performed only when the range or
+    /// underlying data changes. The old computed property ran this full loop
+    /// several times for every finger movement on the chart.
+    private func makeTrendPoints() -> [HealthChartPoint] {
         let calendar = Calendar.current
         let end = Date.now
         let earliestFact = ([people.map(\.createdAt), interactions.map(\.date), followerEvents.map(\.date)]
@@ -110,87 +151,12 @@ struct SocialHealthView: View {
         }
     }
 
-    private var selectedPoint: HealthChartPoint? {
-        guard let selectedChartDate else { return trendPoints.last }
-        return trendPoints.min { abs($0.date.timeIntervalSince(selectedChartDate)) < abs($1.date.timeIntervalSince(selectedChartDate)) }
-    }
-
     private var trendCard: some View {
-        FormSectionCard("Score Trend", icon: "chart.xyaxis.line") {
-            Picker("Range", selection: $chartRange) {
-                ForEach(HealthChartRange.allCases) { range in
-                    Text(range.label).tag(range)
-                }
-            }
-            .pickerStyle(.segmented)
-            .onChange(of: chartRange) { selectedChartDate = nil }
-
-            if let selectedPoint {
-                HStack(alignment: .firstTextBaseline) {
-                    Text("\(selectedPoint.score)")
-                        .font(SCTheme.displayFont(28, weight: .bold))
-                        .monospacedDigit()
-                    Text("of 100")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text(selectedPoint.date.formatted(date: .abbreviated, time: .omitted))
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-                }
-                // The exact-value readout is deliberately outside the plot
-                // instead of attached to a mark. A fixed, constrained row
-                // cannot overflow when the first or last point is selected.
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .clipped()
-            }
-
-            Chart {
-                ForEach(trendPoints) { point in
-                    AreaMark(
-                        x: .value("Date", point.date),
-                        y: .value("Score", point.score)
-                    )
-                    .interpolationMethod(.catmullRom)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [report.band.color.opacity(0.28), report.band.color.opacity(0.02)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    LineMark(
-                        x: .value("Date", point.date),
-                        y: .value("Score", point.score)
-                    )
-                    .interpolationMethod(.catmullRom)
-                    .foregroundStyle(report.band.color)
-                    .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-                }
-                if let selectedPoint {
-                    RuleMark(x: .value("Selected", selectedPoint.date))
-                        .foregroundStyle(Color.secondary.opacity(0.35))
-                    PointMark(
-                        x: .value("Selected date", selectedPoint.date),
-                        y: .value("Selected score", selectedPoint.score)
-                    )
-                    .foregroundStyle(report.band.color)
-                    .symbolSize(70)
-                }
-            }
-            .chartYScale(domain: 0...100)
-            .chartYAxis {
-                AxisMarks(values: [0, 25, 50, 75, 100])
-            }
-            .chartXSelection(value: $selectedChartDate)
-            .frame(height: 190)
-
-            Text("Drag across the chart to inspect the exact score for any point.")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-        }
+        SocialHealthTrendCard(
+            points: cachedTrendPoints,
+            color: report.band.color,
+            range: $chartRange
+        )
     }
 
     private var emptyState: some View {
@@ -473,6 +439,113 @@ private struct HealthChartPoint: Identifiable {
     let date: Date
     let score: Int
     var id: Date { date }
+}
+
+private struct HealthChartDataRevision: Equatable {
+    let peopleCount: Int
+    let interactionCount: Int
+    let latestInteraction: Date?
+    let followerEventCount: Int
+    let latestFollowerEvent: Date?
+}
+
+/// Owns the high-frequency drag selection state so moving a finger only
+/// invalidates this small chart, not the entire Social Health screen.
+private struct SocialHealthTrendCard: View {
+    let points: [HealthChartPoint]
+    let color: Color
+    @Binding var range: HealthChartRange
+    @State private var selectedDate: Date?
+
+    private var selectedPoint: HealthChartPoint? {
+        guard !points.isEmpty else { return nil }
+        guard let selectedDate else { return points.last }
+        return points.min {
+            abs($0.date.timeIntervalSince(selectedDate))
+                < abs($1.date.timeIntervalSince(selectedDate))
+        }
+    }
+
+    var body: some View {
+        FormSectionCard("Score Trend", icon: "chart.xyaxis.line") {
+            Picker("Range", selection: $range) {
+                ForEach(HealthChartRange.allCases) { item in
+                    Text(item.label).tag(item)
+                }
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: range) { selectedDate = nil }
+
+            if let selectedPoint {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("\(selectedPoint.score)")
+                        .font(SCTheme.displayFont(28, weight: .bold))
+                        .monospacedDigit()
+                    Text("of 100")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(selectedPoint.date.formatted(date: .abbreviated, time: .omitted))
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .clipped()
+            }
+
+            if points.isEmpty {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 190)
+            } else {
+                Chart {
+                    ForEach(points) { point in
+                        AreaMark(
+                            x: .value("Date", point.date),
+                            y: .value("Score", point.score)
+                        )
+                        .interpolationMethod(.catmullRom)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [color.opacity(0.28), color.opacity(0.02)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        LineMark(
+                            x: .value("Date", point.date),
+                            y: .value("Score", point.score)
+                        )
+                        .interpolationMethod(.catmullRom)
+                        .foregroundStyle(color)
+                        .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                    }
+                    if let selectedPoint {
+                        RuleMark(x: .value("Selected", selectedPoint.date))
+                            .foregroundStyle(Color.secondary.opacity(0.35))
+                        PointMark(
+                            x: .value("Selected date", selectedPoint.date),
+                            y: .value("Selected score", selectedPoint.score)
+                        )
+                        .foregroundStyle(color)
+                        .symbolSize(70)
+                    }
+                }
+                .chartYScale(domain: 0...100)
+                .chartYAxis {
+                    AxisMarks(values: [0, 25, 50, 75, 100])
+                }
+                .chartXSelection(value: $selectedDate)
+                .frame(height: 190)
+            }
+
+            Text("Drag across the chart to inspect the exact score for any point.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+    }
 }
 
 #Preview {
