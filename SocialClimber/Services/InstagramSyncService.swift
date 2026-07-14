@@ -83,14 +83,15 @@ final class InstagramSyncService {
     struct SyncResult {
         var newFollowers: [String] = []
         var lostFollowers: [String] = []
+        var startedFollowing: [String] = []
+        var stoppedFollowing: [String] = []
         var threads: [ThreadCandidate] = []
-        var followerCount = 0
-        var followingCount = 0
         var followerFileCount = 0
         var followingFileCount = 0
         /// The first complete list creates a baseline; it is not interpreted
         /// as hundreds of people following on the day the feature was enabled.
         var establishedFollowerBaseline = false
+        var followerDataIsDateLimited = false
         /// True when the export contained no follower lists (e.g. the
         /// scheduled export was configured to include only messages).
         var hadFollowerData = false
@@ -190,13 +191,31 @@ final class InstagramSyncService {
     private func applyFollowerDiff(export: InstagramExportParser.Export, into result: inout SyncResult, context: ModelContext) {
         let followers = Set(export.followerLists.followers)
         let following = Set(export.followerLists.following)
-        guard !followers.isEmpty || !following.isEmpty else { return }
+        guard !followers.isEmpty || !following.isEmpty || !export.followerLists.recentlyUnfollowedRecords.isEmpty else { return }
         result.hadFollowerData = true
 
         let previous = (try? context.fetch(
             FetchDescriptor<FollowerSnapshot>(sortBy: [SortDescriptor(\.takenAt, order: .reverse)])
         )) ?? []
         let last = previous.first
+        let followerDataIsPartial = Self.isDateLimited(records: export.followerLists.followerRecords)
+        let followingDataIsPartial = Self.isDateLimited(records: export.followerLists.followingRecords)
+        result.followerDataIsDateLimited = followerDataIsPartial || followingDataIsPartial
+        let existingEvents = (try? context.fetch(FetchDescriptor<FollowerEvent>())) ?? []
+        var insertedEventKeys = Set<String>()
+
+        func insertRecord(_ relationship: InstagramExportParser.RelationshipRecord, kind: FollowerEventKind) -> Bool {
+            let date = relationship.date ?? .now
+            let key = "\(kind.rawValue)|\(relationship.username)|\(Int(date.timeIntervalSince1970))"
+            let duplicate = existingEvents.contains {
+                $0.username == relationship.username
+                    && $0.kind == kind
+                    && abs($0.date.timeIntervalSince(date)) < 60
+            }
+            guard !duplicate, insertedEventKeys.insert(key).inserted else { return false }
+            context.insert(FollowerEvent(username: relationship.username, kind: kind, date: date))
+            return true
+        }
         result.followerFileCount = export.followerLists.followerFiles.count
         result.followingFileCount = export.followerLists.followingFiles.count
         let followerBaselineReplacement = last.map {
@@ -215,7 +234,13 @@ final class InstagramSyncService {
         // a messages-only export (or one corrupt part-zip) must never be
         // read as "everyone unfollowed you". A missing side carries the
         // previous snapshot's values forward so the baseline stays honest.
-        if !followers.isEmpty, let last, !last.followerUsernames.isEmpty,
+        if followerDataIsPartial {
+            let records = export.followerLists.followerRecords.sorted { ($0.date ?? .distantPast) < ($1.date ?? .distantPast) }
+            for relationship in records where insertRecord(relationship, kind: .gainedFollower) {
+                result.newFollowers.append(relationship.username)
+            }
+        } else if !followers.isEmpty, let last, !last.followerUsernames.isEmpty,
+           !last.followerListIsPartial,
            !followerBaselineReplacement {
             let lastFollowers = Set(last.followerUsernames)
             let gained = followers.subtracting(lastFollowers).sorted()
@@ -225,24 +250,39 @@ final class InstagramSyncService {
             for username in gained { context.insert(FollowerEvent(username: username, kind: .gainedFollower)) }
             for username in lost { context.insert(FollowerEvent(username: username, kind: .lostFollower)) }
         }
-        if !following.isEmpty, let last, !last.followingUsernames.isEmpty,
+        if followingDataIsPartial {
+            let records = export.followerLists.followingRecords.sorted { ($0.date ?? .distantPast) < ($1.date ?? .distantPast) }
+            for relationship in records where insertRecord(relationship, kind: .startedFollowing) {
+                result.startedFollowing.append(relationship.username)
+            }
+        } else if !following.isEmpty, let last, !last.followingUsernames.isEmpty,
+           !last.followingListIsPartial,
            !followingBaselineReplacement {
             let lastFollowing = Set(last.followingUsernames)
-            for username in following.subtracting(lastFollowing).sorted() {
+            result.startedFollowing = following.subtracting(lastFollowing).sorted()
+            result.stoppedFollowing = lastFollowing.subtracting(following).sorted()
+            for username in result.startedFollowing {
                 context.insert(FollowerEvent(username: username, kind: .startedFollowing))
             }
-            for username in lastFollowing.subtracting(following).sorted() {
+            for username in result.stoppedFollowing {
                 context.insert(FollowerEvent(username: username, kind: .stoppedFollowing))
+            }
+        }
+
+        for relationship in export.followerLists.recentlyUnfollowedRecords {
+            if insertRecord(relationship, kind: .stoppedFollowing),
+               !result.stoppedFollowing.contains(relationship.username) {
+                result.stoppedFollowing.append(relationship.username)
             }
         }
 
         let effectiveFollowers = followers.isEmpty ? Set(last?.followerUsernames ?? []) : followers
         let effectiveFollowing = following.isEmpty ? Set(last?.followingUsernames ?? []) : following
-        result.followerCount = effectiveFollowers.count
-        result.followingCount = effectiveFollowing.count
         context.insert(FollowerSnapshot(
             followerUsernames: effectiveFollowers.sorted(),
-            followingUsernames: effectiveFollowing.sorted()
+            followingUsernames: effectiveFollowing.sorted(),
+            followerListIsPartial: followerDataIsPartial,
+            followingListIsPartial: followingDataIsPartial
         ))
 
         // Prune oldest snapshots beyond the cap (events derived from them
@@ -263,6 +303,21 @@ final class InstagramSyncService {
         let larger = max(previous, current)
         let smaller = min(previous, current)
         return larger - smaller >= 100 && Double(larger) / Double(smaller) >= 2
+    }
+
+    /// Date-limited Meta exports contain relationship timestamps clustered
+    /// inside the selected month. Missing usernames in the next month are not
+    /// unfollows, so these files must be treated as activity feeds, not full
+    /// snapshots.
+    nonisolated static func isDateLimited(
+        records: [InstagramExportParser.RelationshipRecord],
+        now: Date = .now
+    ) -> Bool {
+        let dates = records.compactMap(\.date)
+        guard dates.count >= 2, let oldest = dates.min(), let newest = dates.max() else { return false }
+        let span = newest.timeIntervalSince(oldest)
+        let age = now.timeIntervalSince(newest)
+        return span <= 45 * 86_400 && age >= -7 * 86_400 && age <= 90 * 86_400
     }
 
     // MARK: Thread candidates
