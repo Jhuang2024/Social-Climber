@@ -12,10 +12,19 @@ final class InstagramSyncService {
     static let shared = InstagramSyncService()
 
     nonisolated static let folderDefaultsKey = "instagramDriveFolder"
-    nonisolated static let lastSyncDefaultsKey = "instagramLastSyncAt"
-    /// With no previous sync, only messages from the last N days are
-    /// offered: a first sync shouldn't dump years of DM history into the
-    /// review sheet.
+    /// Purely a "when did I last run a sync" timestamp for the Settings
+    /// display; it does not gate which messages are offered. See
+    /// `threadCutoffsDefaultsKey` for the thing that actually controls that.
+    nonisolated static let lastSyncRunDefaultsKey = "instagramLastSyncRunAt"
+    /// Per-conversation high-water marks: `[threadKey: epochSeconds]`. Keyed
+    /// per thread (not one global cutoff) so declining to apply one
+    /// conversation can never advance past, and silently drop, another
+    /// conversation's unreviewed messages, the way a single shared cutoff
+    /// would.
+    nonisolated static let threadCutoffsDefaultsKey = "instagramThreadCutoffs"
+    /// With no previous sync of a given conversation, only messages from the
+    /// last N days are offered: a first sync shouldn't dump years of DM
+    /// history into the review sheet.
     private static let firstSyncWindowDays = 30
     /// Snapshots beyond this count are pruned oldest-first; events derived
     /// from them are kept forever.
@@ -26,9 +35,23 @@ final class InstagramSyncService {
 
     private init() {}
 
+    /// The last time a sync ran at all, applied or not, shown in Settings.
     var lastSyncAt: Date? {
-        let raw = UserDefaults.standard.double(forKey: Self.lastSyncDefaultsKey)
+        let raw = UserDefaults.standard.double(forKey: Self.lastSyncRunDefaultsKey)
         return raw > 0 ? Date(timeIntervalSince1970: raw) : nil
+    }
+
+    private func threadCutoffs() -> [String: Date] {
+        let raw = UserDefaults.standard.dictionary(forKey: Self.threadCutoffsDefaultsKey) as? [String: Double] ?? [:]
+        return raw.mapValues { Date(timeIntervalSince1970: $0) }
+    }
+
+    private func setThreadCutoff(_ date: Date, for key: String) {
+        var raw = UserDefaults.standard.dictionary(forKey: Self.threadCutoffsDefaultsKey) as? [String: Double] ?? [:]
+        if date.timeIntervalSince1970 > (raw[key] ?? 0) {
+            raw[key] = date.timeIntervalSince1970
+            UserDefaults.standard.set(raw, forKey: Self.threadCutoffsDefaultsKey)
+        }
     }
 
     // MARK: Result types
@@ -43,6 +66,9 @@ final class InstagramSyncService {
         let otherParticipant: String
         let messages: [InstagramExportParser.Message]
         var matchedPerson: Person?
+        /// Stable per-conversation key (sorted participant names) this
+        /// candidate's cutoff advances on apply. See `threadCutoffsDefaultsKey`.
+        let threadKey: String
 
         var latestDate: Date { messages.map(\.date).max() ?? .now }
 
@@ -63,12 +89,6 @@ final class InstagramSyncService {
         /// True when the export contained no follower lists (e.g. the
         /// scheduled export was configured to include only messages).
         var hadFollowerData = false
-        /// The newest message timestamp anywhere in the export: the
-        /// content-based high-water mark the next sync's cutoff should
-        /// advance to. Never wall-clock "now": exports are generated hours
-        /// or days before they're synced, and messages sent in that gap
-        /// would be silently lost forever if the cutoff overshot them.
-        var newestMessageDate: Date?
     }
 
     // MARK: Sync
@@ -113,21 +133,20 @@ final class InstagramSyncService {
 
         progressText = "Collecting new messages…"
         buildThreadCandidates(export: export, people: people, into: &result)
-        result.newestMessageDate = export.threads.flatMap { $0.messages.map(\.date) }.max()
 
+        UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: Self.lastSyncRunDefaultsKey)
         try? context.save()
         return result
     }
 
-    /// Advances the message cutoff to the export's own newest message.
-    /// Called only after the user applies a review: cancelling the review
-    /// sheet must leave the cutoff untouched, or every conversation in that
-    /// batch would be skipped forever on the next sync.
-    func commitCutoff(_ result: SyncResult) {
-        guard let newest = result.newestMessageDate else { return }
-        let current = UserDefaults.standard.double(forKey: Self.lastSyncDefaultsKey)
-        if newest.timeIntervalSince1970 > current {
-            UserDefaults.standard.set(newest.timeIntervalSince1970, forKey: Self.lastSyncDefaultsKey)
+    /// Advances each applied conversation's own cutoff to its latest
+    /// message. Called only for candidates the user actually applied, and
+    /// only after they applied: a conversation left unchecked, or a sheet
+    /// that's cancelled outright, keeps its old cutoff so those messages are
+    /// offered again next sync instead of being silently skipped forever.
+    func commitAppliedCutoffs(for candidates: [ThreadCandidate]) {
+        for candidate in candidates {
+            setThreadCutoff(candidate.latestDate, for: candidate.threadKey)
         }
     }
 
@@ -189,12 +208,16 @@ final class InstagramSyncService {
     // MARK: Thread candidates
 
     private func buildThreadCandidates(export: InstagramExportParser.Export, people: [Person], into result: inout SyncResult) {
-        let cutoff = lastSyncAt
-            ?? Calendar.current.date(byAdding: .day, value: -Self.firstSyncWindowDays, to: .now)
+        // Only used for a conversation with no stored cutoff yet, i.e. the
+        // first time it's ever appeared in a sync.
+        let fallbackCutoff = Calendar.current.date(byAdding: .day, value: -Self.firstSyncWindowDays, to: .now)
             ?? .distantPast
+        let cutoffs = threadCutoffs()
         let owner = export.ownerName
 
         for thread in export.threads {
+            let key = threadKey(for: thread)
+            let cutoff = cutoffs[key] ?? fallbackCutoff
             let fresh = thread.messages.filter { $0.date > cutoff }
             guard !fresh.isEmpty else { continue }
             let others = Set(thread.participants).subtracting([owner].compactMap { $0 })
@@ -209,10 +232,22 @@ final class InstagramSyncService {
                 title: displayTitle,
                 otherParticipant: otherParticipant,
                 messages: fresh,
-                matchedPerson: match(nameOrUsername: otherParticipant.isEmpty ? displayTitle : otherParticipant, people: people)
+                matchedPerson: match(nameOrUsername: otherParticipant.isEmpty ? displayTitle : otherParticipant, people: people),
+                threadKey: key
             ))
         }
         result.threads.sort { $0.latestDate > $1.latestDate }
+    }
+
+    /// A conversation's stable identity across syncs: its participants
+    /// (order-independent), since Instagram's export carries no immutable
+    /// thread id. Falls back to the thread title only when participants are
+    /// missing (unexpected but not impossible in a malformed export), so a
+    /// thread with no other identifying data still gets a consistent key
+    /// rather than silently losing its cutoff every sync.
+    private func threadKey(for thread: InstagramExportParser.Thread) -> String {
+        let participants = thread.participants.map { normalize($0) }.sorted().joined(separator: "|")
+        return participants.isEmpty ? "title:\(normalize(thread.title))" : participants
     }
 
     /// Best-effort match of an export participant to an existing Person:

@@ -281,7 +281,7 @@ struct InstagramSyncReviewView: View {
                     context: context
                 )
             }
-            InstagramSyncService.shared.commitCutoff(result)
+            InstagramSyncService.shared.commitAppliedCutoffs(for: included.map { $0.candidate })
             try? context.save()
             Haptics.success()
             isApplying = false
