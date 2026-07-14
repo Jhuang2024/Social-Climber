@@ -24,6 +24,31 @@ final class GoogleDriveServiceTests: XCTestCase {
         ))
     }
 
+    func testFollowerParserAcceptsWrappedAndGroupedUsernames() {
+        let data = Data(#"{
+          "relationships_followers": [
+            {"string_list_data": [{"value": "Alice"}, {"value": "BOB"}]},
+            {"string_list_data": [{"value": "alice"}]}
+          ]
+        }"#.utf8)
+
+        let usernames = InstagramExportParser.parseUsernameList(data, arrayKey: nil)
+
+        XCTAssertEqual(Set(usernames), Set(["alice", "bob"]))
+    }
+
+    func testFollowerParserStillAcceptsBareMetaArray() {
+        let data = Data(#"[
+          {"string_list_data": [{"value": "Jerry"}]},
+          {"string_list_data": [{"value": "Tony"}]}
+        ]"#.utf8)
+
+        XCTAssertEqual(
+            Set(InstagramExportParser.parseUsernameList(data, arrayKey: nil)),
+            Set(["jerry", "tony"])
+        )
+    }
+
     func testHTMLExportErrorExplainsHowToFixTheFormat() {
         XCTAssertEqual(
             GoogleDriveError.htmlExportUnsupported.errorDescription,
