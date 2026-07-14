@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Charts
 
 /// The big-picture page: an explainable aggregate score for your whole
 /// social life, follower gains/losses from Instagram syncs, activity
@@ -21,20 +22,14 @@ struct SocialHealthView: View {
         followerEvents.filter { $0.date.daysAgo <= 30 }
     }
 
-    private var unfollowers: [FollowerEvent] {
-        recentEvents.filter { $0.kind == .lostFollower }
-    }
-
-    private var newFollowers: [FollowerEvent] {
-        recentEvents.filter { $0.kind == .gainedFollower }
-    }
-
     private var coolingPeople: [Person] {
         people.filter { !$0.isArchived && ($0.status == .goingQuiet || $0.status == .dormant) }
             .sorted { $0.priority > $1.priority }
     }
 
     @State private var ringProgress: CGFloat = 0
+    @State private var chartRange: HealthChartRange = .month
+    @State private var selectedChartDate: Date?
 
     var body: some View {
         ScrollView {
@@ -43,10 +38,10 @@ struct SocialHealthView: View {
                     emptyState
                 } else {
                     scoreCard
+                    trendCard
                     factorsCard
                     if googleDrive.isConnected || latestFollowerSnapshot != nil { instagramCard }
-                    if !unfollowers.isEmpty { unfollowersCard }
-                    if !newFollowers.isEmpty { newFollowersCard }
+                    if !recentEvents.isEmpty { followerChangesCard }
                     momentumCard
                     if !coolingPeople.isEmpty { coolingCard }
                     if !googleDrive.isConnected && latestFollowerSnapshot == nil { instagramHint }
@@ -66,6 +61,128 @@ struct SocialHealthView: View {
             withAnimation(.snappy(duration: 0.8)) {
                 ringProgress = CGFloat(report.total) / 100
             }
+        }
+    }
+
+    // MARK: Trend
+
+    private var trendPoints: [HealthChartPoint] {
+        let calendar = Calendar.current
+        let end = Date.now
+        let earliestFact = ([people.map(\.createdAt), interactions.map(\.date), followerEvents.map(\.date)]
+            .flatMap { $0 }
+            .min()) ?? end
+        let requestedStart: Date
+        let stepDays: Int
+        switch chartRange {
+        case .week:
+            requestedStart = calendar.date(byAdding: .day, value: -6, to: end) ?? end
+            stepDays = 1
+        case .month:
+            requestedStart = calendar.date(byAdding: .day, value: -29, to: end) ?? end
+            stepDays = 1
+        case .year:
+            requestedStart = calendar.date(byAdding: .day, value: -364, to: end) ?? end
+            stepDays = 7
+        case .all:
+            requestedStart = earliestFact
+            let span = max(1, calendar.dateComponents([.day], from: earliestFact, to: end).day ?? 1)
+            stepDays = max(1, Int(ceil(Double(span) / 60.0)))
+        }
+        let start = max(requestedStart, earliestFact)
+        var dates: [Date] = []
+        var cursor = start
+        while cursor < end {
+            dates.append(cursor)
+            cursor = calendar.date(byAdding: .day, value: stepDays, to: cursor) ?? end
+        }
+        dates.append(end)
+        return dates.map { date in
+            HealthChartPoint(
+                date: date,
+                score: SocialHealthReport.compute(
+                    people: people,
+                    interactions: interactions,
+                    followerEvents: followerEvents,
+                    now: date
+                ).total
+            )
+        }
+    }
+
+    private var selectedPoint: HealthChartPoint? {
+        guard let selectedChartDate else { return trendPoints.last }
+        return trendPoints.min { abs($0.date.timeIntervalSince(selectedChartDate)) < abs($1.date.timeIntervalSince(selectedChartDate)) }
+    }
+
+    private var trendCard: some View {
+        FormSectionCard("Score Trend", icon: "chart.xyaxis.line") {
+            Picker("Range", selection: $chartRange) {
+                ForEach(HealthChartRange.allCases) { range in
+                    Text(range.label).tag(range)
+                }
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: chartRange) { selectedChartDate = nil }
+
+            if let selectedPoint {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("\(selectedPoint.score)")
+                        .font(SCTheme.displayFont(28, weight: .bold))
+                        .monospacedDigit()
+                    Text("of 100")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(selectedPoint.date.formatted(date: .abbreviated, time: .omitted))
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Chart {
+                ForEach(trendPoints) { point in
+                    AreaMark(
+                        x: .value("Date", point.date),
+                        y: .value("Score", point.score)
+                    )
+                    .interpolationMethod(.catmullRom)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [report.band.color.opacity(0.28), report.band.color.opacity(0.02)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    LineMark(
+                        x: .value("Date", point.date),
+                        y: .value("Score", point.score)
+                    )
+                    .interpolationMethod(.catmullRom)
+                    .foregroundStyle(report.band.color)
+                    .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                }
+                if let selectedPoint {
+                    RuleMark(x: .value("Selected", selectedPoint.date))
+                        .foregroundStyle(Color.secondary.opacity(0.35))
+                    PointMark(
+                        x: .value("Selected date", selectedPoint.date),
+                        y: .value("Selected score", selectedPoint.score)
+                    )
+                    .foregroundStyle(report.band.color)
+                    .symbolSize(70)
+                }
+            }
+            .chartYScale(domain: 0...100)
+            .chartYAxis {
+                AxisMarks(values: [0, 25, 50, 75, 100])
+            }
+            .chartXSelection(value: $selectedChartDate)
+            .frame(height: 190)
+
+            Text("Drag across the chart to inspect the exact score for any point.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
         }
     }
 
@@ -158,11 +275,6 @@ struct SocialHealthView: View {
     private var instagramCard: some View {
         FormSectionCard("Instagram", icon: "camera.fill") {
             if let snapshot = latestFollowerSnapshot {
-                HStack(spacing: 10) {
-                    instagramStat(value: snapshot.followerUsernames.count, label: "current followers")
-                    instagramStat(value: snapshot.followingUsernames.count, label: "current following")
-                }
-
                 HStack {
                     Label(googleDrive.isConnected ? "Drive connected" : "Last saved snapshot", systemImage: googleDrive.isConnected ? "checkmark.circle.fill" : "externaldrive")
                         .foregroundStyle(googleDrive.isConnected ? SCTheme.Accents.growth : Color.secondary)
@@ -172,12 +284,10 @@ struct SocialHealthView: View {
                 }
                 .font(.caption2.weight(.medium))
 
-                let net = newFollowers.count - unfollowers.count
-                Text("Last 30 days: +\(newFollowers.count) followed · −\(unfollowers.count) unfollowed · \(net >= 0 ? "+" : "")\(net) net")
-                    .font(.caption)
+                Text("Monthly Meta exports are treated as dated activity, not as your total audience. Social Climber records the usernames Meta includes and never treats someone missing from the next partial export as an unfollow.")
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
-
-                Text("Totals come from the latest Meta export; the 30-day numbers are changes between snapshots. If the current total is far below Instagram, recreate the export with date range “All time” and include both Followers and Following.")
+                Text("Meta does not include a “who unfollowed you” record in monthly partial exports. That one change type requires two complete snapshots; followed you, you followed, and Meta's recently-unfollowed list are still person-level.")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             } else {
@@ -191,44 +301,30 @@ struct SocialHealthView: View {
         }
     }
 
-    private func instagramStat(value: Int, label: String) -> some View {
-        VStack(spacing: 3) {
-            Text("\(value)")
-                .font(SCTheme.displayFont(24, weight: .bold))
-                .monospacedDigit()
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
-        .background(SCTheme.elevatedBackground.opacity(0.6), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-
-    private var unfollowersCard: some View {
-        FormSectionCard("Unfollowed You (30 days)", icon: "person.badge.minus") {
+    private var followerChangesCard: some View {
+        FormSectionCard("Follower & Following Changes", icon: "person.2.badge.gearshape") {
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(unfollowers.prefix(12), id: \.persistentModelID) { event in
+                HStack(spacing: 6) {
+                    ForEach(FollowerEventKind.allCases) { kind in
+                        VStack(spacing: 2) {
+                            Text("\(recentEvents.filter { $0.kind == kind }.count)")
+                                .font(.caption.weight(.bold).monospacedDigit())
+                            Text(kind.shortLabel)
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 7)
+                        .background(kind.color.opacity(0.10), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    }
+                }
+                ForEach(recentEvents.prefix(30), id: \.persistentModelID) { event in
                     followerEventRow(event)
                 }
-                if unfollowers.count > 12 {
-                    Text("+ \(unfollowers.count - 12) more")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-    }
-
-    private var newFollowersCard: some View {
-        FormSectionCard("New Followers (30 days)", icon: "person.badge.plus") {
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(newFollowers.prefix(12), id: \.persistentModelID) { event in
-                    followerEventRow(event)
-                }
-                if newFollowers.count > 12 {
-                    Text("+ \(newFollowers.count - 12) more")
+                if recentEvents.count > 30 {
+                    Text("+ \(recentEvents.count - 30) more changes")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -251,22 +347,24 @@ struct SocialHealthView: View {
             }
             if let matched {
                 NavigationLink(value: matched) {
-                    HStack(spacing: 6) {
+                    VStack(alignment: .leading, spacing: 1) {
                         Text(matched.displayName)
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.primary)
-                        Text("@\(event.username)")
-                            .font(.caption)
+                        Text("\(event.kind.label) · @\(event.username)")
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 8, weight: .semibold))
-                            .foregroundStyle(.tertiary)
                     }
                 }
                 .buttonStyle(.plain)
             } else {
-                Text("@\(event.username)")
-                    .font(.caption)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("@\(event.username)")
+                        .font(.caption.weight(.semibold))
+                    Text(event.kind.label)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer()
             Text(event.date.relativeLabel)
@@ -344,11 +442,30 @@ struct SocialHealthView: View {
 
     private var instagramHint: some View {
         FormSectionCard("Instagram", icon: "camera.fill") {
-            Text("Connect Google Drive in Settings and run Instagram Sync once. Social Health will show current follower/following totals plus changes between your sync snapshots over the last 30 days.")
+            Text("Connect Google Drive in Settings and run Instagram Sync once. From the second snapshot onward, Social Health records exactly who followed or unfollowed you and who you followed or unfollowed.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
     }
+}
+
+private enum HealthChartRange: String, CaseIterable, Identifiable {
+    case week, month, year, all
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .week: "Week"
+        case .month: "Month"
+        case .year: "Year"
+        case .all: "All"
+        }
+    }
+}
+
+private struct HealthChartPoint: Identifiable {
+    let date: Date
+    let score: Int
+    var id: Date { date }
 }
 
 #Preview {
