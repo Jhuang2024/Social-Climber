@@ -119,6 +119,11 @@ final class GoogleDriveService: NSObject {
         var isEmpty: Bool { archives.isEmpty && looseFiles.isEmpty }
     }
 
+    private struct ExpandedFolderScan {
+        var files: [DriveFile] = []
+        var containsHTML = false
+    }
+
     /// Finds the latest Instagram export in either format Google Drive may
     /// receive from Meta: one or more zip archives, or an expanded folder
     /// tree containing the JSON files directly.
@@ -151,26 +156,30 @@ final class GoogleDriveService: NSObject {
     }
 
     private func exportSource(in rootFolder: DriveFile) async throws -> InstagramExportSource {
-        let descendants = try await relevantDescendants(in: rootFolder)
-        let archives = groupedArchives(from: descendants.filter { $0.isZip })
+        let scan = try await scanRelevantDescendants(in: rootFolder)
+        let archives = groupedArchives(from: scan.files.filter { $0.isZip })
         if !archives.isEmpty {
             return InstagramExportSource(archives: archives, looseFiles: [])
         }
-        return InstagramExportSource(
+        let source = InstagramExportSource(
             archives: [],
-            looseFiles: descendants.filter { InstagramExportParser.isRelevantEntry($0.relativePath) }
+            looseFiles: scan.files.filter { InstagramExportParser.isRelevantEntry($0.relativePath) }
         )
+        if source.isEmpty, scan.containsHTML {
+            throw GoogleDriveError.htmlExportUnsupported
+        }
+        return source
     }
 
     /// Recursively walks an expanded Meta export. Drive folders are not
     /// downloadable objects, so every relevant JSON file must be discovered
     /// and downloaded individually. Only relevant JSON and zip files are
     /// retained, keeping unrelated photos and media out of memory and disk.
-    private func relevantDescendants(in rootFolder: DriveFile) async throws -> [DriveFile] {
+    private func scanRelevantDescendants(in rootFolder: DriveFile) async throws -> ExpandedFolderScan {
         var queue: [(folderID: String, path: String)] = [(rootFolder.id, "")]
         var queueIndex = 0
         var visitedFolderIDs: Set<String> = []
-        var results: [DriveFile] = []
+        var scan = ExpandedFolderScan()
 
         while queueIndex < queue.count {
             let next = queue[queueIndex]
@@ -185,11 +194,13 @@ final class GoogleDriveService: NSObject {
                 if child.isFolder {
                     queue.append((child.id, path))
                 } else if child.isZip || InstagramExportParser.isRelevantEntry(path) {
-                    results.append(located)
+                    scan.files.append(located)
+                } else if path.lowercased().hasSuffix(".html") {
+                    scan.containsHTML = true
                 }
             }
         }
-        return results
+        return scan
     }
 
     private func groupedArchives(from candidates: [DriveFile]) -> [DriveFile] {
@@ -562,6 +573,7 @@ enum GoogleDriveError: LocalizedError {
     case invalidResponse(operation: String, detail: String)
     case apiRejected(operation: String, statusCode: Int, reason: String?, message: String?)
     case folderNotFound(String)
+    case htmlExportUnsupported
     case noExportFound
 
     var errorDescription: String? {
@@ -593,6 +605,8 @@ enum GoogleDriveError: LocalizedError {
             )
         case .folderNotFound(let name):
             "No Drive folder named \"\(name)\" was found. Check the folder name in Settings."
+        case .htmlExportUnsupported:
+            "This Meta export uses HTML format, but Instagram sync requires JSON. In Meta Accounts Center, create a new download in JSON format and select its Drive folder."
         case .noExportFound:
             "No Instagram export data was found in Google Drive. The selected folder must contain either Meta's export zip or its expanded JSON folder tree."
         }
