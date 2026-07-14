@@ -43,6 +43,8 @@ struct NotificationSettingsView: View {
     @AppStorage("defaultCadenceDistant") private var cadenceDistant = 120
 
     @State private var authorizationStatus: UNAuthorizationStatus = .notDetermined
+    @State private var alertSetting: UNNotificationSetting = .notSupported
+    @State private var soundSetting: UNNotificationSetting = .notSupported
     @State private var pendingNotificationCount = 0
     @State private var instagramReminderScheduled = false
     @State private var deliveryMessage: String?
@@ -55,6 +57,13 @@ struct NotificationSettingsView: View {
                     .tint(.green)
                     .onChange(of: masterEnabled) { handleMasterChange() }
                 LabeledContent("iOS permission", value: authorizationLabel)
+                // Permission being "Allowed" doesn't guarantee a banner ever
+                // shows: the user can still have the alert/sound style set
+                // to "None" per-app, or Focus/Do Not Disturb active. Those
+                // read directly from iOS here so a silent failure is visible
+                // without attaching a debugger.
+                LabeledContent("Alert style", value: settingLabel(alertSetting))
+                LabeledContent("Sound", value: settingLabel(soundSetting))
                 LabeledContent("Scheduled alerts", value: "\(pendingNotificationCount)")
                 if UserDefaults.standard.bool(forKey: "instagramSyncReminderEnabled") {
                     Label(
@@ -192,7 +201,27 @@ struct NotificationSettingsView: View {
                     reconcile()
                 }
                 try await NotificationService.shared.scheduleDeliveryTest()
-                deliveryMessage = "Test scheduled for 3 seconds from now."
+                await refreshDiagnostics()
+                deliveryMessage = "Scheduled — checking whether iOS actually delivers it…"
+
+                // The trigger fires at 3s; wait past that, then ask iOS
+                // directly what happened instead of assuming success from
+                // `add` not throwing.
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
+                let outcome = await NotificationService.shared.checkDeliveryTestOutcome()
+                await refreshDiagnostics()
+                switch outcome {
+                case .stillPending:
+                    deliveryMessage = "Still pending after 4s — the trigger hasn't fired yet. Wait a moment and check again."
+                case .delivered:
+                    if alertSetting == .disabled {
+                        deliveryMessage = "iOS delivered it, but this app's Alert style is set to \"None\" in iOS Settings → Notifications, so no banner/sound shows. Tap \"Open iOS Notification Settings\" and set Alert Style to Banners or Alerts."
+                    } else {
+                        deliveryMessage = "iOS delivered it — check Notification Center or the lock screen. If you still saw nothing, a Focus/Do Not Disturb mode active on this device is silencing it; this isn't something the app controls."
+                    }
+                case .missing:
+                    deliveryMessage = "iOS never delivered it (not pending, not in Notification Center). This points to a device-level notification issue rather than app code — try again, and if it keeps failing, restart the device."
+                }
             } catch {
                 deliveryMessage = error.localizedDescription
             }
@@ -203,6 +232,8 @@ struct NotificationSettingsView: View {
     private func refreshDiagnostics() async {
         let result = await NotificationService.shared.diagnostics()
         authorizationStatus = result.authorizationStatus
+        alertSetting = result.alertSetting
+        soundSetting = result.soundSetting
         pendingNotificationCount = result.pendingCount
         instagramReminderScheduled = result.instagramReminderScheduled
     }
@@ -214,6 +245,15 @@ struct NotificationSettingsView: View {
         case .authorized: "Allowed"
         case .provisional: "Provisional"
         case .ephemeral: "Temporary"
+        @unknown default: "Unknown"
+        }
+    }
+
+    private func settingLabel(_ setting: UNNotificationSetting) -> String {
+        switch setting {
+        case .notSupported: "N/A"
+        case .disabled: "Off"
+        case .enabled: "On"
         @unknown default: "Unknown"
         }
     }

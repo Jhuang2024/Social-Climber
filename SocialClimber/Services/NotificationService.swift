@@ -1,9 +1,11 @@
 import Foundation
 import UserNotifications
+import OSLog
 
 final class NotificationService {
     static let shared = NotificationService()
     private let center = UNUserNotificationCenter.current()
+    private let logger = Logger(subsystem: "com.jerryhuang.SocialClimber", category: "notifications")
     private init() {}
 
     var enabled: Bool { UserDefaults.standard.bool(forKey: "notificationsEnabled") }
@@ -22,39 +24,95 @@ final class NotificationService {
 
     struct Diagnostics {
         let authorizationStatus: UNAuthorizationStatus
+        let alertSetting: UNNotificationSetting
+        let soundSetting: UNNotificationSetting
+        let notificationCenterSetting: UNNotificationSetting
+        let lockScreenSetting: UNNotificationSetting
         let pendingCount: Int
         let instagramReminderScheduled: Bool
     }
 
     /// Reads what iOS actually has, rather than inferring delivery from
     /// toggles in UserDefaults. Used by Settings to make silent scheduling
-    /// failures visible.
+    /// failures visible. Authorization alone is not sufficient for a banner
+    /// to appear: a user can grant permission but still have the alert
+    /// style set to "None", or have Focus/Do Not Disturb active, in which
+    /// case `authorizationStatus == .authorized` while nothing is ever
+    /// actually shown. `alertSetting`/`soundSetting` surface that gap.
     func diagnostics() async -> Diagnostics {
         let notificationSettings = await center.notificationSettings()
         let pending = await center.pendingNotificationRequests()
+        logger.info("""
+            diagnostics: auth=\(String(describing: notificationSettings.authorizationStatus), privacy: .public) \
+            alert=\(String(describing: notificationSettings.alertSetting), privacy: .public) \
+            sound=\(String(describing: notificationSettings.soundSetting), privacy: .public) \
+            notifCenter=\(String(describing: notificationSettings.notificationCenterSetting), privacy: .public) \
+            lockScreen=\(String(describing: notificationSettings.lockScreenSetting), privacy: .public) \
+            pendingCount=\(pending.count, privacy: .public)
+            """)
         return Diagnostics(
             authorizationStatus: notificationSettings.authorizationStatus,
+            alertSetting: notificationSettings.alertSetting,
+            soundSetting: notificationSettings.soundSetting,
+            notificationCenterSetting: notificationSettings.notificationCenterSetting,
+            lockScreenSetting: notificationSettings.lockScreenSetting,
             pendingCount: pending.count,
             instagramReminderScheduled: pending.contains { $0.identifier == Self.instagramReminderID }
         )
+    }
+
+    static let deliveryTestID = "notification-delivery-test"
+
+    enum DeliveryTestOutcome {
+        /// The 3-second trigger hasn't fired yet.
+        case stillPending
+        /// iOS fired it and it's sitting in Notification Center/lock screen —
+        /// scheduling and delivery both worked. If the user still didn't see
+        /// a banner/sound, the cause is a device-level presentation setting
+        /// (Focus, alert style, sound), not this app's code.
+        case delivered
+        /// Neither pending nor delivered after the trigger should have
+        /// fired — `center.add` likely threw, or iOS silently dropped it
+        /// before delivery (rare, but seen with corrupted notification
+        /// state that only a device restart clears).
+        case missing
+    }
+
+    /// Call a few seconds after `scheduleDeliveryTest()` to find out what
+    /// actually happened, instead of guessing from "I didn't see anything."
+    func checkDeliveryTestOutcome() async -> DeliveryTestOutcome {
+        let pending = await center.pendingNotificationRequests()
+        if pending.contains(where: { $0.identifier == Self.deliveryTestID }) {
+            logger.info("deliveryTest: still pending")
+            return .stillPending
+        }
+        let delivered = await center.deliveredNotifications()
+        let outcome: DeliveryTestOutcome = delivered.contains { $0.request.identifier == Self.deliveryTestID } ? .delivered : .missing
+        logger.info("deliveryTest: outcome=\(String(describing: outcome), privacy: .public) deliveredCount=\(delivered.count, privacy: .public)")
+        return outcome
     }
 
     /// A short, explicit end-to-end delivery test. It requests permission if
     /// needed, enables the app master switch, then asks iOS to fire in 3 sec.
     func scheduleDeliveryTest() async throws {
         let status = await authorizationStatus()
+        logger.info("deliveryTest: authorizationStatus=\(String(describing: status), privacy: .public)")
         let authorized: Bool
         switch status {
         case .authorized, .provisional, .ephemeral:
             authorized = true
         case .notDetermined:
             authorized = await requestAuthorization()
+            logger.info("deliveryTest: requestAuthorization()=\(authorized, privacy: .public)")
         case .denied:
             authorized = false
         @unknown default:
             authorized = false
         }
-        guard authorized else { throw NotificationDeliveryTestError.permissionDenied }
+        guard authorized else {
+            logger.error("deliveryTest: not authorized, aborting")
+            throw NotificationDeliveryTestError.permissionDenied
+        }
         UserDefaults.standard.set(true, forKey: "notificationsEnabled")
 
         let content = UNMutableNotificationContent()
@@ -63,12 +121,18 @@ final class NotificationService {
         content.sound = .default
         content.userInfo = ["kind": "deliveryTest"]
         let request = UNNotificationRequest(
-            identifier: "notification-delivery-test",
+            identifier: Self.deliveryTestID,
             content: content,
             trigger: UNTimeIntervalNotificationTrigger(timeInterval: 3, repeats: false)
         )
         center.removePendingNotificationRequests(withIdentifiers: [request.identifier])
-        try await center.add(request)
+        do {
+            try await center.add(request)
+            logger.info("deliveryTest: center.add succeeded, firing in 3s")
+        } catch {
+            logger.error("deliveryTest: center.add threw \(String(describing: error), privacy: .public)")
+            throw error
+        }
     }
 
     /// Category/quiet-hours/preview preferences, read fresh each call.
