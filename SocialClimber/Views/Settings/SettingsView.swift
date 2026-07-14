@@ -266,7 +266,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                     DisclosureGroup {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("1. In Meta Accounts Center, choose \"Download your information\", select Instagram, choose JSON format, and set the destination to Google Drive. Pick \"Some of your information\" with messages plus followers and following to keep exports small.")
+                            Text("1. In Meta Accounts Center, choose \"Download your information\", select Instagram, choose JSON format, set the date range to \"All time\", and choose Google Drive. Pick \"Some of your information\" with messages plus followers and following. A shorter date range can make Meta export only part of the follower list.")
                             Text("2. Use the same OAuth Client ID as Google Calendar, with the Google Drive API also enabled on that Cloud project.")
                             Text("3. Enter the Meta export folder name, such as meta-2026-Jul-13-17-11-01. The app supports both expanded folder trees and zip exports. Leave it blank to find the newest matching export automatically.")
                             Text("4. iOS can't run this on a schedule in the background, so turn on the daily reminder and sync when you open the app.")
