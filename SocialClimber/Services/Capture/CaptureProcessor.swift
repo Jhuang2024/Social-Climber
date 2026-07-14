@@ -104,13 +104,14 @@ final class CaptureProcessor {
     // MARK: Core pipeline
 
     @MainActor
-    func process(_ capture: CapturedMemory) async {
+    func process(_ capture: CapturedMemory, in suppliedContext: ModelContext? = nil) async {
+        let processingContext = suppliedContext ?? context
         guard capture.status == .queued else { return }
         guard !inFlight.contains(capture.uuid) else { return }
         guard capture.attempts < Self.maxAttempts else {
             capture.status = .failed
             capture.errorMessage = "Gave up after \(Self.maxAttempts) attempts."
-            save()
+            save(processingContext)
             return
         }
         inFlight.insert(capture.uuid)
@@ -118,11 +119,11 @@ final class CaptureProcessor {
 
         capture.status = .processing
         capture.attempts += 1
-        save()
+        save(processingContext)
 
         // Gather everything CaptureEngine needs as plain Sendable values;
         // no live Person, no ModelContext crosses into it.
-        let allPeople = (try? context.fetch(FetchDescriptor<Person>())) ?? []
+        let allPeople = (try? processingContext.fetch(FetchDescriptor<Person>())) ?? []
         let snapshots = allPeople.map { person in
             PersonSnapshot(
                 id: person.uuid,
@@ -157,7 +158,7 @@ final class CaptureProcessor {
         guard !output.effectiveText.isEmpty else {
             capture.status = .failed
             capture.errorMessage = "Nothing readable was captured."
-            save()
+            save(processingContext)
             return
         }
 
@@ -177,7 +178,7 @@ final class CaptureProcessor {
             capture.status = .needsContext
             capture.title = "Who was this with?"
             capture.detail = capture.preview
-            save()
+            save(processingContext)
             return
         }
 
@@ -190,7 +191,7 @@ final class CaptureProcessor {
             capture.status = .needsContext
             capture.title = "Who was this with?"
             capture.detail = capture.preview
-            save()
+            save(processingContext)
             return
         }
         capture.resolvedPersonIDs = people.map(\.uuid)
@@ -201,24 +202,25 @@ final class CaptureProcessor {
             for: capture,
             people: people,
             localParse: localParse,
-            extraction: extraction
+            extraction: extraction,
+            context: processingContext
         )
 
         // Explicit reminders (scheduled or unscheduled-suggestion),
         // evidence-linked facts, gift ideas, important dates: every one
         // individually attributed, never defaulted to `people.first`.
         var createdReminderDates: [Date] = []
-        applyReminders(from: extraction, localParse: localParse, capture: capture, interaction: interaction, people: people, createdDueDates: &createdReminderDates)
-        applyFacts(from: extraction, capture: capture, interaction: interaction, people: people)
-        applyGiftIdeas(from: extraction, capture: capture, interaction: interaction, people: people)
-        applyImportantDates(from: extraction, capture: capture, interaction: interaction, people: people)
+        applyReminders(from: extraction, localParse: localParse, capture: capture, interaction: interaction, people: people, createdDueDates: &createdReminderDates, context: processingContext)
+        applyFacts(from: extraction, capture: capture, interaction: interaction, people: people, context: processingContext)
+        applyGiftIdeas(from: extraction, capture: capture, interaction: interaction, people: people, context: processingContext)
+        applyImportantDates(from: extraction, capture: capture, interaction: interaction, people: people, context: processingContext)
 
         // Done. Compose the feed presentation and finish.
         capture.title = feedTitle(for: capture, people: people, interaction: interaction)
         capture.detail = feedDetail(extraction: extraction, reminderDates: createdReminderDates)
         capture.errorMessage = ""
         capture.status = .processed
-        save()
+        save(processingContext)
     }
 
     // MARK: Interaction
@@ -230,7 +232,8 @@ final class CaptureProcessor {
         for capture: CapturedMemory,
         people: [Person],
         localParse: CaptureParser.LocalParse,
-        extraction: AIExtraction
+        extraction: AIExtraction,
+        context: ModelContext
     ) -> Interaction {
         if let existing = Self.interaction(for: capture, context: context) {
             // Idempotent re-run: keep the existing record, just make sure
@@ -321,7 +324,8 @@ final class CaptureProcessor {
         capture: CapturedMemory,
         interaction: Interaction,
         people: [Person],
-        createdDueDates: inout [Date]
+        createdDueDates: inout [Date],
+        context: ModelContext
     ) {
         // Merge AI + local explicit reminders, deduplicated by title.
         var explicit: [(title: String, dueDate: Date?, personNames: [String])] = extraction.reminders.map { ($0.title, $0.dueDate, $0.personNames) }
@@ -347,7 +351,25 @@ final class CaptureProcessor {
             let owner = attributed.count == 1 ? attributed.first : nil
             let titleKey = title.lowercased()
 
-            if let due = item.dueDate {
+            if capture.source == .instagram {
+                // A contact mentioning a deadline in a DM is not the same
+                // thing as the user asking Social Climber to schedule a
+                // reminder. Keep it reviewable as a suggestion instead of
+                // creating an open loop or notification automatically.
+                guard !insertedSuggestionTitles.contains(titleKey) else { continue }
+                let fact = MemoryFact(
+                    type: .reminderSuggestion,
+                    value: title,
+                    person: owner,
+                    confidence: extraction.confidence(for: "reminders"),
+                    status: .suggested,
+                    dateValue: item.dueDate,
+                    sourceCaptureUUID: capture.uuid,
+                    sourceInteractionUUID: interaction.uuid
+                )
+                context.insert(fact)
+                insertedSuggestionTitles.insert(titleKey)
+            } else if let due = item.dueDate {
                 // Explicit instruction + resolvable date → a real,
                 // scheduled reminder. Never invents a date otherwise.
                 guard !insertedReminderTitles.contains(titleKey) else { continue }
@@ -414,19 +436,26 @@ final class CaptureProcessor {
         from extraction: AIExtraction,
         capture: CapturedMemory,
         interaction: Interaction,
-        people: [Person]
+        people: [Person],
+        context: ModelContext
     ) {
         var existing = Self.facts(for: capture, context: context)
 
         func add(_ items: [ExtractedFact], _ type: MemoryFactType, field: String) {
             let confidence = extraction.confidence(for: field)
-            let status: MemoryFactStatus = confidence >= 0.75 ? .active : .suggested
+            // A DM export is third-party conversation evidence, not an
+            // instruction to edit someone's profile. Even high-confidence
+            // Instagram facts remain suggestions until the user confirms
+            // them; other capture sources keep the normal confidence rule.
+            let status: MemoryFactStatus = capture.source == .instagram
+                ? .suggested
+                : (confidence >= 0.75 ? .active : .suggested)
             for item in items {
                 let value = item.value.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !value.isEmpty else { continue }
                 let attributed = matchAttributed(item.personNames, among: people)
                 insertFact(type: type, value: value, people: attributed, confidence: confidence, status: status,
-                           capture: capture, interaction: interaction, existing: &existing)
+                           capture: capture, interaction: interaction, existing: &existing, context: context)
             }
         }
 
@@ -458,7 +487,8 @@ final class CaptureProcessor {
         capture: CapturedMemory,
         interaction: Interaction?,
         existing: inout [MemoryFact],
-        dateValue: Date? = nil
+        dateValue: Date? = nil,
+        context: ModelContext
     ) {
         func alreadyExists(person: Person?) -> Bool {
             existing.contains {
@@ -501,7 +531,7 @@ final class CaptureProcessor {
     // MARK: Gifts
 
     @MainActor
-    private func applyGiftIdeas(from extraction: AIExtraction, capture: CapturedMemory, interaction: Interaction, people: [Person]) {
+    private func applyGiftIdeas(from extraction: AIExtraction, capture: CapturedMemory, interaction: Interaction, people: [Person], context: ModelContext) {
         var existingFacts = Self.facts(for: capture, context: context)
         var insertedGiftKeys = Set<String>()
         for item in extraction.attributedFacts(ofType: .giftIdea) {
@@ -531,6 +561,17 @@ final class CaptureProcessor {
                 guard !insertedGiftKeys.contains(key),
                       !person.giftIdeas.contains(where: { $0.title.caseInsensitiveCompare(title) == .orderedSame })
                 else { continue }
+                if capture.source == .instagram {
+                    let fact = MemoryFact(
+                        type: .giftIdea, value: title, person: person,
+                        confidence: extraction.confidence(for: "interests"), status: .suggested,
+                        sourceCaptureUUID: capture.uuid, sourceInteractionUUID: interaction.uuid
+                    )
+                    context.insert(fact)
+                    existingFacts.append(fact)
+                    insertedGiftKeys.insert(key)
+                    continue
+                }
                 let gift = GiftIdea(title: title, person: person, notes: "From capture on \(capture.capturedAt.shortFormat)")
                 gift.sourceCaptureUUID = capture.uuid
                 context.insert(gift)
@@ -542,7 +583,7 @@ final class CaptureProcessor {
     // MARK: Important dates
 
     @MainActor
-    private func applyImportantDates(from extraction: AIExtraction, capture: CapturedMemory, interaction: Interaction, people: [Person]) {
+    private func applyImportantDates(from extraction: AIExtraction, capture: CapturedMemory, interaction: Interaction, people: [Person], context: ModelContext) {
         let confidence = extraction.confidence(for: "importantDates")
         var existingFacts = Self.facts(for: capture, context: context)
 
@@ -551,12 +592,24 @@ final class CaptureProcessor {
             let isBirthday = extracted.title == "Birthday"
             let display = extracted.display.isEmpty ? extracted.title : extracted.display
 
+            // Imported conversations are evidence, not permission to add a
+            // calendar item. They always land as provenance-linked facts
+            // for review, even when the model supplied a concrete date.
+            if capture.source == .instagram {
+                guard !display.isEmpty else { continue }
+                insertFact(type: .importantDate, value: display, people: attributed, confidence: confidence,
+                           status: .suggested, capture: capture, interaction: interaction, existing: &existingFacts,
+                           dateValue: extracted.date, context: context)
+                continue
+            }
+
             guard let dateValue = extracted.date else {
                 // Incomplete/uncertain date: keep it as a suggestion, never
                 // invent a year, month, or day.
                 guard !display.isEmpty else { continue }
                 insertFact(type: .importantDate, value: display, people: attributed, confidence: confidence,
-                           status: .suggested, capture: capture, interaction: interaction, existing: &existingFacts)
+                           status: .suggested, capture: capture, interaction: interaction, existing: &existingFacts,
+                           context: context)
                 continue
             }
 
@@ -569,7 +622,7 @@ final class CaptureProcessor {
             guard !isBirthday, confidence >= 0.6, attributed.count == 1, let person = attributed.first else {
                 insertFact(type: .importantDate, value: display, people: attributed, confidence: confidence,
                            status: .suggested, capture: capture, interaction: interaction, existing: &existingFacts,
-                           dateValue: dateValue)
+                           dateValue: dateValue, context: context)
                 continue
             }
 
@@ -777,7 +830,7 @@ final class CaptureProcessor {
     }
 
     @MainActor
-    private func save() {
-        try? context.save()
+    private func save(_ suppliedContext: ModelContext? = nil) {
+        try? (suppliedContext ?? context).save()
     }
 }
