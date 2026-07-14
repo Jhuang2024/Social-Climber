@@ -11,7 +11,14 @@ final class NotificationService {
     var enabled: Bool { UserDefaults.standard.bool(forKey: "notificationsEnabled") }
 
     func requestAuthorization() async -> Bool {
-        (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+        // `.timeSensitive` is what lets `interruptionLevel = .timeSensitive`
+        // (set below on reminders/birthdays/dates/events) actually break
+        // through Focus/Do Not Disturb the way Messages and Calendar do —
+        // without requesting this option, the OS won't grant that
+        // interruption level even if the content asks for it, and every
+        // notification gets silently logged to Notification Center instead
+        // of shown, indistinguishable from a scheduling failure.
+        (try? await center.requestAuthorization(options: [.alert, .sound, .badge, .timeSensitive])) ?? false
     }
 
     /// The real OS-level permission state, independent of the app's own
@@ -99,15 +106,19 @@ final class NotificationService {
         logger.info("deliveryTest: authorizationStatus=\(String(describing: status), privacy: .public)")
         let authorized: Bool
         switch status {
-        case .authorized, .provisional, .ephemeral:
-            authorized = true
-        case .notDetermined:
-            authorized = await requestAuthorization()
-            logger.info("deliveryTest: requestAuthorization()=\(authorized, privacy: .public)")
         case .denied:
             authorized = false
-        @unknown default:
-            authorized = false
+        default:
+            // Re-request even when already authorized/provisional/ephemeral:
+            // iOS only grants the interruption levels that were included in
+            // the options set at the moment the user answered the system
+            // prompt. An install that granted permission before this app
+            // requested `.timeSensitive` will never pick it up just because
+            // the code changed — calling requestAuthorization again is safe
+            // (no new UI for options already decided) and is what actually
+            // extends the grant to include it.
+            authorized = await requestAuthorization()
+            logger.info("deliveryTest: requestAuthorization()=\(authorized, privacy: .public)")
         }
         guard authorized else {
             logger.error("deliveryTest: not authorized, aborting")
@@ -119,6 +130,7 @@ final class NotificationService {
         content.title = "Social Climber notifications work"
         content.body = "This is a test alert from this iPhone."
         content.sound = .default
+        content.interruptionLevel = .timeSensitive
         content.userInfo = ["kind": "deliveryTest"]
         let request = UNNotificationRequest(
             identifier: Self.deliveryTestID,
@@ -237,6 +249,7 @@ final class NotificationService {
         content.title = reminder.type.label
         content.body = reminder.person.map { "\($0.firstName): \(reminder.title)" } ?? reminder.title
         content.sound = .default
+        content.interruptionLevel = .timeSensitive
         content.threadIdentifier = reminder.person?.name ?? category.identifier
         content.userInfo = ["kind": "reminder"]
         applyPrivacy(content, category: category)
@@ -269,6 +282,7 @@ final class NotificationService {
         content.title = "🎂 \(person.firstName)'s birthday today"
         content.body = "Send them a message. It matters."
         content.sound = .default
+        content.interruptionLevel = .timeSensitive
         content.threadIdentifier = person.name
         content.userInfo = ["kind": "birthday", "personName": person.name]
         applyPrivacy(content, category: .birthday)
@@ -301,6 +315,7 @@ final class NotificationService {
         content.title = "⭐ \(importantDate.title)"
         content.body = importantDate.person.map { "\($0.firstName), don't forget." } ?? "Today."
         content.sound = .default
+        content.interruptionLevel = .timeSensitive
         content.threadIdentifier = importantDate.person?.name ?? "important-dates"
         content.userInfo = ["kind": "importantDate", "personName": importantDate.person?.name ?? ""]
         applyPrivacy(content, category: .importantDate)
@@ -335,6 +350,7 @@ final class NotificationService {
         content.title = "📅 \(event.name.isEmpty ? "Event" : event.name) today"
         content.body = event.location.isEmpty ? "Coming up soon." : "At \(event.location)."
         content.sound = .default
+        content.interruptionLevel = .timeSensitive
         content.threadIdentifier = "event-\(event.name)"
         content.userInfo = ["kind": "event"]
         applyPrivacy(content, category: .event)
@@ -651,6 +667,7 @@ final class NotificationService {
         events: [Event],
         pendingCaptureCount: Int
     ) {
+        upgradeAuthorizationOptionsIfNeeded()
         rescheduleAll(people: people, reminders: reminders, importantDates: importantDates, events: events)
         guard enabled else { return }
         for person in people {
@@ -658,6 +675,21 @@ final class NotificationService {
             schedulePeriodicReview(for: person)
         }
         scheduleCaptureReview(pendingCount: pendingCaptureCount)
+    }
+
+    /// One-shot catch-up for installs that granted permission before this
+    /// app started requesting `.timeSensitive` (see `requestAuthorization`).
+    /// Runs on every `reconcile()` (i.e. every launch/foreground) until it
+    /// succeeds once, so already-onboarded users silently pick up Focus/DND
+    /// breakthrough without needing to find and re-tap anything.
+    private func upgradeAuthorizationOptionsIfNeeded() {
+        let key = "hasRequestedTimeSensitiveOption"
+        guard enabled, !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+        Task {
+            let granted = await requestAuthorization()
+            logger.info("upgradeAuthorizationOptions: requestAuthorization()=\(granted, privacy: .public)")
+        }
     }
 
     func cancelAll() {

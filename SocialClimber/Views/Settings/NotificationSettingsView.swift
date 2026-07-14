@@ -217,7 +217,7 @@ struct NotificationSettingsView: View {
                     if alertSetting == .disabled {
                         deliveryMessage = "iOS delivered it, but this app's Alert style is set to \"None\" in iOS Settings → Notifications, so no banner/sound shows. Tap \"Open iOS Notification Settings\" and set Alert Style to Banners or Alerts."
                     } else {
-                        deliveryMessage = "iOS delivered it — check Notification Center or the lock screen. If you still saw nothing, a Focus/Do Not Disturb mode active on this device is silencing it; this isn't something the app controls."
+                        deliveryMessage = "iOS delivered it — check Notification Center or the lock screen. This test is marked Time Sensitive, so it should break through Focus/Do Not Disturb the way Messages and Calendar do. If it still didn't show, open the active Focus in iOS Settings → Focus and confirm \"Time Sensitive Notifications\" is allowed, or add Social Climber to that Focus's allowed apps directly."
                     }
                 case .missing:
                     deliveryMessage = "iOS never delivered it (not pending, not in Notification Center). This points to a device-level notification issue rather than app code — try again, and if it keeps failing, restart the device."
