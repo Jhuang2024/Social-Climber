@@ -32,6 +32,21 @@ final class InstagramSyncServiceTests: XCTestCase {
         XCTAssertFalse(InstagramSyncService.isLikelyBaselineReplacement(previous: 73, current: 80))
     }
 
+    func testMonthlyRelationshipTimestampsAreDetectedAsDateLimited() {
+        let now = Date(timeIntervalSince1970: 1_784_000_000)
+        let records = [
+            InstagramExportParser.RelationshipRecord(username: "a", date: now.addingTimeInterval(-28 * 86_400)),
+            InstagramExportParser.RelationshipRecord(username: "b", date: now.addingTimeInterval(-2 * 86_400)),
+        ]
+        XCTAssertTrue(InstagramSyncService.isDateLimited(records: records, now: now))
+
+        let fullHistory = [
+            InstagramExportParser.RelationshipRecord(username: "old", date: now.addingTimeInterval(-700 * 86_400)),
+            InstagramExportParser.RelationshipRecord(username: "new", date: now.addingTimeInterval(-2 * 86_400)),
+        ]
+        XCTAssertFalse(InstagramSyncService.isDateLimited(records: fullHistory, now: now))
+    }
+
     func testExistingInstagramInteractionIsBackfilledAsOneRecentCapture() async throws {
         let context = container.mainContext
         let person = Person(name: "Alex Rivera")
