@@ -156,7 +156,6 @@ final class GoogleDriveService: NSObject {
     }
 
     private func listFiles(query: String) async throws -> [DriveFile] {
-        let token = try await validAccessToken()
         var components = URLComponents(string: "https://www.googleapis.com/drive/v3/files")!
         components.queryItems = [
             URLQueryItem(name: "q", value: query),
@@ -166,31 +165,33 @@ final class GoogleDriveService: NSObject {
         ]
         guard let url = components.url else { throw GoogleDriveError.requestFailed }
 
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            throw GoogleDriveError.requestFailed
+        let (data, _) = try await authorizedData(operation: "list files") { token in
+            var request = URLRequest(url: url)
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            return request
         }
-        let decoded = try JSONDecoder().decode(FileListResponse.self, from: data)
-        return decoded.files.map { $0.asDriveFile }
+        do {
+            let decoded = try JSONDecoder().decode(FileListResponse.self, from: data)
+            return decoded.files.map { $0.asDriveFile }
+        } catch {
+            throw GoogleDriveError.invalidResponse(operation: "list files", detail: error.localizedDescription)
+        }
     }
 
     /// Downloads a file's content to a temporary file on disk (exports can
     /// be large; never buffered whole in memory) and returns its URL. The
     /// caller is responsible for deleting it when done.
     func downloadToTemporaryFile(fileID: String) async throws -> URL {
-        let token = try await validAccessToken()
-        guard let url = URL(string: "https://www.googleapis.com/drive/v3/files/\(fileID)?alt=media") else {
+        guard var components = URLComponents(string: "https://www.googleapis.com/drive/v3/files/\(fileID)") else {
             throw GoogleDriveError.requestFailed
         }
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        components.queryItems = [URLQueryItem(name: "alt", value: "media")]
+        guard let url = components.url else { throw GoogleDriveError.requestFailed }
 
-        let (tempURL, response) = try await URLSession.shared.download(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            try? FileManager.default.removeItem(at: tempURL)
-            throw GoogleDriveError.requestFailed
+        let tempURL = try await authorizedDownload(operation: "download export") { token in
+            var request = URLRequest(url: url)
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            return request
         }
         // Move it out of URLSession's temp location so it survives until the
         // caller is finished with it.
@@ -198,6 +199,84 @@ final class GoogleDriveService: NSObject {
             .appendingPathComponent("ig-export-\(UUID().uuidString).zip")
         try FileManager.default.moveItem(at: tempURL, to: destination)
         return destination
+    }
+
+    /// Performs an authenticated Drive request and retries once after a 401.
+    /// A refresh token in Keychain only proves that OAuth completed; it does
+    /// not prove that the Drive API is enabled or that the granted token still
+    /// has the Drive scope. Preserve Google's response so Settings can report
+    /// the actual configuration or authorization failure.
+    private func authorizedData(
+        operation: String,
+        request: (String) -> URLRequest
+    ) async throws -> (Data, HTTPURLResponse) {
+        for attempt in 0...1 {
+            let token = try await validAccessToken()
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request(token))
+                guard let http = response as? HTTPURLResponse else {
+                    throw GoogleDriveError.invalidResponse(operation: operation, detail: "No HTTP response")
+                }
+                if (200..<300).contains(http.statusCode) { return (data, http) }
+                if http.statusCode == 401, attempt == 0 {
+                    clearCachedAccessToken()
+                    continue
+                }
+                throw Self.apiError(operation: operation, statusCode: http.statusCode, data: data)
+            } catch let error as GoogleDriveError {
+                throw error
+            } catch {
+                throw GoogleDriveError.transport(operation: operation, detail: error.localizedDescription)
+            }
+        }
+        throw GoogleDriveError.requestFailed
+    }
+
+    private func authorizedDownload(
+        operation: String,
+        request: (String) -> URLRequest
+    ) async throws -> URL {
+        for attempt in 0...1 {
+            let token = try await validAccessToken()
+            do {
+                let (temporaryURL, response) = try await URLSession.shared.download(for: request(token))
+                guard let http = response as? HTTPURLResponse else {
+                    try? FileManager.default.removeItem(at: temporaryURL)
+                    throw GoogleDriveError.invalidResponse(operation: operation, detail: "No HTTP response")
+                }
+                if (200..<300).contains(http.statusCode) { return temporaryURL }
+
+                let data = (try? Data(contentsOf: temporaryURL)) ?? Data()
+                try? FileManager.default.removeItem(at: temporaryURL)
+                if http.statusCode == 401, attempt == 0 {
+                    clearCachedAccessToken()
+                    continue
+                }
+                throw Self.apiError(operation: operation, statusCode: http.statusCode, data: data)
+            } catch let error as GoogleDriveError {
+                throw error
+            } catch {
+                throw GoogleDriveError.transport(operation: operation, detail: error.localizedDescription)
+            }
+        }
+        throw GoogleDriveError.requestFailed
+    }
+
+    private func clearCachedAccessToken() {
+        accessToken = nil
+        accessTokenExpiry = nil
+    }
+
+    nonisolated static func apiError(operation: String, statusCode: Int, data: Data) -> GoogleDriveError {
+        let payload = try? JSONDecoder().decode(GoogleAPIErrorEnvelope.self, from: data)
+        let reason = payload?.error.errors?.first?.reason
+        let message = payload?.error.message
+        return .apiRejected(
+            operation: operation,
+            statusCode: statusCode,
+            reason: reason,
+            message: message
+        )
     }
 
     // MARK: Tokens
@@ -327,6 +406,19 @@ final class GoogleDriveService: NSObject {
         let files: [WireFile]
     }
 
+    private struct GoogleAPIErrorEnvelope: Decodable {
+        let error: GoogleAPIErrorBody
+    }
+
+    private struct GoogleAPIErrorBody: Decodable {
+        let message: String?
+        let errors: [GoogleAPIErrorItem]?
+    }
+
+    private struct GoogleAPIErrorItem: Decodable {
+        let reason: String?
+    }
+
     private struct WireFile: Decodable {
         let id: String
         let name: String
@@ -377,6 +469,9 @@ enum GoogleDriveError: LocalizedError {
     case missingRefreshToken
     case notConnected
     case requestFailed
+    case transport(operation: String, detail: String)
+    case invalidResponse(operation: String, detail: String)
+    case apiRejected(operation: String, statusCode: Int, reason: String?, message: String?)
     case folderNotFound(String)
     case noExportFound
 
@@ -396,10 +491,46 @@ enum GoogleDriveError: LocalizedError {
             "Connect Google Drive in Settings first."
         case .requestFailed:
             "Google Drive request failed. Check your connection and try again."
+        case .transport(let operation, let detail):
+            "Google Drive could not \(operation): \(detail)"
+        case .invalidResponse(let operation, let detail):
+            "Google Drive returned an unreadable response while trying to \(operation): \(detail)"
+        case .apiRejected(let operation, let statusCode, let reason, let message):
+            Self.apiRejectionDescription(
+                operation: operation,
+                statusCode: statusCode,
+                reason: reason,
+                message: message
+            )
         case .folderNotFound(let name):
             "No Drive folder named \"\(name)\" was found. Check the folder name in Settings."
         case .noExportFound:
             "No Instagram export zip was found in Google Drive. Make sure Instagram's scheduled export to Drive has run at least once."
+        }
+    }
+
+    private static func apiRejectionDescription(
+        operation: String,
+        statusCode: Int,
+        reason: String?,
+        message: String?
+    ) -> String {
+        switch (statusCode, reason) {
+        case (401, _), (_, "authError"), (_, "invalidCredentials"):
+            return "Google Drive authorization expired or was revoked. Disconnect Google Drive, reconnect it, then sync again."
+        case (403, "accessNotConfigured"), (403, "serviceDisabled"):
+            return "Google Drive is authorized, but the Google Drive API is disabled for this OAuth project. Enable the Google Drive API in Google Cloud Console, wait a minute, then sync again."
+        case (403, "insufficientPermissions"), (403, "insufficient_scope"):
+            return "Google Drive is connected without read permission. Disconnect Google Drive and reconnect it to grant the Drive read-only scope."
+        case (403, "rateLimitExceeded"), (403, "userRateLimitExceeded"):
+            return "Google Drive's request limit was reached. Wait briefly, then sync again."
+        case (404, _):
+            return "Google Drive could not find the export while trying to \(operation). It may have been moved or deleted."
+        default:
+            let diagnosticReason = reason.map { " [\($0)]" } ?? ""
+            let diagnosticMessage = message?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let suffix = diagnosticMessage.flatMap { $0.isEmpty ? nil : ": \($0)" } ?? ""
+            return "Google Drive rejected \(operation) (HTTP \(statusCode))\(diagnosticReason)\(suffix)"
         }
     }
 }
