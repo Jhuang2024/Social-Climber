@@ -35,10 +35,23 @@ struct VoiceNotePlaybackView: View {
                         .font(.subheadline)
                         .textSelection(.enabled)
                     if !voiceNote.rawTranscript.isEmpty && voiceNote.rawTranscript != voiceNote.cleanedTranscript {
-                        Toggle("Show verbatim", isOn: $showVerbatim)
+                        Toggle(verbatimToggleLabel, isOn: $showVerbatim)
                             .font(.caption)
                             .tint(.green)
                     }
+                }
+
+                if !voiceNote.conversation.isEmpty {
+                    DisclosureGroup("Who said what") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(voiceNote.conversation) { line in
+                                ConversationLineRow(line: line)
+                            }
+                        }
+                        .padding(.top, 4)
+                    }
+                    .font(.caption.weight(.semibold))
+                    .tint(SCTheme.accent)
                 }
 
                 retryControls
@@ -49,6 +62,12 @@ struct VoiceNotePlaybackView: View {
 
     private var displayedTranscript: String {
         showVerbatim ? voiceNote.rawTranscript : (voiceNote.transcript.isEmpty ? voiceNote.cleanedTranscript : voiceNote.transcript)
+    }
+
+    /// For a translated note the "verbatim" copy is the original-language
+    /// recording, so name it that way.
+    private var verbatimToggleLabel: String {
+        voiceNote.wasTranslated ? "Show original (\(RecordingLanguage.from(languageCode: voiceNote.detectedLanguage).longLabel))" : "Show verbatim"
     }
 
     private var statusRow: some View {

@@ -36,8 +36,9 @@ final class RecordingProcessor {
 
     /// Enhances and transcribes `originalFileName`, returning a fully-classified
     /// result. Runs enhancement off the main thread. Never mutates the original
-    /// file.
-    func processInMemory(originalFileName: String, contactNames: [String]) async -> ProcessedRecording {
+    /// file. `locale` pins the transcription language (e.g. Mandarin); when
+    /// `nil` the device's preferred language is used.
+    func processInMemory(originalFileName: String, contactNames: [String], locale: Locale? = nil) async -> ProcessedRecording {
         AudioLog.info("Processing recording (\(originalFileName.count > 0 ? "present" : "missing"))")
 
         // 1–6. Enhance a copy (analysis + conservative DSP).
@@ -57,7 +58,8 @@ final class RecordingProcessor {
         let transcribeTarget = enhancement.enhancedFileName ?? originalFileName
         let result = await TranscriptionService.shared.transcribe(
             fileName: transcribeTarget,
-            contactNames: contactNames
+            contactNames: contactNames,
+            locale: locale
         )
 
         // Classify the outcome into an honest state.
@@ -106,7 +108,10 @@ final class RecordingProcessor {
         note.transcriptionAttempts += 1
         try? context.save()
 
-        let processed = await processInMemory(originalFileName: originalFileName, contactNames: contactNames)
+        // Reprocess in the note's own recognised language so a Mandarin note
+        // isn't retried with the wrong recogniser.
+        let locale = note.detectedLanguage.map(Locale.init(identifier:))
+        let processed = await processInMemory(originalFileName: originalFileName, contactNames: contactNames, locale: locale)
         apply(processed, to: note)
         note.processedAt = .now
         try? context.save()

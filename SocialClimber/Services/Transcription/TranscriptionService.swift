@@ -42,14 +42,16 @@ actor TranscriptionService {
     /// Transcribes `fileName` (in `VoiceNote.directory`). Splits long audio into
     /// overlapping chunks, transcribes each with retry, and recombines them into
     /// one timestamped transcript. `contactNames` are used only as cleanup
-    /// hints: never to invent or force-replace spoken names.
-    func transcribe(fileName: String, contactNames: [String]) async -> TranscriptionResult {
+    /// hints: never to invent or force-replace spoken names. `locale` pins the
+    /// recogniser's language (e.g. Mandarin for a Mandarin recording); when
+    /// `nil` the device's preferred language is used.
+    func transcribe(fileName: String, contactNames: [String], locale: Locale? = nil) async -> TranscriptionResult {
         let status = await Self.requestAuthorization()
         guard status == .authorized else {
             AudioLog.warn("Speech not authorized (status \(status.rawValue))")
             return .empty
         }
-        guard let recognizer = makeRecognizer(), recognizer.isAvailable else {
+        guard let recognizer = makeRecognizer(locale: locale), recognizer.isAvailable else {
             AudioLog.warn("No available speech recognizer")
             return .empty
         }
@@ -158,11 +160,15 @@ actor TranscriptionService {
 
     // MARK: Helpers
 
-    /// Prefers a recognizer for the device's current language, falling back to
-    /// the default. True auto-detect isn't offered by `SFSpeechRecognizer`, so
-    /// we honour the user's locale, the closest the provider allows to
-    /// multilingual handling.
-    private func makeRecognizer() -> SFSpeechRecognizer? {
+    /// Builds a recognizer for `locale` when the caller pinned one (e.g. a
+    /// Mandarin recording), otherwise prefers the device's current language and
+    /// falls back to the default. True auto-detect isn't offered by
+    /// `SFSpeechRecognizer`, so a pinned locale is how a non-English recording
+    /// is transcribed accurately.
+    private func makeRecognizer(locale: Locale?) -> SFSpeechRecognizer? {
+        if let locale, let recognizer = SFSpeechRecognizer(locale: locale), recognizer.isAvailable {
+            return recognizer
+        }
         if let preferred = Locale.preferredLanguages.first,
            let recognizer = SFSpeechRecognizer(locale: Locale(identifier: preferred)),
            recognizer.isAvailable {

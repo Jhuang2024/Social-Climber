@@ -30,14 +30,34 @@ final class VoiceRecorder: NSObject {
     /// tracked properties and drive SwiftUI updates.
     var onChange: (() -> Void)?
 
+    /// Called on the main actor each time a segment is finalised and safe on
+    /// disk (either by the 30-second rolling rotation or by `stop`), with that
+    /// segment's file name inside `VoiceNote.directory`. The owner uses this to
+    /// transcribe/parse the just-finished slice *while recording continues*, so
+    /// a long conversation is processed piece-by-piece instead of in one slow
+    /// pass at the end. Each segment is reported exactly once.
+    var onSegmentFinalized: ((String) -> Void)?
+
+    /// How long a single rolling segment runs before it's finalised (and handed
+    /// off for background processing) and a fresh one is opened automatically.
+    /// A two-minute conversation becomes four ~30s slices, each parsed as soon
+    /// as it closes rather than all at once on stop.
+    static let rollingSegmentDuration: TimeInterval = 30
+
     /// Finalised segment file names (inside `VoiceNote.directory`), in order.
-    /// Multiple entries appear when interruptions/backgrounding chopped the
-    /// capture into crash-safe pieces; they're merged on `finish()`.
+    /// Multiple entries appear when the 30-second rolling rotation, or an
+    /// interruption/backgrounding, chopped the capture into pieces; they're
+    /// merged into one canonical original on stop.
     private(set) var segmentFileNames: [String] = []
+    /// Segments already reported through `onSegmentFinalized`, so a segment is
+    /// never handed off for processing twice.
+    private var emittedSegmentNames: Set<String> = []
 
     private var machine = AudioCaptureStateMachine()
     private var recorder: AVAudioRecorder?
     private var meterTimer: Timer?
+    /// Fires every `rollingSegmentDuration` while recording to rotate segments.
+    private var rotationTimer: Timer?
     private var currentSegmentStartDuration: TimeInterval = 0
     /// True while an interruption/backgrounding is in effect and we intend to
     /// auto-resume when it clears (only when the user hadn't manually paused).
@@ -54,6 +74,7 @@ final class VoiceRecorder: NSObject {
 
     deinit {
         meterTimer?.invalidate()
+        rotationTimer?.invalidate()
         NotificationCenter.default.removeObserver(self)
     }
 
@@ -92,6 +113,7 @@ final class VoiceRecorder: NSObject {
         if beginSegment() {
             setState(.recording)
             startMetering()
+            startRotationTimer()
         } else {
             setState(.failed, failure: .recordingFailed)
         }
@@ -101,7 +123,9 @@ final class VoiceRecorder: NSObject {
     func pause() {
         guard state == .recording else { return }
         resumeAfterInterruption = false
+        stopRotationTimer()
         finalizeSegment()
+        emitFinalizedSegment()
         setState(.paused)
         stopMetering()
     }
@@ -112,28 +136,39 @@ final class VoiceRecorder: NSObject {
         if beginSegment() {
             setState(.recording)
             startMetering()
+            startRotationTimer()
         } else {
             setState(.failed, failure: .recordingFailed)
         }
     }
 
-    /// Stops the capture and hands back a single merged audio file name (the
-    /// preserved original). Returns `nil` only if nothing was captured.
-    /// Leaves the recorder in `.processing`; the caller drives it to
-    /// `.completed`/`.failed` via `markProcessed`.
-    func stop() async -> String? {
-        guard state == .recording || state == .paused || state == .interrupted else { return nil }
+    /// Ends the capture and returns the finalised segment file names *without
+    /// merging yet*. The final still-open segment is finalised and reported
+    /// through `onSegmentFinalized` like a rotation, so the caller can finish
+    /// transcribing every slice before the underlying files are merged away.
+    /// Leaves the recorder in `.processing`; drive it to `.completed`/`.failed`
+    /// via `markProcessed`, and call `mergeCollectedSegments` once processing
+    /// has drained.
+    func stopAndCollectSegments() -> [String] {
+        guard state == .recording || state == .paused || state == .interrupted else { return [] }
+        stopRotationTimer()
         finalizeSegment()
+        emitFinalizedSegment()
         stopMetering()
         level = 0
         AudioSessionManager.shared.deactivate()
         AudioSessionManager.shared.handler = nil
         setState(.processing)
+        return segmentFileNames
+    }
 
-        let names = segmentFileNames
+    /// Merges the collected segments into one canonical original recording (the
+    /// preserved original) and returns its file name. Must be called only after
+    /// every segment has finished processing, since merging removes the
+    /// per-segment files. Returns `nil` when nothing was captured.
+    func mergeCollectedSegments(_ names: [String]) async -> String? {
         guard !names.isEmpty else { return nil }
         if names.count == 1 { return names[0] }
-        // Merge crash-safe segments into one canonical original recording.
         return await AudioFileMerger.merge(segmentFileNames: names)
     }
 
@@ -145,6 +180,7 @@ final class VoiceRecorder: NSObject {
 
     /// Discards everything captured and returns to idle; used on Cancel.
     func discard() {
+        stopRotationTimer()
         finalizeSegment()
         stopMetering()
         AudioSessionManager.shared.deactivate()
@@ -158,7 +194,9 @@ final class VoiceRecorder: NSObject {
     private func reset() {
         recorder?.stop()
         recorder = nil
+        stopRotationTimer()
         segmentFileNames = []
+        emittedSegmentNames = []
         duration = 0
         currentSegmentStartDuration = 0
         level = 0
@@ -226,6 +264,48 @@ final class VoiceRecorder: NSObject {
         meterTimer = nil
     }
 
+    // MARK: Rolling 30-second rotation
+
+    /// Starts the repeating timer that rotates segments every
+    /// `rollingSegmentDuration` seconds while recording.
+    private func startRotationTimer() {
+        stopRotationTimer()
+        let timer = Timer(timeInterval: Self.rollingSegmentDuration, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.rotateSegment() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        rotationTimer = timer
+    }
+
+    private func stopRotationTimer() {
+        rotationTimer?.invalidate()
+        rotationTimer = nil
+    }
+
+    /// Closes the current segment, hands it off for background processing, and
+    /// immediately opens a fresh one so recording never pauses. The new segment
+    /// belongs to the same capture (same person, same conversation); only the
+    /// audio file boundary moves. If a new segment can't be opened the capture
+    /// fails, but everything already finalised is safe and already reported.
+    private func rotateSegment() {
+        guard state == .recording else { return }
+        finalizeSegment()
+        emitFinalizedSegment()
+        guard beginSegment() else {
+            setState(.failed, failure: .recordingFailed)
+            return
+        }
+    }
+
+    /// Reports the most recently finalised segment through `onSegmentFinalized`,
+    /// exactly once. A no-op when the last segment was dropped for being empty
+    /// or was already reported.
+    private func emitFinalizedSegment() {
+        guard let last = segmentFileNames.last, !emittedSegmentNames.contains(last) else { return }
+        emittedSegmentNames.insert(last)
+        onSegmentFinalized?(last)
+    }
+
     private func updateMeter() {
         guard let recorder, recorder.isRecording else { return }
         recorder.updateMeters()
@@ -256,7 +336,9 @@ final class VoiceRecorder: NSObject {
         // mark interrupted; auto-resume when we return unless the user chose
         // otherwise.
         resumeAfterInterruption = true
+        stopRotationTimer()
         finalizeSegment()
+        emitFinalizedSegment()
         stopMetering()
         setState(.interrupted)
     }
@@ -268,6 +350,7 @@ final class VoiceRecorder: NSObject {
             if beginSegment() {
                 setState(.recording)
                 startMetering()
+                startRotationTimer()
             }
         }
     }
@@ -294,7 +377,9 @@ extension VoiceRecorder: AudioSessionEventHandler {
     func audioSessionDidBeginInterruption() {
         guard state == .recording else { return }
         resumeAfterInterruption = true
+        stopRotationTimer()
         finalizeSegment()
+        emitFinalizedSegment()
         stopMetering()
         setState(.interrupted)
     }
@@ -305,6 +390,7 @@ extension VoiceRecorder: AudioSessionEventHandler {
         if beginSegment() {
             setState(.recording)
             startMetering()
+            startRotationTimer()
         }
     }
 
@@ -320,7 +406,9 @@ extension VoiceRecorder: AudioSessionEventHandler {
         // surface an interrupted state the user can resume from.
         guard state == .recording else { return }
         resumeAfterInterruption = false
+        stopRotationTimer()
         finalizeSegment()
+        emitFinalizedSegment()
         stopMetering()
         setState(.interrupted)
     }

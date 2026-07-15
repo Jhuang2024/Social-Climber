@@ -131,6 +131,12 @@ struct AIExtraction: Codable, Sendable {
     /// in parallel with (not instead of) the legacy flat-string arrays
     /// above, which the manual/advanced editing flows still use unchanged.
     var attributedFacts: [ExtractedFact] = []
+    /// The conversation split into attributed lines ("who said what"), inferred
+    /// from the transcript given the known participants plus the narrator
+    /// ("Me"). Empty when the source isn't a two-way conversation, when no
+    /// participants were provided, or from the local fallback. A reading aid
+    /// only; never a source of facts.
+    var conversation: [ConversationLine] = []
 
     enum CodingKeys: String, CodingKey {
         case summary
@@ -154,6 +160,7 @@ struct AIExtraction: Codable, Sendable {
         case impliedFollowUps
         case fieldConfidence
         case attributedFacts
+        case conversation
     }
 
     init(
@@ -206,6 +213,7 @@ struct AIExtraction: Codable, Sendable {
         impliedFollowUps = (try? container.decodeIfPresent([String].self, forKey: .impliedFollowUps)) ?? []
         fieldConfidence = (try? container.decodeIfPresent([String: Double].self, forKey: .fieldConfidence)) ?? [:]
         attributedFacts = (try? container.decodeIfPresent([ExtractedFact].self, forKey: .attributedFacts)) ?? []
+        conversation = (try? container.decodeIfPresent([ConversationLine].self, forKey: .conversation)) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -230,6 +238,7 @@ struct AIExtraction: Codable, Sendable {
         try container.encode(impliedFollowUps, forKey: .impliedFollowUps)
         try container.encode(fieldConfidence, forKey: .fieldConfidence)
         try container.encode(attributedFacts, forKey: .attributedFacts)
+        try container.encode(conversation, forKey: .conversation)
     }
 
     /// Confidence for one category, falling back to the overall score.
@@ -267,6 +276,11 @@ struct AIExtractionContext: Sendable {
     /// Facts already on file for the trusted people, so the extraction can
     /// skip duplicating them.
     var existingFacts: [String] = []
+    /// The people physically present in the conversation, identified before
+    /// recording. When set, the extractor labels each conversation line with
+    /// the speaker who most likely said it, drawn from this closed set plus the
+    /// narrator ("Me"). Empty means "don't attempt speaker attribution".
+    var conversationParticipants: [String] = []
 }
 
 // MARK: - Gift suggestions
@@ -707,6 +721,7 @@ final class BazaarLinkAIService: AIService {
     - Do not duplicate the same fact across multiple categories.
     - Attribution matters: when more than one contact is named, each individual fact ("attributedFacts" entries, and each reminder/importantDate) must list exactly the person or people that specific fact is actually about in "personNames", never all contacts mentioned anywhere in the memory. If a fact doesn't clearly belong to anyone in particular, leave "personNames" empty; do not guess by picking whichever person was mentioned first.
     - Include a 0.0–1.0 confidence per category in "fieldConfidence" plus an overall "confidenceScore".
+    - Speaker attribution: when "Conversation participants" are given and the input reads as a spoken conversation, split it into ordered "conversation" lines and label each with who most likely said it, choosing only from those participants or "Me" (the narrator). Never invent a speaker outside that set; if a line's speaker is genuinely unclear, use "Unknown". If participants are absent or the input isn't a conversation, return an empty "conversation" array. This is only a readability aid: still derive all facts, interests, and attributions from the content itself, exactly as if the conversation array were absent.
     """
 
     private static let extractionISOFormatter: ISO8601DateFormatter = {
@@ -731,6 +746,9 @@ final class BazaarLinkAIService: AIService {
         }
         if !context.existingFacts.isEmpty {
             contextLines.append("Facts already on file (do not repeat these): \(context.existingFacts.prefix(30).joined(separator: "; "))")
+        }
+        if !context.conversationParticipants.isEmpty {
+            contextLines.append("Conversation participants (besides the narrator \"Me\"): \(context.conversationParticipants.joined(separator: ", "))")
         }
 
         return """
@@ -757,6 +775,7 @@ final class BazaarLinkAIService: AIService {
           "followUpQuestions": ["questions to ask next time"],
           "personalityNotes": ["stable personality/communication notes about the contact"],
           "attributedFacts": [{"factType": "one of interest|dislike|schoolOrWork|location|family|personality|giftIdea", "value": "the fact, matching one of the arrays above", "personNames": ["exactly who this specific fact is about; empty if unclear"]}],
+          "conversation": [{"speaker": "a listed participant's name, or Me, or Unknown", "text": "what that speaker said, in order"}],
           "inferredInteractionType": "one of inPerson|call|message|videoCall|event|email, or null if unstated",
           "inferredDate": "ISO-8601 datetime the interaction happened, resolved against the capture date, or null if unstated",
           "explicitSentiment": "one of bad|neutral|good|great ONLY if the user explicitly said how it went, else null",

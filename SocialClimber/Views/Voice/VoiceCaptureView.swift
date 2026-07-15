@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Translation
 
 /// Voice note flow: record a live conversation or type → transcribe → AI extraction → review → apply.
 struct VoiceCaptureView: View {
@@ -32,6 +33,8 @@ struct VoiceCaptureView: View {
                 .multilineTextAlignment(.center)
 
                 peopleSection
+
+                languageSection
 
                 recordButton
 
@@ -86,7 +89,10 @@ struct VoiceCaptureView: View {
 
                 Button {
                     Task {
-                        await model.analyze(knownPeople: allPeople.map(\.name))
+                        await model.analyze(
+                            knownPeople: allPeople.map(\.name),
+                            participants: selectedPeople.map(\.name)
+                        )
                         if model.extraction != nil { showReview = true }
                     }
                 } label: {
@@ -149,6 +155,37 @@ struct VoiceCaptureView: View {
                 }
             }
             .onAppear { model.knownContactNames = allPeople.map(\.name) }
+            .background {
+                // Apple's on-device translation is only reachable through
+                // SwiftUI's translationTask (iOS 18+); it fires whenever the
+                // model publishes a pending Mandarin→English request.
+                if #available(iOS 18.0, *) {
+                    Color.clear.translationTask(
+                        model.translationRequest.map { request in
+                            TranslationSession.Configuration(
+                                source: Locale.Language(identifier: request.sourceLanguageID),
+                                target: Locale.Language(identifier: "en")
+                            )
+                        }
+                    ) { session in
+                        await runTranslation(session: session)
+                    }
+                }
+            }
+        }
+    }
+
+    @available(iOS 18.0, *)
+    private func runTranslation(session: TranslationSession) async {
+        guard let request = model.translationRequest else { return }
+        do {
+            try await session.prepareTranslation()
+            let response = try await session.translate(request.text)
+            model.fulfillTranslation(response.targetText)
+        } catch {
+            // Empty result → the model keeps the original transcript and shows
+            // a "couldn't translate" notice, so the flow never hangs.
+            model.fulfillTranslation("")
         }
     }
 
@@ -158,7 +195,7 @@ struct VoiceCaptureView: View {
     private var captureStatus: some View {
         switch model.recordingState {
         case .processing:
-            Label("Enhancing & transcribing…", systemImage: "waveform")
+            Label(model.isTranslating ? "Translating to English…" : "Finishing transcription…", systemImage: "waveform")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         case .paused:
@@ -170,15 +207,24 @@ struct VoiceCaptureView: View {
                 .font(.subheadline)
                 .foregroundStyle(.orange)
         case .recording:
-            HStack(spacing: 8) {
-                Image(systemName: "waveform")
-                    .foregroundStyle(.red)
-                Text(Self.timeString(model.duration))
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                ProgressView(value: Double(model.level))
-                    .frame(width: 80)
-                    .tint(.red)
+            VStack(spacing: 4) {
+                HStack(spacing: 8) {
+                    Image(systemName: "waveform")
+                        .foregroundStyle(.red)
+                    Text(Self.timeString(model.duration))
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                    ProgressView(value: Double(model.level))
+                        .frame(width: 80)
+                        .tint(.red)
+                }
+                // The conversation is transcribed in 30-second slices as you
+                // talk, so nothing waits for one slow pass at the end.
+                if model.processedSegmentCount > 0 || model.pendingSegmentCount > 0 {
+                    Text("Transcribing as you talk · \(model.processedSegmentCount) done\(model.pendingSegmentCount > 0 ? ", \(model.pendingSegmentCount) processing" : "")")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
             }
         default:
             if model.isTranscribing {
@@ -225,6 +271,24 @@ struct VoiceCaptureView: View {
                 .animation(.snappy, value: model.isRecording)
         }
         .padding(.top, 4)
+    }
+
+    private var languageSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader("Language", icon: "globe")
+            Picker("Recording language", selection: $model.recordingLanguage) {
+                ForEach(RecordingLanguage.allCases) { language in
+                    Text(language.label).tag(language)
+                }
+            }
+            .pickerStyle(.segmented)
+            .disabled(model.isRecording || model.isPaused || model.isInterrupted)
+            if model.recordingLanguage.needsTranslationToEnglish {
+                Text("Recorded in \(model.recordingLanguage.longLabel), then auto-translated to English before analysis. The original is kept.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 
     private var peopleSection: some View {
@@ -337,6 +401,18 @@ struct ExtractionReviewView: View {
                     }
                 }
 
+                if !extraction.conversation.isEmpty {
+                    Section {
+                        ForEach(extraction.conversation) { line in
+                            ConversationLineRow(line: line)
+                        }
+                    } header: {
+                        Text("Who said what")
+                    } footer: {
+                        Text("Best-effort attribution from the transcript. Tap Back to fix the transcript if a line is off.")
+                    }
+                }
+
                 AISuggestionChecklist(extraction: extraction, options: $options)
 
                 if !extraction.followUpQuestions.isEmpty {
@@ -379,6 +455,9 @@ struct ExtractionReviewView: View {
         voiceNote.failureReason = payload.failure
         voiceNote.processingState = payload.failure == nil || payload.failure == .partialTranscription ? .completed : .failed
         voiceNote.processedAt = .now
+        // Persist the AI's "who said what" split so the conversation can be
+        // reread with speakers attributed.
+        voiceNote.conversation = extraction.conversation
         context.insert(voiceNote)
 
         ExtractionApplier.apply(
@@ -393,6 +472,26 @@ struct ExtractionReviewView: View {
         )
         dismiss()
         onApplied()
+    }
+}
+
+// MARK: - Conversation attribution row
+
+/// One attributed line of a conversation, styled so the narrator's ("Me")
+/// lines read differently from the other participants'.
+struct ConversationLineRow: View {
+    let line: ConversationLine
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(line.speaker.isEmpty ? "Unknown" : line.speaker)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(line.isNarrator ? SCTheme.accent : .secondary)
+            Text(line.text)
+                .font(.subheadline)
+        }
+        .frame(maxWidth: .infinity, alignment: line.isNarrator ? .trailing : .leading)
+        .multilineTextAlignment(line.isNarrator ? .trailing : .leading)
     }
 }
 

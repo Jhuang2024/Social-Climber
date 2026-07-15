@@ -43,6 +43,11 @@ final class VoiceNote {
     /// How many times transcription has been attempted, for backoff/telemetry.
     var transcriptionAttempts: Int = 0
 
+    /// Encoded `[ConversationLine]`: the AI's best-effort "who said what" split
+    /// of the conversation, using the participants picked before recording plus
+    /// the narrator. A reading aid; nil/empty when attribution wasn't produced.
+    var conversationData: Data?
+
     var people: [Person] = []
 
     @Relationship(deleteRule: .cascade, inverse: \ConversationSummary.voiceNote)
@@ -83,6 +88,21 @@ final class VoiceNote {
             return (try? JSONDecoder().decode([TranscriptSegment].self, from: segmentsData)) ?? []
         }
         set { segmentsData = try? JSONEncoder().encode(newValue) }
+    }
+
+    var conversation: [ConversationLine] {
+        get {
+            guard let conversationData else { return [] }
+            return (try? JSONDecoder().decode([ConversationLine].self, from: conversationData)) ?? []
+        }
+        set { conversationData = newValue.isEmpty ? nil : (try? JSONEncoder().encode(newValue)) }
+    }
+
+    /// True when the recording was spoken in a non-English language and its
+    /// editable transcript is a translation (the original is in `rawTranscript`).
+    var wasTranslated: Bool {
+        RecordingLanguage.from(languageCode: detectedLanguage).needsTranslationToEnglish
+            && !rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     /// True when the pipeline has already produced a final result for this note,

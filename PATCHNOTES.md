@@ -1,5 +1,19 @@
 # Patch Notes
 
+## Unreleased — Rolling voice segments, Mandarin, and speaker attribution
+
+Live voice recording now works in 30-second slices so long conversations are
+processed as they happen instead of in one slow pass at the end. All additive
+and backward compatible (SwiftData lightweight migration handles the new
+`VoiceNote.conversationData` field).
+
+- Long-form voice recording now auto-rotates every 30 seconds: the finished slice is enhanced + transcribed in the background while a fresh slice keeps recording, attributed to the same person and conversation. A two-minute chat is transcribed as four slices, not one long wait.
+- The live transcript builds up slice-by-slice as you talk, with a "transcribing as you talk" progress line; the slices are merged into one canonical original recording for playback on stop.
+- Added a recording language picker (English / 中文). Mandarin is transcribed with the Mandarin recognizer, then auto-translated to English (Apple's on-device Translation, iOS 18+) before analysis; the original Mandarin transcript is always preserved and viewable.
+- On iOS versions without on-device translation, a Mandarin recording is still transcribed in Mandarin and the app says so instead of failing silently.
+- Conversations now show "who said what": given the people you pick before recording (plus you, the narrator), the AI attributes each line to its likely speaker. Shown in review and on the saved note; it's a reading aid and never a source of facts.
+- Interruptions, backgrounding, and pauses still finalize and hand off the current slice safely, so a crash costs at most the open slice.
+
 ## Unreleased — Notification delivery reliability
 
 - Fixed foreground alerts omitting the Notification Center `.list` presentation option, which let iOS report a test as delivered even though it vanished when its banner was suppressed.
