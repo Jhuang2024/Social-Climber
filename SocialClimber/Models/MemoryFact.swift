@@ -260,7 +260,14 @@ final class MemoryFact {
                 "december", "jan", "feb", "mar", "apr", "jun", "jul",
                 "aug", "sep", "sept", "oct", "nov", "dec"
             ]
-            return months.contains(lower)
+            if months.contains(lower) { return true }
+            // The extractor's generic "Important date: <when>" label carries
+            // no event meaning — it's almost always a message timestamp
+            // scraped as if it were a calendar event. Dates the user
+            // actually cares about keep a real title (Birthday, Anniversary,
+            // Graduation), so those never match this prefix.
+            if lower.hasPrefix("important date:") { return true }
+            return false
         default:
             return false
         }

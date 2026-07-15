@@ -617,6 +617,14 @@ final class CaptureProcessor {
 
     @MainActor
     private func applyImportantDates(from extraction: AIExtraction, capture: CapturedMemory, interaction: Interaction, people: [Person], context: ModelContext) {
+        // Instagram DM threads carry no reliable calendar events. The capture
+        // is dated to the latest message's timestamp, and date-ish chatter
+        // resolved against that send date turns into generic "Important
+        // date: <when>" facts that are really just when the messages were
+        // sent. Don't manufacture important dates from imported conversations
+        // at all; a genuine birthday/anniversary is captured deliberately.
+        guard capture.source != .instagram else { return }
+
         let confidence = extraction.confidence(for: "importantDates")
         var existingFacts = Self.facts(for: capture, context: context)
 
@@ -624,17 +632,6 @@ final class CaptureProcessor {
             let attributed = matchAttributed(extracted.personNames, among: people)
             let isBirthday = extracted.title == "Birthday"
             let display = extracted.display.isEmpty ? extracted.title : extracted.display
-
-            // Imported conversations are evidence, not permission to add a
-            // calendar item. They always land as provenance-linked facts
-            // for review, even when the model supplied a concrete date.
-            if capture.source == .instagram {
-                guard !display.isEmpty else { continue }
-                insertFact(type: .importantDate, value: display, people: attributed, confidence: confidence,
-                           status: .suggested, capture: capture, interaction: interaction, existing: &existingFacts,
-                           dateValue: extracted.date, context: context)
-                continue
-            }
 
             guard let dateValue = extracted.date else {
                 // Incomplete/uncertain date: keep it as a suggestion, never
