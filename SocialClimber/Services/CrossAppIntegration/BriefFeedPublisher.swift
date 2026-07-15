@@ -169,16 +169,26 @@ enum BriefFeedPublisher {
             }
         }
 
-        // 4. Captures that finished processing. Keyed off `capturedAt`
-        // (when the memory happened, which is what a recap is about), and
-        // only `.processed` — a still-queued or failed capture isn't a
-        // remembered memory yet.
-        let dayCaptures = captures
+        // 4. Memories saved that day, named by their headline. Keyed off
+        // `capturedAt` (when the memory happened, which is what a recap is
+        // about) and only `.processed` — a still-queued or failed capture
+        // isn't a remembered memory yet. A bare "Saved 3 memories" count is
+        // deliberately not emitted: it reads like an internal stat rather
+        // than something Jerry did, and because auto-imported conversations
+        // also become captures, a raw count can inflate a day with memories
+        // he never consciously saved. Only memories carrying a real title
+        // are surfaced, and by title so the line says something concrete.
+        let dayMemoryTitles = captures
             .filter { $0.status == .processed && calendar.isDate($0.capturedAt, inSameDayAs: day) }
-        if dayCaptures.count == 1, let capture = dayCaptures.first, !capture.title.isEmpty {
-            lines.append("Saved a memory: “\(capture.title)”")
-        } else if !dayCaptures.isEmpty {
-            lines.append("Saved \(dayCaptures.count) \(dayCaptures.count == 1 ? "memory" : "memories")")
+            .sorted { $0.capturedAt < $1.capturedAt }
+            .map { $0.title.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if dayMemoryTitles.count == 1 {
+            lines.append("Saved a memory: “\(dayMemoryTitles[0])”")
+        } else if dayMemoryTitles.count > 1 {
+            let shown = dayMemoryTitles.prefix(2).map { "“\($0)”" }.joined(separator: ", ")
+            let extra = dayMemoryTitles.count - 2
+            lines.append(extra > 0 ? "Saved memories: \(shown) and \(extra) more" : "Saved memories: \(shown)")
         }
 
         // 5. Long-form voice notes (the quick voice-capture flow already
@@ -212,10 +222,13 @@ enum BriefFeedPublisher {
     /// One interaction as a name-forward line, e.g.
     /// "Called Sarah · went well". Middle dots, not dashes, so these read
     /// like the metric lines LockedInFit feeds into the same brief.
-    /// Sentiment only gets a tail when it says something (neutral is the
-    /// default, so spelling it out is noise); a neutral interaction falls
-    /// back to its own summary/note preview, which is usually the more
-    /// interesting detail anyway.
+    /// Only a positive read ("went well" / "went great") earns a sentiment
+    /// tail. A neutral or rough interaction falls back to its own
+    /// summary/note preview instead: a morning brief should not hand Jerry
+    /// a verdict like "felt strained" on how a conversation went, since a
+    /// low quality score is often an auto-derived guess rather than
+    /// something he actually recorded — and the preview is the more useful
+    /// detail anyway.
     private static func line(for interaction: Interaction) -> String {
         let names = interaction.people.map(\.firstName)
         let subject = names.isEmpty ? "someone" : nameList(names)
@@ -232,8 +245,7 @@ enum BriefFeedPublisher {
         switch interaction.sentiment {
         case .great: line += " · went great"
         case .good: line += " · went well"
-        case .bad: line += " · felt strained"
-        case .neutral:
+        case .neutral, .bad:
             let preview = interaction.preview.trimmingCharacters(in: .whitespacesAndNewlines)
             if !preview.isEmpty {
                 line += " · \(preview.count > 60 ? String(preview.prefix(60)) + "…" : preview)"
