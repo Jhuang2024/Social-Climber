@@ -249,12 +249,25 @@ enum ExportImportService {
         var giftIdeas: [GiftDTO]
         var reminders: [ReminderDTO]
         var importantDates: [DateDTO]
+        /// AI-generated caches (the "Suggest with AI" gift list and the
+        /// relationship summary). Carried through export/restore so a backup
+        /// round-trip never silently discards paid API output and forces the
+        /// app to regenerate — and re-bill — on first view. All optional or
+        /// defaulted, so archives written before these fields existed still
+        /// decode in full.
+        var cachedGiftSuggestions: [GiftSuggestion] = []
+        var cachedGiftSuggestionsGeneratedAt: Date?
+        var cachedAISummary: String = ""
+        var aiSummaryGeneratedAt: Date?
+        var aiSummaryIsFallback: Bool = false
 
         private enum CodingKeys: String, CodingKey {
             case uuid, name, nickname, relationshipToMe, category, closeness, priority, birthday
             case lastContactedAt, lastMetAt, lastMessagedAt, lastCalledAt, isArchived, checkInCadenceDays
             case notes, personalityNotes, interests, dislikes, familyMembers, schoolOrWork, location
             case contactMethods, tags, instagramUsername, avatarData, giftIdeas, reminders, importantDates
+            case cachedGiftSuggestions, cachedGiftSuggestionsGeneratedAt
+            case cachedAISummary, aiSummaryGeneratedAt, aiSummaryIsFallback
         }
 
         init(
@@ -264,7 +277,9 @@ enum ExportImportService {
             notes: String, personalityNotes: String, interests: [String], dislikes: [String],
             familyMembers: [String], schoolOrWork: String, location: String, contactMethods: [ContactMethod],
             tags: [String], instagramUsername: String?, avatarData: Data?,
-            giftIdeas: [GiftDTO], reminders: [ReminderDTO], importantDates: [DateDTO]
+            giftIdeas: [GiftDTO], reminders: [ReminderDTO], importantDates: [DateDTO],
+            cachedGiftSuggestions: [GiftSuggestion] = [], cachedGiftSuggestionsGeneratedAt: Date? = nil,
+            cachedAISummary: String = "", aiSummaryGeneratedAt: Date? = nil, aiSummaryIsFallback: Bool = false
         ) {
             self.uuid = uuid
             self.name = name
@@ -294,6 +309,11 @@ enum ExportImportService {
             self.giftIdeas = giftIdeas
             self.reminders = reminders
             self.importantDates = importantDates
+            self.cachedGiftSuggestions = cachedGiftSuggestions
+            self.cachedGiftSuggestionsGeneratedAt = cachedGiftSuggestionsGeneratedAt
+            self.cachedAISummary = cachedAISummary
+            self.aiSummaryGeneratedAt = aiSummaryGeneratedAt
+            self.aiSummaryIsFallback = aiSummaryIsFallback
         }
 
         /// Every field here is required exactly as before except `uuid`,
@@ -330,6 +350,13 @@ enum ExportImportService {
             giftIdeas = try c.decode([GiftDTO].self, forKey: .giftIdeas)
             reminders = try c.decode([ReminderDTO].self, forKey: .reminders)
             importantDates = try c.decode([DateDTO].self, forKey: .importantDates)
+            // Added with the AI-cache-preservation change; defaulted so
+            // older archives (which never carried these) still decode.
+            cachedGiftSuggestions = (try? c.decode([GiftSuggestion].self, forKey: .cachedGiftSuggestions)) ?? []
+            cachedGiftSuggestionsGeneratedAt = (try? c.decodeIfPresent(Date.self, forKey: .cachedGiftSuggestionsGeneratedAt)) ?? nil
+            cachedAISummary = (try? c.decode(String.self, forKey: .cachedAISummary)) ?? ""
+            aiSummaryGeneratedAt = (try? c.decodeIfPresent(Date.self, forKey: .aiSummaryGeneratedAt)) ?? nil
+            aiSummaryIsFallback = (try? c.decode(Bool.self, forKey: .aiSummaryIsFallback)) ?? false
         }
     }
 
@@ -473,7 +500,12 @@ enum ExportImportService {
                 instagramUsername: p.instagramUsername, avatarData: p.avatarData,
                 giftIdeas: p.giftIdeas.map { GiftDTO(title: $0.title, notes: $0.notes, priceRange: $0.priceRange, occasion: $0.occasion, status: $0.statusRaw, sourceCaptureUUID: $0.sourceCaptureUUID) },
                 reminders: p.reminders.map { ReminderDTO(title: $0.title, dueDate: $0.dueDate, type: $0.typeRaw, completed: $0.completed, notes: $0.notes, sourceCaptureUUID: $0.sourceCaptureUUID) },
-                importantDates: p.importantDates.map { DateDTO(title: $0.title, date: $0.date, repeatsYearly: $0.repeatsYearly, notes: $0.notes, sourceCaptureUUID: $0.sourceCaptureUUID) }
+                importantDates: p.importantDates.map { DateDTO(title: $0.title, date: $0.date, repeatsYearly: $0.repeatsYearly, notes: $0.notes, sourceCaptureUUID: $0.sourceCaptureUUID) },
+                cachedGiftSuggestions: p.cachedGiftSuggestions,
+                cachedGiftSuggestionsGeneratedAt: p.cachedGiftSuggestionsGeneratedAt,
+                cachedAISummary: p.cachedAISummary,
+                aiSummaryGeneratedAt: p.aiSummaryGeneratedAt,
+                aiSummaryIsFallback: p.aiSummaryIsFallback
             )
         }
         archive.interactions = interactions.map { i in
@@ -603,6 +635,20 @@ enum ExportImportService {
                 person.instagramUsername = username
             }
             if let avatar = dto.avatarData { person.avatarData = avatar }
+
+            // Restore the AI caches so a backup/restore doesn't re-spend
+            // credits regenerating them. Only overwrite when the archive
+            // actually carried a cache, so importing an older/partial file
+            // never wipes a fresher cache already on an existing contact.
+            if !dto.cachedGiftSuggestions.isEmpty {
+                person.cachedGiftSuggestions = dto.cachedGiftSuggestions
+                person.cachedGiftSuggestionsGeneratedAt = dto.cachedGiftSuggestionsGeneratedAt
+            }
+            if !dto.cachedAISummary.isEmpty {
+                person.cachedAISummary = dto.cachedAISummary
+                person.aiSummaryGeneratedAt = dto.aiSummaryGeneratedAt
+                person.aiSummaryIsFallback = dto.aiSummaryIsFallback
+            }
 
             // Replace child collections wholesale to avoid duplicates.
             person.giftIdeas.forEach { context.delete($0) }
