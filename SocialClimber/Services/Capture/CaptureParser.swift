@@ -77,20 +77,75 @@ enum CaptureParser {
 
     // MARK: Explicit sentiment
 
-    private static let badWords = ["bad ", "awful", "terrible", "awkward", "hostile", "rough ", "went poorly", "went badly", "frustrating", "uncomfortable", "tense "]
-    private static let greatWords = ["great ", "amazing", "awesome", "wonderful", "fantastic", "went really well", "so much fun", "incredible"]
-    private static let goodWords = ["good ", "went well", "really nice", "fun ", "lovely "]
+    /// Sentiment cue phrases, as sequences of whole words. They are matched on
+    /// word boundaries, never as substrings (see `containsSignal`) — matching
+    /// substrings is what used to make "talked it through" trip "rough",
+    /// "intense but fun" trip "tense", and "badly" trip "bad", flipping plainly
+    /// fine interactions to negative and dragging the relationship score down.
+    private static let badPhrases: [[String]] = [
+        ["bad"], ["awful"], ["terrible"], ["awkward"], ["hostile"], ["rough"],
+        ["went", "poorly"], ["went", "badly"], ["frustrating"], ["uncomfortable"], ["tense"],
+    ]
+    private static let greatPhrases: [[String]] = [
+        ["great"], ["amazing"], ["awesome"], ["wonderful"], ["fantastic"],
+        ["went", "really", "well"], ["so", "much", "fun"], ["incredible"],
+    ]
+    private static let goodPhrases: [[String]] = [
+        ["good"], ["went", "well"], ["really", "nice"], ["fun"], ["lovely"],
+    ]
 
-    /// A sentiment ONLY when the user explicitly described how it went;
-    /// never inferred from topic or tone. Anything ambiguous returns nil so
-    /// automated captures default to neutral and closeness is never moved
-    /// on a guess.
+    /// Words that flip the cue right after them, so "not bad", "wasn't
+    /// awkward", "never tense" aren't read as negative (and, applied the same
+    /// way, "not great" isn't read as positive). Apostrophes are stripped
+    /// before matching, so the contracted forms are spelled without them.
+    private static let negators: Set<String> = [
+        "not", "no", "never", "hardly", "barely", "without", "nothing",
+        "wasnt", "isnt", "arent", "werent", "didnt", "dont", "doesnt",
+        "cant", "couldnt", "wouldnt", "hadnt", "aint",
+    ]
+
+    /// A sentiment ONLY when the user explicitly described how it went; never
+    /// inferred from topic or tone. Whole words are matched, negations are
+    /// respected, and a note carrying BOTH a positive and a negative cue is
+    /// treated as ambiguous (returns nil) rather than forcing the negative — so
+    /// automated captures default to neutral and closeness is never moved on a
+    /// guess.
     static func explicitSentiment(in text: String) -> Sentiment? {
-        let lower = " " + text.lowercased() + " "
-        if badWords.contains(where: { lower.contains($0) }) { return .bad }
-        if greatWords.contains(where: { lower.contains($0) }) { return .great }
-        if goodWords.contains(where: { lower.contains($0) }) { return .good }
+        let words = tokenize(text)
+        let negative = containsSignal(badPhrases, in: words)
+        let great = containsSignal(greatPhrases, in: words)
+        let good = containsSignal(goodPhrases, in: words)
+        let positive = great || good
+        // Mixed signals ("amazing, if a bit awkward at first") are genuinely
+        // ambiguous: don't guess, and never let one incidental negative word
+        // override an otherwise positive note.
+        if negative && positive { return nil }
+        if negative { return .bad }
+        if great { return .great }
+        if good { return .good }
         return nil
+    }
+
+    /// Lowercases, drops apostrophes (so contractions stay one word), and
+    /// splits on any non-alphanumeric run into whole words.
+    private static func tokenize(_ text: String) -> [String] {
+        text.lowercased()
+            .replacingOccurrences(of: "'", with: "")
+            .replacingOccurrences(of: "\u{2019}", with: "")
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+    }
+
+    /// True when any cue phrase appears as a run of whole words that isn't
+    /// immediately negated (a negator within the two words before it).
+    private static func containsSignal(_ phrases: [[String]], in words: [String]) -> Bool {
+        for phrase in phrases where !phrase.isEmpty && phrase.count <= words.count {
+            for start in 0...(words.count - phrase.count) where Array(words[start..<start + phrase.count]) == phrase {
+                let preceding = words[max(0, start - 2)..<start]
+                if !preceding.contains(where: { negators.contains($0) }) { return true }
+            }
+        }
+        return false
     }
 
     // MARK: When it happened
