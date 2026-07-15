@@ -22,10 +22,6 @@ struct SocialHealthView: View {
         )
     }
 
-    private var recentEvents: [FollowerEvent] {
-        followerEvents.filter { $0.date.daysAgo <= 30 }
-    }
-
     private var coolingPeople: [Person] {
         people.filter { !$0.isArchived && ($0.status == .goingQuiet || $0.status == .dormant) }
             .sorted { $0.priority > $1.priority }
@@ -46,7 +42,6 @@ struct SocialHealthView: View {
                     trendCard
                     factorsCard
                     if googleDrive.isConnected || latestFollowerSnapshot != nil { instagramCard }
-                    if !recentEvents.isEmpty { followerChangesCard }
                     momentumCard
                     if !coolingPeople.isEmpty { coolingCard }
                     if !googleDrive.isConnected && latestFollowerSnapshot == nil { instagramHint }
@@ -272,84 +267,6 @@ struct SocialHealthView: View {
                     .foregroundStyle(.secondary)
             }
         }
-    }
-
-    private var followerChangesCard: some View {
-        FormSectionCard("Follower & Following Changes", icon: "person.2.badge.gearshape") {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    ForEach(FollowerEventKind.allCases) { kind in
-                        VStack(spacing: 2) {
-                            Text("\(recentEvents.filter { $0.kind == kind }.count)")
-                                .font(.caption.weight(.bold).monospacedDigit())
-                            Text(kind.shortLabel)
-                                .font(.system(size: 9, weight: .medium))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.7)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 7)
-                        .background(kind.color.opacity(0.10), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                    }
-                }
-                ForEach(recentEvents.prefix(30), id: \.persistentModelID) { event in
-                    followerEventRow(event)
-                }
-                if recentEvents.count > 30 {
-                    Text("+ \(recentEvents.count - 30) more changes")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func followerEventRow(_ event: FollowerEvent) -> some View {
-        let matched = matchedPerson(for: event.username)
-        HStack(spacing: 10) {
-            if let matched {
-                PersonAvatarView(person: matched, size: 26)
-            } else {
-                Image(systemName: event.kind.icon)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(event.kind.color)
-                    .frame(width: 26, height: 26)
-                    .background(event.kind.color.opacity(0.14), in: Circle())
-            }
-            if let matched {
-                NavigationLink(value: matched) {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(matched.displayName)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.primary)
-                        Text("\(event.kind.label) · @\(event.username)")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .buttonStyle(.plain)
-            } else {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("@\(event.username)")
-                        .font(.caption.weight(.semibold))
-                    Text(event.kind.label)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Spacer()
-            Text(event.date.relativeLabel)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    /// Same matcher the sync uses; keeping the two consistent means a
-    /// person matched during import review is also matched here.
-    private func matchedPerson(for username: String) -> Person? {
-        InstagramSyncService.shared.match(nameOrUsername: username, people: people)
     }
 
     // MARK: Momentum

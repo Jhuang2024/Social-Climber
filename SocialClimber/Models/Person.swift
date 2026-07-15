@@ -186,16 +186,21 @@ final class Person {
         return closeness - before
     }
 
-    /// Visible (active/suggested) automatic facts of a given type, newest first.
+    /// Visible (active/suggested) automatic facts of a given type, newest
+    /// first. Low-quality extraction noise is filtered out so it never
+    /// reaches the profile, interests, gift suggestions, or AI context.
     func facts(of type: MemoryFactType) -> [MemoryFact] {
         memoryFacts
-            .filter { $0.type == type && $0.isVisible }
+            .filter { $0.type == type && $0.isVisible && !$0.isLowQuality }
             .sorted { $0.createdAt > $1.createdAt }
     }
 
-    /// Visible automatic facts of every type, newest first.
+    /// Visible automatic facts of every type, newest first, minus the
+    /// junk rows (see `MemoryFact.isLowQuality`).
     var visibleFacts: [MemoryFact] {
-        memoryFacts.filter(\.isVisible).sorted { $0.createdAt > $1.createdAt }
+        memoryFacts
+            .filter { $0.isVisible && !$0.isLowQuality }
+            .sorted { $0.createdAt > $1.createdAt }
     }
 
     /// Manually-entered interests merged with active learned interests,
@@ -247,6 +252,6 @@ final class Person {
         return tags.contains { $0.localizedCaseInsensitiveContains(term) }
             || interests.contains { $0.localizedCaseInsensitiveContains(term) }
             || dislikes.contains { $0.localizedCaseInsensitiveContains(term) }
-            || memoryFacts.contains { $0.isVisible && $0.value.localizedCaseInsensitiveContains(term) }
+            || memoryFacts.contains { $0.isVisible && !$0.isLowQuality && $0.value.localizedCaseInsensitiveContains(term) }
     }
 }

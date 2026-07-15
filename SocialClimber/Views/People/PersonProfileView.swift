@@ -16,6 +16,7 @@ struct PersonProfileView: View {
     @State private var confirmDelete = false
     @State private var isGeneratingSummary = false
     @State private var summaryNotice: String?
+    @State private var showAllFacts = false
     @State private var showHowToRespond = false
 
     @Query(sort: \Event.date, order: .reverse) private var allEvents: [Event]
@@ -552,14 +553,15 @@ struct PersonProfileView: View {
     /// here required an approval screen at capture time; review happens
     /// when (and only when) the user wants to.
     private var memoryCard: some View {
-        FormSectionCard("Learned Automatically", icon: "sparkles") {
-            ForEach(person.visibleFacts.prefix(8), id: \.persistentModelID) { fact in
+        let facts = person.visibleFacts
+        let collapsedLimit = 8
+        let shown = showAllFacts ? facts : Array(facts.prefix(collapsedLimit))
+        return FormSectionCard("Learned Automatically", icon: "sparkles") {
+            ForEach(shown, id: \.persistentModelID) { fact in
                 MemoryFactRowView(fact: fact)
             }
-            if person.visibleFacts.count > 8 {
-                Text("+ \(person.visibleFacts.count - 8) more")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+            if facts.count > collapsedLimit {
+                ExpandMoreButton(hiddenCount: facts.count - collapsedLimit, expanded: $showAllFacts)
             }
         }
     }

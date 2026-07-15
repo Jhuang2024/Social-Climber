@@ -503,6 +503,19 @@ struct MemoryFactRowView: View {
     @Bindable var fact: MemoryFact
     var showsPerson = false
 
+    /// The value with a redundant leading type label stripped: the extractor
+    /// sometimes prefixes the value with its own category ("Important date:
+    /// July 7"), which just repeats the label already shown below the row.
+    private var displayValue: String {
+        let prefix = fact.type.label + ":"
+        let value = fact.value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.lowercased().hasPrefix(prefix.lowercased()) {
+            let stripped = value.dropFirst(prefix.count).trimmingCharacters(in: .whitespaces)
+            if !stripped.isEmpty { return stripped }
+        }
+        return value
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             NavigationLink {
@@ -515,7 +528,7 @@ struct MemoryFactRowView: View {
                         .frame(width: 26, height: 26)
                         .background(fact.type.color.opacity(0.12), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(fact.value)
+                        Text(displayValue)
                             .font(.subheadline)
                             .strikethrough(fact.status == .rejected)
                             .foregroundStyle(fact.status == .rejected ? .secondary : .primary)

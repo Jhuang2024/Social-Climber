@@ -195,6 +195,61 @@ final class MemoryFact {
     /// Facts that should surface in profiles, briefs, search, and AI context.
     var isVisible: Bool { status == .active || status == .suggested }
 
+    /// True for values automatic extraction produced that carry no real
+    /// signal: a bare generic word ("education", "life"), just the person's
+    /// own name, a "Name: …" fragment, or something too short to mean
+    /// anything. These are the "cooked" rows that pile up in Learned
+    /// Automatically, so every surface reading `visibleFacts` filters them
+    /// out and the capture pipeline skips creating them. A fact a person
+    /// has explicitly confirmed or edited is always kept, on the assumption
+    /// that a human vouched for it.
+    var isLowQuality: Bool {
+        guard !isUserTouched else { return false }
+        let names = [person?.name, person?.firstName, person?.nickname]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+        return MemoryFact.isLowQualityValue(value, type: type, ownerNames: names)
+    }
+
+    /// Value-level junk heuristic, usable before a `MemoryFact` exists so
+    /// the capture pipeline can skip storing noise in the first place.
+    static func isLowQualityValue(_ raw: String, type: MemoryFactType, ownerNames: [String]) -> Bool {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 3 else { return true }
+        let lower = trimmed.lowercased()
+
+        // Nothing but the person's own name.
+        if ownerNames.contains(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame }) {
+            return true
+        }
+
+        switch type {
+        case .interest, .dislike, .general:
+            // Single bare word from a grab-bag of category labels that say
+            // nothing specific about the person.
+            let generic: Set<String> = [
+                "education", "school", "work", "job", "career", "life",
+                "stuff", "things", "thing", "misc", "general", "other",
+                "hobby", "hobbies", "interest", "interests", "food", "music",
+                "sports", "sport", "people", "friend", "friends"
+            ]
+            if generic.contains(lower) { return true }
+            // A lone very short token isn't a fact worth surfacing.
+            if !trimmed.contains(" ") && trimmed.count < 4 { return true }
+            return false
+        case .reminderSuggestion, .commitment:
+            // "Tony 杨: follow up buddy" and similar: the extractor jammed a
+            // name label in front of a fragment. A real instruction never
+            // starts with the contact's own name and a colon.
+            for name in ownerNames where lower.hasPrefix(name.lowercased() + ":") {
+                return true
+            }
+            return false
+        default:
+            return false
+        }
+    }
+
     /// Marks this fact as edited by the user (value/date/attribution
     /// correction), distinct from a simple confirm/reject.
     func markUserEdited() {

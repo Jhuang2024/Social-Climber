@@ -371,6 +371,14 @@ final class CaptureProcessor {
             let owner = attributed.count == 1 ? attributed.first : nil
             let titleKey = title.lowercased()
 
+            // Skip "Name: fragment" style reminder noise, but only for
+            // unscheduled suggestions; a title paired with a real date is an
+            // explicit instruction and always kept.
+            if item.dueDate == nil {
+                let ownerNames = (owner.map { [$0.name, $0.firstName, $0.nickname] } ?? []).filter { !$0.isEmpty }
+                if MemoryFact.isLowQualityValue(title, type: .reminderSuggestion, ownerNames: ownerNames) { continue }
+            }
+
             if capture.source == .instagram {
                 // A contact mentioning a deadline in a DM is not the same
                 // thing as the user asking Social Climber to schedule a
@@ -525,6 +533,11 @@ final class CaptureProcessor {
             default: return false
             }
         }
+
+        // Don't persist extraction noise (bare generic words, a lone name,
+        // "Name: …" fragments). Keeps Learned Automatically meaningful.
+        let ownerNames = people.flatMap { [$0.name, $0.firstName, $0.nickname] }.filter { !$0.isEmpty }
+        guard !MemoryFact.isLowQualityValue(value, type: type, ownerNames: ownerNames) else { return }
 
         if people.isEmpty {
             guard !alreadyExists(person: nil) else { return }
