@@ -239,12 +239,28 @@ final class MemoryFact {
             return false
         case .reminderSuggestion, .commitment:
             // "Tony 杨: follow up buddy" and similar: the extractor jammed a
-            // name label in front of a fragment. A real instruction never
-            // starts with the contact's own name and a colon.
-            for name in ownerNames where lower.hasPrefix(name.lowercased() + ":") {
-                return true
+            // name label in front of a fragment. A real instruction is not a
+            // "who this is about:" tag, so a short label segment before an
+            // early colon that names the contact is junk. Matching on
+            // substring (not an exact prefix) catches values whose embedded
+            // name is longer than the person's stored first name.
+            if let colon = lower.firstIndex(of: ":") {
+                let head = String(lower[lower.startIndex..<colon])
+                if head.count <= 24 && ownerNames.contains(where: { head.contains($0.lowercased()) }) {
+                    return true
+                }
             }
             return false
+        case .importantDate:
+            // A bare month with no day ("May", "June") is too vague to be a
+            // real date; the extractor grabbed a month word out of chatter.
+            let months: Set<String> = [
+                "january", "february", "march", "april", "may", "june",
+                "july", "august", "september", "october", "november",
+                "december", "jan", "feb", "mar", "apr", "jun", "jul",
+                "aug", "sep", "sept", "oct", "nov", "dec"
+            ]
+            return months.contains(lower)
         default:
             return false
         }
