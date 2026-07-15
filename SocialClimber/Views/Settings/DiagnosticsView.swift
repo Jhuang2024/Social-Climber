@@ -84,6 +84,7 @@ struct DiagnosticsView: View {
 
             Section("Backups") {
                 LabeledContent("Latest Backup", value: latestBackupText)
+                LabeledContent("Most Complete", value: mostCompleteText)
                 LabeledContent("Backups Kept", value: "\(BackupManager.listBackups().count)")
                 LabeledContent("Backups Directory") {
                     Text(BackupManager.backupsDirectory.path)
@@ -120,6 +121,13 @@ struct DiagnosticsView: View {
     private var latestBackupText: String {
         guard let date = BackupManager.latestBackupTimestamp() else { return "none yet" }
         return date.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private var mostCompleteText: String {
+        guard let backup = BackupManager.mostCompleteBackup() else { return "none yet" }
+        let count = backup.recordCount ?? 0
+        let where_ = backup.location == .sharedContainer ? "shared container" : "on device"
+        return "\(count) record\(count == 1 ? "" : "s") (\(where_))"
     }
 }
 

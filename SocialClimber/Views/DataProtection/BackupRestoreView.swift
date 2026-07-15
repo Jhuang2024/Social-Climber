@@ -67,7 +67,7 @@ struct BackupRestoreView: View {
                 }
             }
             .onAppear {
-                backups = BackupManager.listBackups()
+                backups = BackupManager.allKnownBackups()
                 autoRestoreIfPossible()
             }
             .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.json]) { result in
@@ -132,13 +132,13 @@ struct BackupRestoreView: View {
     @ViewBuilder
     private var backupList: some View {
         if backups.isEmpty {
-            Text("No automatic backups are available on this device yet.")
+            Text("No backups are available yet.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal)
         } else {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Automatic Backups")
+                Text("Available Backups")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
@@ -152,11 +152,19 @@ struct BackupRestoreView: View {
                                 Text(backup.createdAt.formatted(date: .abbreviated, time: .shortened))
                                     .font(.body.weight(.medium))
                                     .foregroundStyle(.primary)
-                                Text(backup.reason.replacingOccurrences(of: "-", with: " ").capitalized)
+                                Text(subtitle(for: backup))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
+                            if isMostComplete(backup) {
+                                Text("Most complete")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(SCTheme.accent)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(SCTheme.accent.opacity(0.15), in: Capsule())
+                            }
                             Image(systemName: "arrow.counterclockwise.circle.fill")
                                 .foregroundStyle(SCTheme.accent)
                         }
@@ -171,17 +179,41 @@ struct BackupRestoreView: View {
         }
     }
 
-    /// Restores the newest automatic backup the instant this screen appears
-    /// in emergency mode, so a wipe never requires the user to notice this
+    /// Reason, record count, and reinstall-survival note for a backup row.
+    private func subtitle(for backup: BackupManager.BackupInfo) -> String {
+        var parts = [backup.reason.replacingOccurrences(of: "-", with: " ").capitalized]
+        if let count = backup.recordCount {
+            parts.append("\(count) record\(count == 1 ? "" : "s")")
+        }
+        if backup.location == .sharedContainer {
+            parts.append("survives reinstall")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// True for the entry (or entries) holding the most records, since
+    /// `allKnownBackups()` returns them most-complete first. That's the copy
+    /// worth restoring after a wipe, where the newest backup is often of the
+    /// nearly-empty post-wipe state.
+    private func isMostComplete(_ backup: BackupManager.BackupInfo) -> Bool {
+        guard let top = backups.first?.recordCount, backup.recordCount != nil else { return false }
+        return backup.recordCount == top
+    }
+
+    /// Restores the most complete backup the instant this screen appears in
+    /// emergency mode, so a wipe never requires the user to notice this
     /// screen and tap through it themselves; merge-only restore makes this
-    /// safe without confirmation. Never runs in `.voluntary` mode, where
-    /// picking a specific backup is the whole point of opening this screen.
-    /// The manual list stays visible underneath as a fallback for the rare
-    /// case nothing is available yet to auto-restore.
+    /// safe without confirmation. `backups.first` is the most complete copy
+    /// known (`allKnownBackups()` sorts that way), which after a reinstall is
+    /// an App Group mirror — the only kind that survives the sandbox being
+    /// replaced. Never runs in `.voluntary` mode, where picking a specific
+    /// backup is the whole point of opening this screen. The list stays
+    /// visible underneath as a fallback for the rare case nothing is
+    /// available yet to auto-restore.
     private func autoRestoreIfPossible() {
-        guard !hasAutoRestored, case .emergency = mode, let newest = backups.first else { return }
+        guard !hasAutoRestored, case .emergency = mode, let best = backups.first else { return }
         hasAutoRestored = true
-        restore(newest)
+        restore(best)
     }
 
     private func restore(_ backup: BackupManager.BackupInfo) {

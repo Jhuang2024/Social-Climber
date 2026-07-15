@@ -418,7 +418,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Data")
                 } footer: {
-                    Text("Social Climber automatically snapshots your data whenever anything changes, and whenever you leave the app, keeping the latest 5 backups on this device. \"Backup Now\" takes one on demand; \"Restore From Backup\" merges one back in without ever deleting or replacing what's already here.")
+                    Text("Social Climber automatically snapshots your data whenever anything changes, and whenever you leave the app, keeping the latest 5 on this device and mirroring each one to the shared App Group container so a copy survives app updates and reinstalls. \"Backup Now\" takes one on demand; \"Restore From Backup\" merges one back in without ever deleting or replacing what's already here.")
                 }
 
                 Section("Privacy") {
