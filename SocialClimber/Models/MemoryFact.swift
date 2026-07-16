@@ -223,6 +223,11 @@ final class MemoryFact {
             return true
         }
 
+        // An emoji means the extractor stored a chat line verbatim
+        // ("Pulling on git 😭") instead of stating a fact; no durable fact
+        // about a person needs an emoji.
+        if containsEmoji(trimmed) { return true }
+
         switch type {
         case .interest, .dislike, .general:
             // Single bare word from a grab-bag of category labels that say
@@ -236,6 +241,13 @@ final class MemoryFact {
             if generic.contains(lower) { return true }
             // A lone very short token isn't a fact worth surfacing.
             if !trimmed.contains(" ") && trimmed.count < 4 { return true }
+            // A quoted chat fragment, not a fact. A real fact about the
+            // contact reads third-person ("the IB program"), so first/
+            // second-person wording ("Selling my grades") means a message
+            // was copied as-is, and chat slang ("Ts game", "ong", "fr")
+            // is banter the extractor mistook for a topic.
+            let tokens = lower.split(whereSeparator: { !$0.isLetter }).map(String.init)
+            if tokens.contains(where: { Self.chatFragmentTokens.contains($0) }) { return true }
             return false
         case .reminderSuggestion, .commitment:
             // "Tony 杨: follow up buddy" and similar: the extractor jammed a
@@ -270,6 +282,32 @@ final class MemoryFact {
             return false
         default:
             return false
+        }
+    }
+
+    /// Words that give away a value lifted verbatim out of a chat rather
+    /// than a durable, third-person fact: first/second-person pronouns and
+    /// common message slang/filler. Applied to interest/dislike/general
+    /// values only; reminders and commitments legitimately carry
+    /// first-person phrasing from the user's own dictation.
+    private static let chatFragmentTokens: Set<String> = [
+        // First/second person: facts about a contact are written in the
+        // third person, so these mean a message was stored as-is.
+        "i", "im", "me", "my", "mine", "we", "our", "ours",
+        "u", "ur", "you", "your", "yours",
+        // Chat slang/filler that never names a real interest.
+        "ts", "ong", "fr", "frfr", "rn", "ngl", "istg", "tbh", "idk",
+        "idc", "lol", "lmao", "lmfao", "smh", "bruh", "wtf", "tf",
+        "af", "asf", "deadass", "lowkey", "highkey"
+    ]
+
+    /// True when the string contains any emoji-presentation character
+    /// (keycap digits, '#', '*' and similar text-default scalars don't
+    /// count).
+    private static func containsEmoji(_ value: String) -> Bool {
+        value.unicodeScalars.contains { scalar in
+            scalar.properties.isEmojiPresentation
+                || (scalar.properties.isEmoji && scalar.value >= 0x1F000)
         }
     }
 

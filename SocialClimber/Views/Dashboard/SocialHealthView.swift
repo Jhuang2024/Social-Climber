@@ -54,9 +54,11 @@ struct SocialHealthView: View {
         .socialClimberPageBackground()
         .navigationTitle("Social Health")
         .navigationBarTitleDisplayMode(.large)
-        // Person NavigationLinks here resolve through the Dashboard
-        // NavigationStack's existing `.navigationDestination(for: Person.self)`;
-        // registering it again on this pushed screen would conflict.
+        // Person rows here push their destination directly. Registering
+        // `.navigationDestination(for: Person.self)` again on this pushed
+        // screen would conflict with the Dashboard root's, and value links
+        // resolved from a pushed screen have proven unreliable (see
+        // DashboardPeopleListView).
         .onAppear {
             rebuildHealthData()
         }
@@ -309,7 +311,9 @@ struct SocialHealthView: View {
         FormSectionCard("Pulling the Score Down", icon: "thermometer.low") {
             VStack(spacing: 10) {
                 ForEach(coolingPeople.prefix(6)) { person in
-                    NavigationLink(value: person) {
+                    NavigationLink {
+                        PersonProfileView(person: person)
+                    } label: {
                         HStack {
                             PersonAvatarView(person: person, size: 32)
                             VStack(alignment: .leading, spacing: 1) {

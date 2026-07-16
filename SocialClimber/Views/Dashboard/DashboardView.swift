@@ -730,7 +730,14 @@ private struct DashboardPeopleListView: View {
     var body: some View {
         List {
             ForEach(people, id: \.persistentModelID) { person in
-                NavigationLink(value: person) {
+                // Direct destination, not `NavigationLink(value:)`: value
+                // links on this screen (itself pushed with a view-builder
+                // link) don't reliably resolve the Person destination
+                // registered at the Dashboard root, and tapping a row
+                // landed back on this list instead of the profile.
+                NavigationLink {
+                    PersonProfileView(person: person)
+                } label: {
                     PersonRowView(person: person)
                 }
                 .listRowSeparator(.hidden)

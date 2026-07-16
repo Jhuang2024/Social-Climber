@@ -1,5 +1,11 @@
 # Patch Notes
 
+## Unreleased — People widget navigation and Learned Automatically junk
+
+- Fixed the dashboard People card's list: tapping a person there landed back on the same list instead of opening their profile. Rows now push the profile directly (same for the Social Health "Pulling the Score Down" rows, which used the identical fragile pattern).
+- Learned Automatically no longer surfaces chat banter dressed up as facts: values containing emoji, first/second-person wording ("Selling my grades"), or message slang ("Ts game", "ong", "fr") are treated as quoted chat fragments and filtered. The filter is applied live, so existing junk rows disappear without touching user-confirmed facts.
+- The AI extraction prompt now demands durable, third-person facts, tells the model that one-off banter and jokes are not interests, caps personality notes, and forbids "how they text" observations — so real-AI extractions stop producing the junk the heuristic path was already blocked from producing.
+
 ## Unreleased — Rolling voice segments, Mandarin, and speaker attribution
 
 Live voice recording now works in 30-second slices so long conversations are

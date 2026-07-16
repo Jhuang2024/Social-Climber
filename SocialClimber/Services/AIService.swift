@@ -716,6 +716,8 @@ final class BazaarLinkAIService: AIService {
     Rules:
     - Extract only facts actually stated or strongly implied by the input. Never invent facts, names, or dates.
     - The narrator is the app's user ("I"/"me"). Everyone else mentioned is a contact. Facts, interests, and dislikes belong to the CONTACT they are about, never to the user. If the user describes their own interests or plans, do not report them as the contact's.
+    - Interests, dislikes, and facts must be durable things genuinely true of the contact, phrased as short, neutral, third-person noun phrases ("climbing", "the IB program"), never verbatim quotes, jokes, sarcasm, memes, or slang lifted from the input. Something mentioned once in passing or as a joke is not an interest. When unsure, omit the item; empty arrays are always acceptable and better than noise.
+    - When the input is a chat transcript ("Name: message" lines, an imported or screenshotted conversation), be extra conservative: casual banter is noise, not facts. Do not report how someone texts (tone, slang, emoji use, message length) as a personality note. "personalityNotes" are only for stable traits demonstrated by what the contact actually does or clearly states about themselves, and at most one or two per input.
     - Distinguish explicit commands ("remind me Friday", "follow up next week about X") from merely implied follow-ups; explicit ones go in "reminders", implied ones in "impliedFollowUps".
     - Resolve relative dates ("Friday", "tomorrow", "next Tuesday", "in two weeks") against the capture date and timezone provided. Use ISO-8601. If a date cannot be resolved with certainty, use null; never guess or invent a year, month, or day.
     - Do not duplicate the same fact across multiple categories.
@@ -763,8 +765,8 @@ final class BazaarLinkAIService: AIService {
           "summary": "short useful summary",
           "peopleMentioned": ["every person named in the memory, matching known names when possible, otherwise as written"],
           "topics": ["topic labels"],
-          "interests": ["the contact's interests"],
-          "dislikes": ["the contact's dislikes"],
+          "interests": ["durable interests the contact genuinely cares about, as neutral third-person noun phrases; never quoted banter, jokes, or slang"],
+          "dislikes": ["the contact's genuine, durable dislikes, phrased the same way"],
           "schoolOrWorkFacts": ["school/work facts about the contact, e.g. 'Applying to Stripe'"],
           "locationFacts": ["location facts about the contact, e.g. 'Moving to New York in September'"],
           "familyFacts": ["family or relationship facts about the contact"],
@@ -773,7 +775,7 @@ final class BazaarLinkAIService: AIService {
           "reminders": [{"title": "Send the intro", "dueDate": "resolved ISO-8601 date or null if unresolvable", "personNames": ["exactly who this reminder is about"]}],
           "impliedFollowUps": ["possible follow-ups that were implied but never explicitly requested"],
           "followUpQuestions": ["questions to ask next time"],
-          "personalityNotes": ["stable personality/communication notes about the contact"],
+          "personalityNotes": ["at most one or two stable personality traits clearly demonstrated by the contact; never how they text or message"],
           "attributedFacts": [{"factType": "one of interest|dislike|schoolOrWork|location|family|personality|giftIdea", "value": "the fact, matching one of the arrays above", "personNames": ["exactly who this specific fact is about; empty if unclear"]}],
           "conversation": [{"speaker": "a listed participant's name, or Me, or Unknown", "text": "what that speaker said, in order"}],
           "inferredInteractionType": "one of inPerson|call|message|videoCall|event|email, or null if unstated",
