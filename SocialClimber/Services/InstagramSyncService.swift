@@ -102,7 +102,15 @@ final class InstagramSyncService {
     func sync(people: [Person], context: ModelContext) async throws -> SyncResult {
         guard !isSyncing else { throw GoogleDriveError.requestFailed }
         isSyncing = true
-        defer { isSyncing = false; progressText = "" }
+        // The download/unzip/parse run dies if the screen auto-locks
+        // (iOS suspends the process), so hold the device awake until the
+        // defer below runs — success or failure.
+        KeepAwake.begin("instagram-sync")
+        defer {
+            isSyncing = false
+            progressText = ""
+            KeepAwake.end()
+        }
 
         // One-time, idempotent migration for data produced by the original
         // importer, which flattened every AI suggestion directly into the

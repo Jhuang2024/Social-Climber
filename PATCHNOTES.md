@@ -1,5 +1,10 @@
 # Patch Notes
 
+## Unreleased — Instagram sync no longer dies when the screen locks
+
+- The device is now held awake (idle timer disabled) for the whole Instagram sync — Drive download, unzip, and parsing — and again while the review sheet applies conversations through AI extraction, so the phone no longer auto-locks and suspends the job midway.
+- Both phases also hold a background-task assertion: an explicit lock or quick app switch now gets iOS's ~30-second grace period to finish or reach a resumable point instead of stopping instantly. Syncs remain safe to re-run either way, since per-conversation cutoffs only advance on apply.
+
 ## Unreleased — Instagram sync moved out of Settings
 
 Syncing is a daily action, not configuration, so the "Sync Now" button left

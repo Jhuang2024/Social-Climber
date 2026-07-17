@@ -263,6 +263,10 @@ struct InstagramSyncReviewView: View {
     private func applyAll() {
         isApplying = true
         Task {
+            // Applying runs AI extraction per conversation, easily long
+            // enough for the screen to auto-lock and suspend us mid-way.
+            KeepAwake.begin("instagram-apply")
+            defer { KeepAwake.end() }
             let included = decisions.filter { $0.include && ($0.person != nil || $0.createNew) }
             for (index, decision) in included.enumerated() {
                 applyProgress = "Applying \(index + 1) of \(included.count)…"
