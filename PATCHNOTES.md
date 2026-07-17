@@ -1,5 +1,14 @@
 # Patch Notes
 
+## Unreleased — Instagram sync moved out of Settings
+
+Syncing is a daily action, not configuration, so the "Sync Now" button left
+Settings and now lives where the day starts.
+
+- The Home dashboard shows an Instagram Sync card whenever Google Drive is connected: last-synced time, live progress while syncing, and the same review sheet afterwards. It also appears on an empty dashboard, since a first sync can create your first people.
+- Social Health's Instagram card gained the same Sync Now action, so the page that shows follower changes can also refresh them, instead of sending you to Settings.
+- Settings keeps only the one-time plumbing: connect/disconnect Google Drive, the export folder name, the daily reminder toggle, and the setup guide. Its copy (and the 10 AM reminder notification) now point at the Home screen.
+
 ## Unreleased — People widget navigation and Learned Automatically junk
 
 - Fixed the dashboard People card's list: tapping a person there landed back on the same list instead of opening their profile. Rows now push the profile directly (same for the Social Health "Pulling the Score Down" rows, which used the identical fragile pattern).

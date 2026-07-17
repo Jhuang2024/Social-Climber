@@ -15,6 +15,8 @@ struct DashboardView: View {
 
     @AppStorage("locationEnabled") private var locationEnabled = false
 
+    private var googleDrive: GoogleDriveService { GoogleDriveService.shared }
+
     @State private var showAddPerson = false
     @State private var showAddInteraction = false
     @State private var showImport = false
@@ -147,11 +149,17 @@ struct DashboardView: View {
                     captureHero
                     if people.isEmpty {
                         emptyDashboard
+                        // Still reachable with zero people: syncing is how
+                        // Instagram conversations create the first ones.
+                        if googleDrive.isConnected { InstagramSyncControl(style: .card) }
                     } else {
                         if !capturesNeedingContext.isEmpty { needsContextCard }
                         if !failedCaptures.isEmpty { failedCapturesCard }
                         statsStrip
                         socialHealthLink
+                        // The daily chore the 10 AM reminder points at, one
+                        // tap from launch instead of buried in Settings.
+                        if googleDrive.isConnected { InstagramSyncControl(style: .card) }
                         if let readiness { readinessCard(readiness) }
                         secondaryActions
                         if !recentCaptures.isEmpty { recentCapturesCard }

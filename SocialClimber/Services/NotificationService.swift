@@ -614,7 +614,7 @@ final class NotificationService {
 
         let content = UNMutableNotificationContent()
         content.title = "📸 Instagram sync"
-        content.body = "Pull the latest export from Google Drive to refresh people, messages, and follower activity."
+        content.body = "Tap Sync on the Home screen to pull the latest export from Google Drive and refresh people, messages, and follower activity."
         content.sound = .default
 
         var comps = DateComponents()

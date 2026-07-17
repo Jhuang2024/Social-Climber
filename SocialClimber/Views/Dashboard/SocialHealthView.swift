@@ -244,6 +244,9 @@ struct SocialHealthView: View {
 
     private var instagramCard: some View {
         FormSectionCard("Instagram", icon: "camera.fill") {
+            if googleDrive.isConnected {
+                InstagramSyncControl(style: .inline)
+            }
             if let snapshot = latestFollowerSnapshot {
                 HStack {
                     Label(googleDrive.isConnected ? "Drive connected" : "Last saved snapshot", systemImage: googleDrive.isConnected ? "checkmark.circle.fill" : "externaldrive")
@@ -261,10 +264,7 @@ struct SocialHealthView: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             } else {
-                Label("Google Drive is connected", systemImage: "checkmark.circle.fill")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(SCTheme.Accents.growth)
-                Text("Run Instagram Sync in Settings once to save the first follower/following baseline. The first list is a baseline—not followers gained that day.")
+                Text("Sync once to save the first follower/following baseline. The first list is a baseline—not followers gained that day.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -336,7 +336,7 @@ struct SocialHealthView: View {
 
     private var instagramHint: some View {
         FormSectionCard("Instagram", icon: "camera.fill") {
-            Text("Connect Google Drive in Settings and run Instagram Sync once. From the second snapshot onward, Social Health records exactly who followed or unfollowed you and who you followed or unfollowed.")
+            Text("Connect Google Drive in Settings, then sync from here or the Home screen. From the second snapshot onward, Social Health records exactly who followed or unfollowed you and who you followed or unfollowed.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

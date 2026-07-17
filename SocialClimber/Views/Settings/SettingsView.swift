@@ -34,7 +34,6 @@ struct SettingsView: View {
     @State private var connectionTestResult: String?
     @State private var isConnectingGoogleCalendar = false
     @State private var isConnectingGoogleDrive = false
-    @State private var instagramSyncResult: InstagramSyncResultBox?
     @State private var notificationsAuthDenied = false
     @State private var message: String?
 
@@ -43,7 +42,6 @@ struct SettingsView: View {
 
     private var googleCalendar: GoogleCalendarService { GoogleCalendarService.shared }
     private var googleDrive: GoogleDriveService { GoogleDriveService.shared }
-    private var instagramSync: InstagramSyncService { InstagramSyncService.shared }
 
     var body: some View {
         NavigationStack {
@@ -220,30 +218,6 @@ struct SettingsView: View {
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .submitLabel(.done)
-                        Button {
-                            runInstagramSync()
-                        } label: {
-                            if instagramSync.isSyncing {
-                                HStack(spacing: 8) {
-                                    ProgressView()
-                                    Text(instagramSync.progressText)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            } else {
-                                HStack {
-                                    Label("Sync Now", systemImage: "arrow.triangle.2.circlepath")
-                                        .fontWeight(.medium)
-                                    Spacer()
-                                    if let lastSync = instagramSync.lastSyncAt {
-                                        Text(lastSync.relativeLabel)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                            }
-                        }
-                        .disabled(instagramSync.isSyncing)
                         Toggle("Daily sync reminder (10 AM)", isOn: $instagramReminderEnabled)
                             .tint(.green)
                             .onChange(of: instagramReminderEnabled) {
@@ -274,7 +248,7 @@ struct SettingsView: View {
                         }
                         .tint(.red)
                     }
-                    Text("Pulls Instagram's daily \"Download your information\" export from Drive: new DMs become reviewable interactions, and follower changes are tracked on the Social Health page. Read-only; parsed on-device, raw files deleted immediately.")
+                    Text("Connection setup only: day-to-day syncing lives on the Home screen and the Social Health page. Each sync pulls Instagram's daily \"Download your information\" export from Drive: new DMs become reviewable interactions, and follower changes are tracked on Social Health. Read-only; parsed on-device, raw files deleted immediately.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     DisclosureGroup {
@@ -282,7 +256,7 @@ struct SettingsView: View {
                             Text("1. In Meta Accounts Center, choose \"Download your information\", select Instagram, choose JSON format, and choose Google Drive. Pick \"Some of your information\" with messages plus followers and following. Monthly ranges work as dated activity feeds; only an All time range provides a complete list that can reveal who unfollowed you by comparing snapshots.")
                             Text("2. Use the same OAuth Client ID as Google Calendar, with the Google Drive API also enabled on that Cloud project.")
                             Text("3. Enter the Meta export folder name, such as meta-2026-Jul-13-17-11-01. The app supports both expanded folder trees and zip exports. Leave it blank to find the newest matching export automatically.")
-                            Text("4. iOS can't run this on a schedule in the background, so turn on the daily reminder and sync when you open the app.")
+                            Text("4. iOS can't run this on a schedule in the background, so turn on the daily reminder and tap Sync on the Home screen when you open the app.")
                         }
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -446,9 +420,6 @@ struct SettingsView: View {
             .sheet(isPresented: $showBackupRestore) {
                 BackupRestoreView(mode: .voluntary)
             }
-            .sheet(item: $instagramSyncResult) { box in
-                InstagramSyncReviewView(result: box.result)
-            }
             .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json]) { result in
                 switch result {
                 case .success(let url):
@@ -518,18 +489,6 @@ struct SettingsView: View {
                 message = error.localizedDescription
             }
             isConnectingGoogleDrive = false
-        }
-    }
-
-    private func runInstagramSync() {
-        Task {
-            do {
-                let result = try await instagramSync.sync(people: people, context: context)
-                Haptics.success()
-                instagramSyncResult = InstagramSyncResultBox(result: result)
-            } catch {
-                message = error.localizedDescription
-            }
         }
     }
 
@@ -642,12 +601,6 @@ struct SettingsView: View {
         hasOpenRouterAPIKey = KeychainService.hasOpenRouterAPIKey()
         hasBazaarLinkAPIKey = KeychainService.hasBazaarLinkAPIKey()
     }
-}
-
-/// Wraps a sync result so it can drive a `.sheet(item:)`.
-struct InstagramSyncResultBox: Identifiable {
-    let id = UUID()
-    let result: InstagramSyncService.SyncResult
 }
 
 struct ShareURL: Identifiable {
