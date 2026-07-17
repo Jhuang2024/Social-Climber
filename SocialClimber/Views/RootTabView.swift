@@ -100,6 +100,15 @@ struct RootTabView: View {
             await processPendingCaptures()
         }
         .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .background {
+                // Rewrite the cross-app snapshot and Brief feed as the app
+                // leaves the foreground, so tomorrow's brief reflects this
+                // session's edits even if the dashboard (the only other
+                // publish site) is never revisited today. Both calls are
+                // gated on the sharing toggle and fail-silent.
+                CrossAppIntegrationManager.publish(reminders: reminders, events: events)
+                CrossAppIntegrationManager.publishBriefFeed(context: context)
+            }
             guard newPhase == .active else { return }
             // Shared payloads become durable capture records and process
             // silently; never a modal, never "finish logging this".
