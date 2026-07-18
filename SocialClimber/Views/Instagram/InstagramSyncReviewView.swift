@@ -24,7 +24,8 @@ struct InstagramSyncReviewView: View {
 
     @State private var decisions: [ThreadDecision] = []
     @State private var isApplying = false
-    @State private var applyProgress = ""
+    @State private var applyCompleted = 0
+    @State private var applyTotal = 0
     @State private var didLoad = false
 
     var body: some View {
@@ -77,12 +78,20 @@ struct InstagramSyncReviewView: View {
             .interactiveDismissDisabled(isApplying)
             .overlay {
                 if isApplying {
-                    VStack(spacing: 12) {
-                        ProgressView()
-                            .controlSize(.large)
-                        Text(applyProgress)
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
+                    VStack(spacing: 14) {
+                        Text("Applying conversations")
+                            .font(.subheadline.weight(.semibold))
+                        if applyTotal > 0 {
+                            SyncProgressBar(
+                                fraction: Double(applyCompleted) / Double(applyTotal),
+                                countText: "\(applyCompleted) of \(applyTotal)"
+                            )
+                            .frame(width: 200)
+                            .animation(.easeInOut(duration: 0.25), value: applyCompleted)
+                        } else {
+                            ProgressView()
+                                .controlSize(.large)
+                        }
                     }
                     .padding(24)
                     .scCard()
@@ -268,8 +277,9 @@ struct InstagramSyncReviewView: View {
             KeepAwake.begin("instagram-apply")
             defer { KeepAwake.end() }
             let included = decisions.filter { $0.include && ($0.person != nil || $0.createNew) }
-            for (index, decision) in included.enumerated() {
-                applyProgress = "Applying \(index + 1) of \(included.count)…"
+            applyTotal = included.count
+            applyCompleted = 0
+            for decision in included {
                 let person: Person
                 if let existing = decision.person {
                     person = existing
@@ -282,6 +292,7 @@ struct InstagramSyncReviewView: View {
                     to: person,
                     context: context
                 )
+                applyCompleted += 1
             }
             InstagramSyncService.shared.commitAppliedCutoffs(for: included.map { $0.candidate })
             try? context.save()

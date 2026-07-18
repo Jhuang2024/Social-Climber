@@ -1,5 +1,16 @@
 # Patch Notes
 
+## Unreleased — Instagram sync shows a real progress bar
+
+The slow parts of a Drive import used to report progress only as text
+("Downloading 5 of 42"). Each measurable phase now draws a determinate
+progress bar with a live "X of Y" countdown so it's obvious how far along a
+sync is, and the bar fills all the way before advancing to the next phase.
+
+- The Instagram Sync card and the Social Health inline action show a filling bar and countdown for downloading and for reading the export; the indeterminate spinner is kept only for the brief unmeasurable steps (locating the export, comparing followers, collecting messages).
+- Parsing the export now reports per-file progress: the archive's relevant entries and any loose JSON files are counted up front, so "Reading export" fills as each file is ingested instead of sitting on one static line.
+- The review sheet's Apply step shows the same bar and "X of Y" countdown as it works through each selected conversation.
+
 ## Unreleased — Instagram sync no longer dies when the screen locks
 
 - The device is now held awake (idle timer disabled) for the whole Instagram sync — Drive download, unzip, and parsing — and again while the review sheet applies conversations through AI extraction, so the phone no longer auto-locks and suspends the job midway.

@@ -32,8 +32,45 @@ final class InstagramSyncService {
 
     private(set) var isSyncing = false
     private(set) var progressText = ""
+    /// Structured version of `progressText` so the UI can draw a real
+    /// determinate progress bar and "5 of 42" countdown instead of just a
+    /// status string. `total == 0` marks a phase whose length isn't known
+    /// yet (looking for the export, comparing followers), which the UI shows
+    /// as an indeterminate spinner.
+    private(set) var progress = SyncProgress()
+
+    /// A named phase constant, kept in one place so the parse phase's
+    /// cross-actor progress callback can tell whether a late update still
+    /// belongs to the phase that's currently on screen.
+    private enum Phase {
+        static let locating = "Looking for the latest export in Drive"
+        static let downloading = "Downloading export"
+        static let reading = "Reading export"
+        static let comparing = "Comparing followers"
+        static let collecting = "Collecting new messages"
+    }
+
+    struct SyncProgress: Equatable {
+        var label = ""
+        var completed = 0
+        var total = 0
+
+        /// True once the phase knows how many items it will process, so the
+        /// UI can switch from a spinner to a filling bar.
+        var isDeterminate: Bool { total > 0 }
+        var fraction: Double { total > 0 ? min(1, max(0, Double(completed) / Double(total))) : 0 }
+        /// "5 of 42" while determinate, empty otherwise.
+        var countText: String { total > 0 ? "\(completed) of \(total)" : "" }
+    }
 
     private init() {}
+
+    /// Publishes a phase to both the legacy status string and the structured
+    /// `progress`. Pass a non-zero `total` for phases that can be measured.
+    private func setPhase(_ label: String, completed: Int = 0, total: Int = 0) {
+        progress = SyncProgress(label: label, completed: completed, total: total)
+        progressText = label.isEmpty ? "" : "\(label)…"
+    }
 
     /// The last time a sync ran at all, applied or not, shown in Settings.
     var lastSyncAt: Date? {
@@ -108,7 +145,7 @@ final class InstagramSyncService {
         KeepAwake.begin("instagram-sync")
         defer {
             isSyncing = false
-            progressText = ""
+            setPhase("")
             KeepAwake.end()
         }
 
@@ -117,7 +154,7 @@ final class InstagramSyncService {
         // profile and could repeat the same thread before its cutoff saved.
         repairLegacyImportArtifacts(people: people, context: context)
 
-        progressText = "Looking for the latest export in Drive…"
+        setPhase(Phase.locating)
         let folderName = UserDefaults.standard.string(forKey: Self.folderDefaultsKey) ?? ""
         let source = try await GoogleDriveService.shared.latestInstagramExport(folderName: folderName)
         guard !source.isEmpty else { throw GoogleDriveError.noExportFound }
@@ -130,7 +167,7 @@ final class InstagramSyncService {
         var downloadedCount = 0
         for file in source.archives {
             downloadedCount += 1
-            progressText = "Downloading export (\(downloadedCount) of \(totalFiles))…"
+            setPhase(Phase.downloading, completed: downloadedCount, total: totalFiles)
             let url = try await GoogleDriveService.shared.downloadToTemporaryFile(
                 fileID: file.id,
                 filename: file.name
@@ -140,7 +177,7 @@ final class InstagramSyncService {
         }
         for file in source.looseFiles {
             downloadedCount += 1
-            progressText = "Downloading export data (\(downloadedCount) of \(totalFiles))…"
+            setPhase(Phase.downloading, completed: downloadedCount, total: totalFiles)
             let url = try await GoogleDriveService.shared.downloadToTemporaryFile(
                 fileID: file.id,
                 filename: file.name
@@ -151,31 +188,59 @@ final class InstagramSyncService {
 
         // Unzipping and JSON parsing are CPU-bound; keep them off the main
         // actor so the UI stays responsive during a big export.
-        progressText = "Reading export…"
+        setPhase(Phase.reading)
         let archiveURLs = archives
         let expandedFiles = looseFiles
+        // The parse runs on a detached task, so it reports progress back
+        // through this closure. The label guard drops any update that lands
+        // after the sync has already moved on to the follower/message phases
+        // (a Task enqueued mid-parse can run a beat late), so the bar never
+        // jumps backwards onto a stale "Reading export" count.
+        let reportReading: @Sendable (Int, Int) -> Void = { [weak self] done, total in
+            Task { @MainActor in
+                guard let self, self.progress.label == Phase.reading else { return }
+                self.setPhase(Phase.reading, completed: done, total: total)
+            }
+        }
         let export = try await Task.detached(priority: .userInitiated) {
             var export = InstagramExportParser.Export()
+            // Open every archive up front and collect just the relevant
+            // entries, so the total file count (the bar's denominator) is
+            // known before parsing begins.
+            var openArchives: [(reader: ZipArchiveReader, entries: [ZipArchiveReader.Entry])] = []
+            defer { for archive in openArchives { archive.reader.close() } }
             for url in archiveURLs {
                 let reader = try ZipArchiveReader(url: url)
-                defer { reader.close() }
-                for entry in reader.entries where InstagramExportParser.isRelevantEntry(entry.name) {
-                    guard let data = try? reader.data(for: entry) else { continue }
-                    InstagramExportParser.ingest(path: entry.name, data: data, into: &export)
+                let relevant = reader.entries.filter { InstagramExportParser.isRelevantEntry($0.name) }
+                openArchives.append((reader, relevant))
+            }
+            let total = openArchives.reduce(0) { $0 + $1.entries.count } + expandedFiles.count
+            var processed = 0
+            reportReading(processed, total)
+            for archive in openArchives {
+                for entry in archive.entries {
+                    if let data = try? archive.reader.data(for: entry) {
+                        InstagramExportParser.ingest(path: entry.name, data: data, into: &export)
+                    }
+                    processed += 1
+                    reportReading(processed, total)
                 }
             }
             for file in expandedFiles {
-                guard let data = try? Data(contentsOf: file.url) else { continue }
-                InstagramExportParser.ingest(path: file.path, data: data, into: &export)
+                if let data = try? Data(contentsOf: file.url) {
+                    InstagramExportParser.ingest(path: file.path, data: data, into: &export)
+                }
+                processed += 1
+                reportReading(processed, total)
             }
             return export
         }.value
 
-        progressText = "Comparing followers…"
+        setPhase(Phase.comparing)
         var result = SyncResult()
         applyFollowerDiff(export: export, into: &result, context: context)
 
-        progressText = "Collecting new messages…"
+        setPhase(Phase.collecting)
         buildThreadCandidates(export: export, people: people, into: &result)
 
         UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: Self.lastSyncRunDefaultsKey)

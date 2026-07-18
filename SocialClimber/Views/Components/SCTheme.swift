@@ -295,3 +295,27 @@ struct DotsRow: View {
         .accessibilityLabel("\(value) out of \(total)")
     }
 }
+
+/// A thin determinate progress bar with a "5 of 42" monospaced countdown,
+/// used by the Instagram sync flow so downloads, parsing, and applies show
+/// real progress instead of an indeterminate spinner.
+struct SyncProgressBar: View {
+    let fraction: Double
+    let countText: String
+    var tint: Color = SCTheme.accent
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ProgressView(value: fraction)
+                .tint(tint)
+            if !countText.isEmpty {
+                Text(countText)
+                    .font(.caption2.weight(.medium).monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .contentTransition(.numericText())
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(countText.isEmpty ? "In progress" : "\(countText) complete")
+    }
+}

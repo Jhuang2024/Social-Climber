@@ -59,6 +59,24 @@ struct InstagramSyncControl: View {
         return "Pull today's Meta export from Drive"
     }
 
+    /// The determinate bar + countdown for the phase currently running.
+    /// Only shown once the phase knows its length; phases that can't be
+    /// measured keep the spinner instead.
+    @ViewBuilder
+    private var progressBar: some View {
+        let progress = instagramSync.progress
+        if instagramSync.isSyncing, progress.isDeterminate {
+            SyncProgressBar(
+                fraction: progress.fraction,
+                countText: progress.countText,
+                tint: SCTheme.Accents.warm
+            )
+            .padding(.top, 4)
+            .transition(.opacity)
+            .animation(.easeInOut(duration: 0.25), value: progress)
+        }
+    }
+
     private var cardLabel: some View {
         HStack(spacing: 14) {
             Image(systemName: "camera.fill")
@@ -75,10 +93,15 @@ struct InstagramSyncControl: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .contentTransition(.opacity)
+                progressBar
             }
             Spacer()
+            // The determinate bar carries the "syncing" signal itself, so the
+            // trailing spinner only shows for phases that can't be measured.
             if instagramSync.isSyncing {
-                ProgressView()
+                if !instagramSync.progress.isDeterminate {
+                    ProgressView()
+                }
             } else {
                 Label("Sync", systemImage: "arrow.triangle.2.circlepath")
                     .font(.caption.weight(.semibold))
@@ -92,23 +115,32 @@ struct InstagramSyncControl: View {
     }
 
     private var inlineLabel: some View {
-        HStack(spacing: 8) {
+        Group {
             if instagramSync.isSyncing {
-                ProgressView()
-                    .controlSize(.small)
-                Text(statusText)
-                    .font(.caption)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        if !instagramSync.progress.isDeterminate {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        Text(statusText)
+                            .font(.caption)
+                            .lineLimit(1)
+                    }
+                    progressBar
+                }
             } else {
-                Image(systemName: "arrow.triangle.2.circlepath")
-                    .font(.subheadline.weight(.semibold))
-                Text("Sync Now")
-                    .font(.subheadline.weight(.semibold))
-                Spacer(minLength: 0)
-                if let lastSync = instagramSync.lastSyncAt {
-                    Text(lastSync.relativeLabel)
-                        .font(.caption)
-                        .opacity(0.7)
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Sync Now")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer(minLength: 0)
+                    if let lastSync = instagramSync.lastSyncAt {
+                        Text(lastSync.relativeLabel)
+                            .font(.caption)
+                            .opacity(0.7)
+                    }
                 }
             }
         }
