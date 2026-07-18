@@ -274,9 +274,18 @@ final class InstagramSyncService {
         let followerDataIsPartial = Self.isDateLimited(records: export.followerLists.followerRecords)
         let followingDataIsPartial = Self.isDateLimited(records: export.followerLists.followingRecords)
         result.followerDataIsDateLimited = followerDataIsPartial || followingDataIsPartial
+        result.followerFileCount = export.followerLists.followerFiles.count
+        result.followingFileCount = export.followerLists.followingFiles.count
         let existingEvents = (try? context.fetch(FetchDescriptor<FollowerEvent>())) ?? []
         var insertedEventKeys = Set<String>()
 
+        // Records a person-level history event, de-duplicated against events an
+        // earlier sync already wrote (a monthly export re-lists the same
+        // accounts). Returns false when it was a duplicate, so history is never
+        // double-written — but note this gates the *event*, not what the review
+        // summary surfaces: re-syncing the same export must still show the same
+        // gains rather than collapsing to "nothing new".
+        @discardableResult
         func insertRecord(_ relationship: InstagramExportParser.RelationshipRecord, kind: FollowerEventKind) -> Bool {
             let date = relationship.date ?? .now
             let key = "\(kind.rawValue)|\(relationship.username)|\(Int(date.timeIntervalSince1970))"
@@ -289,8 +298,30 @@ final class InstagramSyncService {
             context.insert(FollowerEvent(username: relationship.username, kind: kind, date: date))
             return true
         }
-        result.followerFileCount = export.followerLists.followerFiles.count
-        result.followingFileCount = export.followerLists.followingFiles.count
+
+        // Precise follow dates from the dated records, used to date the
+        // person-level history events; a partial export may list an account
+        // without a timestamp, in which case the gain still counts but the
+        // event falls back to now.
+        func dateIndex(_ records: [InstagramExportParser.RelationshipRecord]) -> [String: Date] {
+            var index: [String: Date] = [:]
+            for record in records {
+                if let date = record.date, index[record.username] == nil {
+                    index[record.username] = date
+                }
+            }
+            return index
+        }
+        let followerDates = dateIndex(export.followerLists.followerRecords)
+        let followingDates = dateIndex(export.followerLists.followingRecords)
+
+        // The accumulated set of accounts we've already seen on each side. For
+        // partial exports this is a *union* across syncs (see the snapshot
+        // storage below), so a new follower is anyone in this export who has
+        // never appeared before — independent of whether Meta happened to stamp
+        // this month's file with their follow date.
+        let knownFollowers = Set(last?.followerUsernames ?? [])
+        let knownFollowing = Set(last?.followingUsernames ?? [])
         let followerBaselineReplacement = last.map {
             Self.isLikelyBaselineReplacement(previous: $0.followerUsernames.count, current: followers.count)
         } ?? false
@@ -298,50 +329,51 @@ final class InstagramSyncService {
             Self.isLikelyBaselineReplacement(previous: $0.followingUsernames.count, current: following.count)
         } ?? false
         result.establishedFollowerBaseline = last == nil
-            || (!followers.isEmpty && (last?.followerUsernames.isEmpty ?? true))
-            || (!following.isEmpty && (last?.followingUsernames.isEmpty ?? true))
+            || (!followers.isEmpty && knownFollowers.isEmpty)
+            || (!following.isEmpty && knownFollowing.isEmpty)
             || followerBaselineReplacement
             || followingBaselineReplacement
 
-        // Each side is diffed only when this export actually contains it:
-        // a messages-only export (or one corrupt part-zip) must never be
-        // read as "everyone unfollowed you". A missing side carries the
-        // previous snapshot's values forward so the baseline stays honest.
-        if followerDataIsPartial {
-            let records = export.followerLists.followerRecords.sorted { ($0.date ?? .distantPast) < ($1.date ?? .distantPast) }
-            for relationship in records where insertRecord(relationship, kind: .gainedFollower) {
-                result.newFollowers.append(relationship.username)
-            }
-        } else if !followers.isEmpty, let last, !last.followerUsernames.isEmpty,
-           !last.followerListIsPartial,
-           !followerBaselineReplacement {
-            let lastFollowers = Set(last.followerUsernames)
-            let gained = followers.subtracting(lastFollowers).sorted()
-            let lost = lastFollowers.subtracting(followers).sorted()
+        // Additions are the reliable signal for *both* full and partial exports:
+        // an account present now that was never seen before is a genuine new
+        // follower. Removals are only trustworthy from a complete snapshot — a
+        // partial export omitting a username is not an unfollow — so the "lost"
+        // side is computed only when this export and the baseline are both full.
+        // Each side is diffed only when this export actually contains it, so a
+        // messages-only export (or a corrupt part-zip) is never read as mass
+        // unfollows. The first list, or a huge partial→full jump, is a baseline
+        // rather than a day's worth of gains.
+        if !followers.isEmpty, !knownFollowers.isEmpty, !followerBaselineReplacement {
+            let gained = followers.subtracting(knownFollowers).sorted()
             result.newFollowers = gained
-            result.lostFollowers = lost
-            for username in gained { context.insert(FollowerEvent(username: username, kind: .gainedFollower)) }
-            for username in lost { context.insert(FollowerEvent(username: username, kind: .lostFollower)) }
+            for username in gained {
+                insertRecord(.init(username: username, date: followerDates[username]), kind: .gainedFollower)
+            }
+            if !followerDataIsPartial, !(last?.followerListIsPartial ?? false) {
+                let lost = knownFollowers.subtracting(followers).sorted()
+                result.lostFollowers = lost
+                for username in lost {
+                    insertRecord(.init(username: username, date: nil), kind: .lostFollower)
+                }
+            }
         }
-        if followingDataIsPartial {
-            let records = export.followerLists.followingRecords.sorted { ($0.date ?? .distantPast) < ($1.date ?? .distantPast) }
-            for relationship in records where insertRecord(relationship, kind: .startedFollowing) {
-                result.startedFollowing.append(relationship.username)
+        if !following.isEmpty, !knownFollowing.isEmpty, !followingBaselineReplacement {
+            let started = following.subtracting(knownFollowing).sorted()
+            result.startedFollowing = started
+            for username in started {
+                insertRecord(.init(username: username, date: followingDates[username]), kind: .startedFollowing)
             }
-        } else if !following.isEmpty, let last, !last.followingUsernames.isEmpty,
-           !last.followingListIsPartial,
-           !followingBaselineReplacement {
-            let lastFollowing = Set(last.followingUsernames)
-            result.startedFollowing = following.subtracting(lastFollowing).sorted()
-            result.stoppedFollowing = lastFollowing.subtracting(following).sorted()
-            for username in result.startedFollowing {
-                context.insert(FollowerEvent(username: username, kind: .startedFollowing))
-            }
-            for username in result.stoppedFollowing {
-                context.insert(FollowerEvent(username: username, kind: .stoppedFollowing))
+            if !followingDataIsPartial, !(last?.followingListIsPartial ?? false) {
+                let stopped = knownFollowing.subtracting(following).sorted()
+                result.stoppedFollowing = stopped
+                for username in stopped {
+                    insertRecord(.init(username: username, date: nil), kind: .stoppedFollowing)
+                }
             }
         }
 
+        // Meta's explicit "recently unfollowed" list is always a reliable
+        // person-level record, regardless of the export being partial.
         for relationship in export.followerLists.recentlyUnfollowedRecords {
             if insertRecord(relationship, kind: .stoppedFollowing),
                !result.stoppedFollowing.contains(relationship.username) {
@@ -349,11 +381,30 @@ final class InstagramSyncService {
             }
         }
 
-        let effectiveFollowers = followers.isEmpty ? Set(last?.followerUsernames ?? []) : followers
-        let effectiveFollowing = following.isEmpty ? Set(last?.followingUsernames ?? []) : following
+        // A complete export replaces the baseline authoritatively; a partial
+        // export only *adds* newly-seen usernames so the known set never
+        // shrinks and a username missing from next month's slice is never
+        // mistaken for an unfollow. An absent side carries the previous
+        // snapshot forward unchanged.
+        let storedFollowers: Set<String>
+        if followers.isEmpty {
+            storedFollowers = knownFollowers
+        } else if followerDataIsPartial {
+            storedFollowers = knownFollowers.union(followers)
+        } else {
+            storedFollowers = followers
+        }
+        let storedFollowing: Set<String>
+        if following.isEmpty {
+            storedFollowing = knownFollowing
+        } else if followingDataIsPartial {
+            storedFollowing = knownFollowing.union(following)
+        } else {
+            storedFollowing = following
+        }
         context.insert(FollowerSnapshot(
-            followerUsernames: effectiveFollowers.sorted(),
-            followingUsernames: effectiveFollowing.sorted(),
+            followerUsernames: storedFollowers.sorted(),
+            followingUsernames: storedFollowing.sorted(),
             followerListIsPartial: followerDataIsPartial,
             followingListIsPartial: followingDataIsPartial
         ))
@@ -367,6 +418,20 @@ final class InstagramSyncService {
             }
         }
     }
+
+    #if DEBUG
+    /// Test seam: runs the follower diff against an in-memory context and
+    /// returns the resulting summary. Mirrors what `sync` does after parsing.
+    func applyFollowerDiffForTesting(
+        export: InstagramExportParser.Export,
+        context: ModelContext
+    ) -> SyncResult {
+        var result = SyncResult()
+        applyFollowerDiff(export: export, into: &result, context: context)
+        try? context.save()
+        return result
+    }
+    #endif
 
     /// A partial/date-limited Meta export followed by a complete export can
     /// jump from tens to thousands of accounts. Treat that as a corrected

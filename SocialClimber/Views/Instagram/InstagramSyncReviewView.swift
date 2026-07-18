@@ -145,10 +145,10 @@ struct InstagramSyncReviewView: View {
                 if result.newFollowers.isEmpty && result.lostFollowers.isEmpty
                     && result.startedFollowing.isEmpty && result.stoppedFollowing.isEmpty {
                     Label(
-                        result.followerDataIsDateLimited
-                            ? "No new dated follower or following activity in this export."
-                            : result.establishedFollowerBaseline
+                        result.establishedFollowerBaseline
                             ? "Baseline saved. Gains and losses start with the next export."
+                            : result.followerDataIsDateLimited
+                            ? "No new follower or following activity since the last sync."
                             : "No follower changes since the last sync.",
                         systemImage: "checkmark.circle"
                     )

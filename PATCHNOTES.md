@@ -1,5 +1,19 @@
 # Patch Notes
 
+## Unreleased — Instagram sync stops missing new followers in monthly exports
+
+New followers could vanish from a sync's summary — the review sheet showed
+"No new dated follower or following activity in this export" even when several
+people had just followed. The date-limited path had detected new followers only
+from history events it *wrote* on that run, so anyone already recorded by an
+earlier sync of the same monthly export (Meta's windows overlap, and the same
+export file is often synced more than once) was silently dropped.
+
+- New followers are now detected by comparing usernames against everyone seen before, the reliable signal for partial exports — Meta records follows by username, so an account present now that was never seen is a genuine gain regardless of whether that month's file carried a follow timestamp. Unfollows are still only inferred from two complete snapshots.
+- A partial (date-limited) export now *accumulates* the known-follower/following baseline instead of overwriting it with that month's slice, so the set no longer shrinks each month and someone missing from the next partial export is never mistaken for an unfollow.
+- Re-syncing the same monthly export is idempotent: it reports the same gains rather than either repeating them or collapsing to "nothing new".
+- Person-level follow events keep their precise date when the export provides one, and the review sheet now says "Baseline saved" on a first sync instead of the date-limited "nothing new" wording.
+
 ## Unreleased — Instagram sync shows a real progress bar
 
 The slow parts of a Drive import used to report progress only as text
