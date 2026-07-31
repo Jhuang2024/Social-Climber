@@ -10,6 +10,11 @@ enum MemoryFactType: String, Codable, CaseIterable, Identifiable {
     case location
     case family
     case personality
+    /// How the user knows this person ("classmate from the IB program"),
+    /// inferred from what the conversation actually shows. Stored as a
+    /// reviewable fact so an automatic read of the relationship is always
+    /// visible and correctable, never a silent profile rewrite.
+    case relationship
     case giftIdea
     case commitment
     case importantDate
@@ -29,6 +34,7 @@ enum MemoryFactType: String, Codable, CaseIterable, Identifiable {
         case .location: "Location"
         case .family: "Family"
         case .personality: "Personality"
+        case .relationship: "Relationship"
         case .giftIdea: "Gift idea"
         case .commitment: "Commitment"
         case .importantDate: "Important date"
@@ -45,6 +51,7 @@ enum MemoryFactType: String, Codable, CaseIterable, Identifiable {
         case .location: "mappin.and.ellipse"
         case .family: "figure.2.and.child.holdinghands"
         case .personality: "brain.head.profile"
+        case .relationship: "person.2.wave.2"
         case .giftIdea: "gift"
         case .commitment: "checkmark.seal"
         case .importantDate: "calendar"
@@ -61,6 +68,7 @@ enum MemoryFactType: String, Codable, CaseIterable, Identifiable {
         case .location: .teal
         case .family: .orange
         case .personality: .indigo
+        case .relationship: .blue
         case .giftIdea: .purple
         case .commitment: .blue
         case .importantDate: .orange

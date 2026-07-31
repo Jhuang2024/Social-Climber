@@ -213,7 +213,7 @@ final class GoogleDriveService: NSObject {
         // Multi-part exports share a name stem and land together; requiring
         // both the stem match and the time window keeps an older, unrelated
         // export (or a re-requested one from yesterday) from being merged
-        // into this parse and poisoning the follower diff.
+        // into this parse and replaying old conversations.
         let newestStem = Self.exportStem(newest.name)
         let group = candidates.filter {
             guard let time = $0.modifiedTime else { return false }

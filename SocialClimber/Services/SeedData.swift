@@ -147,6 +147,13 @@ enum SeedData {
         context.insert(Reminder(title: "Email Priya about summer internship timeline", dueDate: daysAhead(30), type: .followUp, person: priya))
         context.insert(Reminder(title: "Invite Jordan climbing", dueDate: daysAhead(5), type: .checkIn, person: jordan))
 
+        // Past events: the significant things that actually happened, the
+        // kind conversation capture is meant to pick up.
+        context.insert(LifeEvent(title: "Got into the SJSU mechanical engineering program", date: daysAgo(120), kind: .education, significance: 5, person: alex, confidence: 0.9))
+        context.insert(LifeEvent(title: "Started at Stripe as a summer intern", date: daysAgo(45), kind: .career, significance: 5, person: maya, confidence: 0.85))
+        context.insert(LifeEvent(title: "Moved to San Francisco", date: daysAgo(70), kind: .move, significance: 4, person: jordan, confidence: 0.8))
+        context.insert(LifeEvent(title: "Finished my last final of the semester", date: daysAgo(18), kind: .milestone, significance: 3, aboutMe: true, confidence: 0.7))
+
         // Important dates
         context.insert(ImportantDate(title: "Parents' anniversary", date: birthday(month: 9, day: 15, year: 1995), repeatsYearly: true, person: mom))
         context.insert(ImportantDate(title: "Tahoe cabin trip", date: daysAhead(45), repeatsYearly: false, person: dev, notes: "Book the cabin by end of month"))
@@ -163,6 +170,7 @@ enum SeedData {
         try? context.delete(model: Reminder.self)
         try? context.delete(model: ImportantDate.self)
         try? context.delete(model: Event.self)
+        try? context.delete(model: LifeEvent.self)
         try? context.delete(model: Person.self)
         try? context.save()
         NotificationService.shared.cancelAll()

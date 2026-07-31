@@ -1,9 +1,8 @@
 import SwiftUI
 import SwiftData
 
-/// Review step after an Instagram sync: shows follower changes (already
-/// recorded; they're facts) and the conversations with new messages, each
-/// matched to a Person where possible. Nothing touches People or the
+/// Review step after an Instagram sync: the conversations with new messages,
+/// each matched to a Person where possible. Nothing touches People or the
 /// timeline until the user taps Apply, mirroring the voice-note review
 /// pattern.
 struct InstagramSyncReviewView: View {
@@ -31,7 +30,6 @@ struct InstagramSyncReviewView: View {
     var body: some View {
         NavigationStack {
             Form {
-                followersSection
                 if decisions.isEmpty {
                     Section("Conversations") {
                         Label("No new messages since the last sync.", systemImage: "checkmark.circle")
@@ -112,81 +110,6 @@ struct InstagramSyncReviewView: View {
                 }
             }
         }
-    }
-
-    // MARK: Followers
-
-    @ViewBuilder
-    private var followersSection: some View {
-        if result.hadFollowerData {
-            Section("Follower & Following Changes") {
-                if !result.newFollowers.isEmpty {
-                    followerChangeRow(
-                        label: "New followers",
-                        usernames: result.newFollowers,
-                        color: SCTheme.Accents.growth,
-                        icon: "person.badge.plus"
-                    )
-                }
-                if !result.lostFollowers.isEmpty {
-                    followerChangeRow(
-                        label: "Unfollowed you",
-                        usernames: result.lostFollowers,
-                        color: SCTheme.Accents.alert,
-                        icon: "person.badge.minus"
-                    )
-                }
-                if !result.startedFollowing.isEmpty {
-                    followerChangeRow(label: "You followed", usernames: result.startedFollowing, color: SCTheme.Accents.cool, icon: "plus.circle")
-                }
-                if !result.stoppedFollowing.isEmpty {
-                    followerChangeRow(label: "You unfollowed", usernames: result.stoppedFollowing, color: SCTheme.Accents.warm, icon: "minus.circle")
-                }
-                if result.newFollowers.isEmpty && result.lostFollowers.isEmpty
-                    && result.startedFollowing.isEmpty && result.stoppedFollowing.isEmpty {
-                    Label(
-                        result.establishedFollowerBaseline
-                            ? "Baseline saved. Gains and losses start with the next export."
-                            : result.followerDataIsDateLimited
-                            ? "No new follower or following activity since the last sync."
-                            : "No follower changes since the last sync.",
-                        systemImage: "checkmark.circle"
-                    )
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Text(result.followerDataIsDateLimited
-                    ? "This is a date-limited Meta export. Listed follows are recorded by username, but a missing username is not treated as an unfollow. Meta does not reveal who unfollowed you in a monthly partial export."
-                    : "Changes are exact username differences between consecutive full snapshots. Parsed \(result.followerFileCount) follower file\(result.followerFileCount == 1 ? "" : "s") and \(result.followingFileCount) following file\(result.followingFileCount == 1 ? "" : "s").")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private func followerChangeRow(label: String, usernames: [String], color: Color, icon: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(color)
-                    .frame(width: 22, height: 22)
-                    .background(color.opacity(0.14), in: Circle())
-                Text(label)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(color)
-                Text("\(usernames.count)")
-                    .font(.caption2.weight(.bold).monospacedDigit())
-                    .foregroundStyle(color)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 2)
-                    .background(color.opacity(0.14), in: Capsule())
-            }
-            Text(usernames.map { "@\($0)" }.joined(separator: "  "))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.vertical, 2)
     }
 
     // MARK: Threads

@@ -29,11 +29,12 @@ enum ExportImportService {
         var events: [EventDTO] = []
         var captures: [CaptureDTO] = []
         var memoryFacts: [FactDTO] = []
+        var lifeEvents: [LifeEventDTO] = []
 
         init() {}
 
         private enum CodingKeys: String, CodingKey {
-            case version, exportedAt, people, interactions, events, captures, memoryFacts
+            case version, exportedAt, people, interactions, events, captures, memoryFacts, lifeEvents
         }
 
         /// Every field decoded with a fallback to its default, so an older
@@ -49,6 +50,79 @@ enum ExportImportService {
             events = decodeOrDefault(c, .events, [])
             captures = decodeOrDefault(c, .captures, [])
             memoryFacts = decodeOrDefault(c, .memoryFacts, [])
+            lifeEvents = decodeOrDefault(c, .lifeEvents, [])
+        }
+    }
+
+    /// A Past Events record. Person attribution is by UUID with a cached
+    /// name as the fallback, exactly like `FactDTO`, so restoring keeps
+    /// events attached to the right contact.
+    struct LifeEventDTO: Codable {
+        var uuid: UUID
+        var title: String
+        var detail: String
+        var date: Date
+        var isDateApproximate: Bool
+        var kind: String
+        var significance: Int
+        var aboutMe: Bool
+        var confidence: Double
+        var isDismissed: Bool
+        var isUserTouched: Bool
+        var personUUID: UUID?
+        var personName: String?
+        var sourceCaptureUUID: UUID?
+        var sourceInteractionUUID: UUID?
+        var createdAt: Date
+
+        private enum CodingKeys: String, CodingKey {
+            case uuid, title, detail, date, isDateApproximate, kind, significance
+            case aboutMe, confidence, isDismissed, isUserTouched
+            case personUUID, personName, sourceCaptureUUID, sourceInteractionUUID, createdAt
+        }
+
+        init(
+            uuid: UUID, title: String, detail: String, date: Date, isDateApproximate: Bool,
+            kind: String, significance: Int, aboutMe: Bool, confidence: Double,
+            isDismissed: Bool, isUserTouched: Bool, personUUID: UUID?, personName: String?,
+            sourceCaptureUUID: UUID?, sourceInteractionUUID: UUID?, createdAt: Date
+        ) {
+            self.uuid = uuid
+            self.title = title
+            self.detail = detail
+            self.date = date
+            self.isDateApproximate = isDateApproximate
+            self.kind = kind
+            self.significance = significance
+            self.aboutMe = aboutMe
+            self.confidence = confidence
+            self.isDismissed = isDismissed
+            self.isUserTouched = isUserTouched
+            self.personUUID = personUUID
+            self.personName = personName
+            self.sourceCaptureUUID = sourceCaptureUUID
+            self.sourceInteractionUUID = sourceInteractionUUID
+            self.createdAt = createdAt
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            uuid = decodeOrDefault(c, .uuid, UUID())
+            title = decodeOrDefault(c, .title, "")
+            detail = decodeOrDefault(c, .detail, "")
+            date = decodeOrDefault(c, .date, Date())
+            isDateApproximate = decodeOrDefault(c, .isDateApproximate, false)
+            kind = decodeOrDefault(c, .kind, LifeEventKind.other.rawValue)
+            significance = decodeOrDefault(c, .significance, 3)
+            aboutMe = decodeOrDefault(c, .aboutMe, false)
+            confidence = decodeOrDefault(c, .confidence, 0.5)
+            isDismissed = decodeOrDefault(c, .isDismissed, false)
+            isUserTouched = decodeOrDefault(c, .isUserTouched, false)
+            personUUID = (try? c.decodeIfPresent(UUID.self, forKey: .personUUID)) ?? nil
+            personName = (try? c.decodeIfPresent(String.self, forKey: .personName)) ?? nil
+            sourceCaptureUUID = (try? c.decodeIfPresent(UUID.self, forKey: .sourceCaptureUUID)) ?? nil
+            sourceInteractionUUID = (try? c.decodeIfPresent(UUID.self, forKey: .sourceInteractionUUID)) ?? nil
+            createdAt = decodeOrDefault(c, .createdAt, Date())
         }
     }
 
@@ -260,6 +334,13 @@ enum ExportImportService {
         var cachedAISummary: String = ""
         var aiSummaryGeneratedAt: Date?
         var aiSummaryIsFallback: Bool = false
+        /// Whether a human chose this person's category / relationship line.
+        /// Carried through a restore because losing it would let automatic
+        /// relationship inference start overwriting a choice the user made
+        /// (see `RelationshipInference`). Defaulted for older archives.
+        var categoryIsUserSet: Bool = false
+        var relationshipIsUserSet: Bool = false
+        var inferredRelationshipConfidence: Double = 0
 
         private enum CodingKeys: String, CodingKey {
             case uuid, name, nickname, relationshipToMe, category, closeness, priority, birthday
@@ -268,6 +349,7 @@ enum ExportImportService {
             case contactMethods, tags, instagramUsername, avatarData, giftIdeas, reminders, importantDates
             case cachedGiftSuggestions, cachedGiftSuggestionsGeneratedAt
             case cachedAISummary, aiSummaryGeneratedAt, aiSummaryIsFallback
+            case categoryIsUserSet, relationshipIsUserSet, inferredRelationshipConfidence
         }
 
         init(
@@ -279,7 +361,9 @@ enum ExportImportService {
             tags: [String], instagramUsername: String?, avatarData: Data?,
             giftIdeas: [GiftDTO], reminders: [ReminderDTO], importantDates: [DateDTO],
             cachedGiftSuggestions: [GiftSuggestion] = [], cachedGiftSuggestionsGeneratedAt: Date? = nil,
-            cachedAISummary: String = "", aiSummaryGeneratedAt: Date? = nil, aiSummaryIsFallback: Bool = false
+            cachedAISummary: String = "", aiSummaryGeneratedAt: Date? = nil, aiSummaryIsFallback: Bool = false,
+            categoryIsUserSet: Bool = false, relationshipIsUserSet: Bool = false,
+            inferredRelationshipConfidence: Double = 0
         ) {
             self.uuid = uuid
             self.name = name
@@ -314,6 +398,9 @@ enum ExportImportService {
             self.cachedAISummary = cachedAISummary
             self.aiSummaryGeneratedAt = aiSummaryGeneratedAt
             self.aiSummaryIsFallback = aiSummaryIsFallback
+            self.categoryIsUserSet = categoryIsUserSet
+            self.relationshipIsUserSet = relationshipIsUserSet
+            self.inferredRelationshipConfidence = inferredRelationshipConfidence
         }
 
         /// Every field here is required exactly as before except `uuid`,
@@ -357,6 +444,9 @@ enum ExportImportService {
             cachedAISummary = (try? c.decode(String.self, forKey: .cachedAISummary)) ?? ""
             aiSummaryGeneratedAt = (try? c.decodeIfPresent(Date.self, forKey: .aiSummaryGeneratedAt)) ?? nil
             aiSummaryIsFallback = (try? c.decode(Bool.self, forKey: .aiSummaryIsFallback)) ?? false
+            categoryIsUserSet = decodeOrDefault(c, .categoryIsUserSet, false)
+            relationshipIsUserSet = decodeOrDefault(c, .relationshipIsUserSet, false)
+            inferredRelationshipConfidence = decodeOrDefault(c, .inferredRelationshipConfidence, 0)
         }
     }
 
@@ -484,6 +574,7 @@ enum ExportImportService {
         let events = try context.fetch(FetchDescriptor<Event>())
         let captures = try context.fetch(FetchDescriptor<CapturedMemory>())
         let facts = try context.fetch(FetchDescriptor<MemoryFact>())
+        let lifeEvents = try context.fetch(FetchDescriptor<LifeEvent>())
 
         var archive = Archive()
         archive.people = people.map { p in
@@ -505,7 +596,22 @@ enum ExportImportService {
                 cachedGiftSuggestionsGeneratedAt: p.cachedGiftSuggestionsGeneratedAt,
                 cachedAISummary: p.cachedAISummary,
                 aiSummaryGeneratedAt: p.aiSummaryGeneratedAt,
-                aiSummaryIsFallback: p.aiSummaryIsFallback
+                aiSummaryIsFallback: p.aiSummaryIsFallback,
+                categoryIsUserSet: p.categoryIsUserSet,
+                relationshipIsUserSet: p.relationshipIsUserSet,
+                inferredRelationshipConfidence: p.inferredRelationshipConfidence
+            )
+        }
+        archive.lifeEvents = lifeEvents.map { e in
+            LifeEventDTO(
+                uuid: e.uuid, title: e.title, detail: e.detail, date: e.date,
+                isDateApproximate: e.isDateApproximate, kind: e.kindRaw,
+                significance: e.significance, aboutMe: e.aboutMe, confidence: e.confidence,
+                isDismissed: e.isDismissed, isUserTouched: e.isUserTouched,
+                personUUID: e.person?.uuid, personName: e.person?.name,
+                sourceCaptureUUID: e.sourceCaptureUUID,
+                sourceInteractionUUID: e.sourceInteractionUUID,
+                createdAt: e.createdAt
             )
         }
         archive.interactions = interactions.map { i in
@@ -613,6 +719,12 @@ enum ExportImportService {
             person.nickname = dto.nickname
             person.relationshipToMe = dto.relationshipToMe
             person.categoryRaw = dto.category
+            // Never downgrade a "the user chose this" flag on a merge: an
+            // older archive simply doesn't carry it, and losing it would
+            // reopen the category to automatic inference.
+            person.categoryIsUserSet = person.categoryIsUserSet || dto.categoryIsUserSet
+            person.relationshipIsUserSet = person.relationshipIsUserSet || dto.relationshipIsUserSet
+            person.inferredRelationshipConfidence = max(person.inferredRelationshipConfidence, dto.inferredRelationshipConfidence)
             person.closeness = dto.closeness
             person.priority = dto.priority
             person.birthday = dto.birthday
@@ -796,6 +908,32 @@ enum ExportImportService {
             fact.createdAt = dto.createdAt
             fact.rejectedAt = dto.rejectedAt
             context.insert(fact)
+        }
+
+        // Past events, keyed by their own stable uuid so re-importing the
+        // same archive merges instead of duplicating the feed.
+        let existingEventUUIDs = Set(try context.fetch(FetchDescriptor<LifeEvent>()).map(\.uuid))
+        for dto in archive.lifeEvents {
+            guard !existingEventUUIDs.contains(dto.uuid) else { continue }
+            let person = dto.personUUID.flatMap { byUUID[$0] } ?? dto.personName.flatMap { byName[$0.lowercased()] }
+            let event = LifeEvent(
+                title: dto.title,
+                detail: dto.detail,
+                date: dto.date,
+                isDateApproximate: dto.isDateApproximate,
+                kind: LifeEventKind(rawValue: dto.kind) ?? .other,
+                significance: dto.significance,
+                aboutMe: dto.aboutMe,
+                person: person,
+                confidence: dto.confidence,
+                sourceCaptureUUID: dto.sourceCaptureUUID,
+                sourceInteractionUUID: dto.sourceInteractionUUID
+            )
+            event.uuid = dto.uuid
+            event.isDismissed = dto.isDismissed
+            event.isUserTouched = dto.isUserTouched
+            event.createdAt = dto.createdAt
+            context.insert(event)
         }
 
         try context.save()

@@ -11,7 +11,7 @@ struct DashboardView: View {
     @Query(sort: \Event.date, order: .reverse) private var events: [Event]
 
     @Query(sort: \CapturedMemory.capturedAt, order: .reverse) private var captures: [CapturedMemory]
-    @Query(sort: \FollowerEvent.date, order: .reverse) private var followerEvents: [FollowerEvent]
+    @Query(sort: \LifeEvent.date, order: .reverse) private var lifeEvents: [LifeEvent]
 
     @AppStorage("locationEnabled") private var locationEnabled = false
 
@@ -141,6 +141,13 @@ struct DashboardView: View {
         giftIdeas.filter { $0.status == .idea || $0.status == .planned }
     }
 
+    /// What has actually happened lately, to the user or to someone they
+    /// track, picked up from their conversations. Only real events are ever
+    /// stored (see `LifeEvent`), so this card stays short by construction.
+    private var recentLifeEvents: [LifeEvent] {
+        lifeEvents.filter { !$0.isDismissed }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -172,6 +179,7 @@ struct DashboardView: View {
                         if !upcomingBirthdays.isEmpty || !upcomingPlans.isEmpty { upcomingCard }
                         if !openGifts.isEmpty { giftsCard }
                         if !quietPeople.isEmpty { quietCard }
+                        if !recentLifeEvents.isEmpty { pastEventsCard }
                         if !interactions.isEmpty { recentCard }
                     }
                 }
@@ -246,8 +254,7 @@ struct DashboardView: View {
     private var socialHealthLink: some View {
         let report = SocialHealthReport.compute(
             people: allPeople,
-            interactions: interactions,
-            followerEvents: followerEvents
+            interactions: interactions
         )
         return NavigationLink { SocialHealthView() } label: {
             HStack(spacing: 14) {
@@ -711,6 +718,25 @@ struct DashboardView: View {
                     }
                 }
                 .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var pastEventsCard: some View {
+        FormSectionCard("Past Events", icon: "clock.badge.checkmark") {
+            VStack(spacing: 14) {
+                ForEach(recentLifeEvents.prefix(4), id: \.persistentModelID) { event in
+                    PastEventRowView(event: event)
+                }
+            }
+            NavigationLink {
+                PastEventsView()
+            } label: {
+                Label(
+                    recentLifeEvents.count > 4 ? "See all \(recentLifeEvents.count)" : "See all past events",
+                    systemImage: "arrow.right"
+                )
+                .font(.subheadline.weight(.medium))
             }
         }
     }

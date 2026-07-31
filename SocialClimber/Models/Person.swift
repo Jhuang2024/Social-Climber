@@ -13,6 +13,18 @@ final class Person {
     var nickname: String = ""
     var relationshipToMe: String = ""
     var categoryRaw: String = PersonCategory.friend.rawValue
+    /// True once a human explicitly picked this person's category. Automatic
+    /// relationship inference (see `RelationshipInference`) only ever writes
+    /// over a category the app itself guessed or defaulted, so correcting
+    /// someone to "Family" is permanent no matter what the next conversation
+    /// sounds like.
+    var categoryIsUserSet: Bool = false
+    /// The same guarantee for the free-text "how do I know them" line.
+    var relationshipIsUserSet: Bool = false
+    /// Confidence of the last automatic inference, so a later, more
+    /// confident read of the relationship can supersede a weaker earlier
+    /// guess but a weaker one can never overwrite a stronger one.
+    var inferredRelationshipConfidence: Double = 0
     var closeness: Int = 3
     var priority: Int = 3
     var birthday: Date?
@@ -75,6 +87,11 @@ final class Person {
     /// user typed; profile display and AI context merge the two.
     @Relationship(deleteRule: .cascade, inverse: \MemoryFact.person)
     var memoryFacts: [MemoryFact] = []
+    /// Significant things that actually happened to this person, learned
+    /// from captured conversations. See `LifeEvent` for the bar an item has
+    /// to clear before it's stored.
+    @Relationship(deleteRule: .cascade, inverse: \LifeEvent.person)
+    var lifeEvents: [LifeEvent] = []
 
     init(
         name: String,
@@ -195,6 +212,14 @@ final class Person {
             .sorted { $0.createdAt > $1.createdAt }
     }
 
+    /// Everything that's happened to this person, newest first, minus what
+    /// the user dismissed.
+    var visibleLifeEvents: [LifeEvent] {
+        lifeEvents
+            .filter { !$0.isDismissed }
+            .sorted { $0.date > $1.date }
+    }
+
     /// Visible automatic facts of every type, newest first, minus the
     /// junk rows (see `MemoryFact.isLowQuality`).
     var visibleFacts: [MemoryFact] {
@@ -253,5 +278,6 @@ final class Person {
             || interests.contains { $0.localizedCaseInsensitiveContains(term) }
             || dislikes.contains { $0.localizedCaseInsensitiveContains(term) }
             || memoryFacts.contains { $0.isVisible && !$0.isLowQuality && $0.value.localizedCaseInsensitiveContains(term) }
+            || lifeEvents.contains { !$0.isDismissed && $0.title.localizedCaseInsensitiveContains(term) }
     }
 }

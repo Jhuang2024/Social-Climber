@@ -248,12 +248,12 @@ struct SettingsView: View {
                         }
                         .tint(.red)
                     }
-                    Text("Connection setup only: day-to-day syncing lives on the Home screen and the Social Health page. Each sync pulls Instagram's daily \"Download your information\" export from Drive: new DMs become reviewable interactions, and follower changes are tracked on Social Health. Read-only; parsed on-device, raw files deleted immediately.")
+                    Text("Connection setup only: day-to-day syncing lives on the Home screen and the Social Health page. Each sync pulls Instagram's \"Download your information\" export from Drive and turns new DMs into reviewable interactions. Follower and following counts are not tracked. Read-only; parsed on-device, raw files deleted immediately.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     DisclosureGroup {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("1. In Meta Accounts Center, choose \"Download your information\", select Instagram, choose JSON format, and choose Google Drive. Pick \"Some of your information\" with messages plus followers and following. Monthly ranges work as dated activity feeds; only an All time range provides a complete list that can reveal who unfollowed you by comparing snapshots.")
+                            Text("1. In Meta Accounts Center, choose \"Download your information\", select Instagram, choose JSON format, and choose Google Drive. Pick \"Some of your information\" and select Messages — that is the only part Social Climber reads. Any date range works.")
                             Text("2. Use the same OAuth Client ID as Google Calendar, with the Google Drive API also enabled on that Cloud project.")
                             Text("3. Enter the Meta export folder name, such as meta-2026-Jul-13-17-11-01. The app supports both expanded folder trees and zip exports. Leave it blank to find the newest matching export automatically.")
                             Text("4. iOS can't run this on a schedule in the background, so turn on the daily reminder and tap Sync on the Home screen when you open the app.")

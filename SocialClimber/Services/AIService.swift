@@ -85,6 +85,86 @@ struct ExtractedFact: Codable, Hashable, Sendable {
     }
 }
 
+/// How the narrator appears to know one specific contact, read off the
+/// conversation itself rather than assumed. `category` matches a
+/// `PersonCategory` raw value; `descriptor` is the short human phrase shown
+/// under their name ("Classmate from the IB program"). Applied only when
+/// nobody has set the relationship by hand — see `RelationshipInference`.
+struct ExtractedRelationship: Codable, Hashable, Sendable {
+    var personName: String
+    var category: String
+    var descriptor: String = ""
+    var confidence: Double = 0
+
+    enum CodingKeys: String, CodingKey { case personName, category, descriptor, confidence }
+
+    init(personName: String, category: String, descriptor: String = "", confidence: Double = 0) {
+        self.personName = personName
+        self.category = category
+        self.descriptor = descriptor
+        self.confidence = confidence
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        personName = (try? c.decodeIfPresent(String.self, forKey: .personName)) ?? ""
+        category = (try? c.decodeIfPresent(String.self, forKey: .category)) ?? ""
+        descriptor = (try? c.decodeIfPresent(String.self, forKey: .descriptor)) ?? ""
+        confidence = (try? c.decodeIfPresent(Double.self, forKey: .confidence)) ?? 0
+    }
+}
+
+/// One thing that actually *happened*, as opposed to a durable trait or a
+/// plan: the raw material for the Past Events feed. `kind` matches a
+/// `LifeEventKind` raw value. `personNames` names whoever it happened to;
+/// `aboutMe` marks the ones that happened to the narrator.
+struct ExtractedLifeEvent: Codable, Hashable, Sendable {
+    var title: String
+    var detail: String = ""
+    var date: Date?
+    var kind: String = LifeEventKind.other.rawValue
+    var significance: Int = 3
+    var personNames: [String] = []
+    var aboutMe: Bool = false
+    var confidence: Double = 0
+
+    enum CodingKeys: String, CodingKey {
+        case title, detail, date, kind, significance, personNames, aboutMe, confidence
+    }
+
+    init(
+        title: String,
+        detail: String = "",
+        date: Date? = nil,
+        kind: String = LifeEventKind.other.rawValue,
+        significance: Int = 3,
+        personNames: [String] = [],
+        aboutMe: Bool = false,
+        confidence: Double = 0
+    ) {
+        self.title = title
+        self.detail = detail
+        self.date = date
+        self.kind = kind
+        self.significance = significance
+        self.personNames = personNames
+        self.aboutMe = aboutMe
+        self.confidence = confidence
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        title = (try? c.decodeIfPresent(String.self, forKey: .title)) ?? ""
+        detail = (try? c.decodeIfPresent(String.self, forKey: .detail)) ?? ""
+        date = (try? c.decodeIfPresent(Date.self, forKey: .date)) ?? nil
+        kind = (try? c.decodeIfPresent(String.self, forKey: .kind)) ?? LifeEventKind.other.rawValue
+        significance = (try? c.decodeIfPresent(Int.self, forKey: .significance)) ?? 3
+        personNames = (try? c.decodeIfPresent([String].self, forKey: .personNames)) ?? []
+        aboutMe = (try? c.decodeIfPresent(Bool.self, forKey: .aboutMe)) ?? false
+        confidence = (try? c.decodeIfPresent(Double.self, forKey: .confidence)) ?? 0
+    }
+}
+
 struct AIExtraction: Codable, Sendable {
     var summary: String = ""
     var peopleMentioned: [String] = []
@@ -137,6 +217,15 @@ struct AIExtraction: Codable, Sendable {
     /// participants were provided, or from the local fallback. A reading aid
     /// only; never a source of facts.
     var conversation: [ConversationLine] = []
+    /// How the narrator appears to know each contact, read off the
+    /// conversation. Applied only to people whose relationship nobody has
+    /// set by hand, so the app stops leaving every imported contact on the
+    /// generic "Acquaintance" default.
+    var relationships: [ExtractedRelationship] = []
+    /// Significant things that actually happened, to the narrator or to a
+    /// contact — the Past Events feed's raw material. Held to a much higher
+    /// bar than facts: a plan, a topic, or a joke is not an event.
+    var pastEvents: [ExtractedLifeEvent] = []
 
     enum CodingKeys: String, CodingKey {
         case summary
@@ -161,6 +250,8 @@ struct AIExtraction: Codable, Sendable {
         case fieldConfidence
         case attributedFacts
         case conversation
+        case relationships
+        case pastEvents
     }
 
     init(
@@ -214,6 +305,8 @@ struct AIExtraction: Codable, Sendable {
         fieldConfidence = (try? container.decodeIfPresent([String: Double].self, forKey: .fieldConfidence)) ?? [:]
         attributedFacts = (try? container.decodeIfPresent([ExtractedFact].self, forKey: .attributedFacts)) ?? []
         conversation = (try? container.decodeIfPresent([ConversationLine].self, forKey: .conversation)) ?? []
+        relationships = (try? container.decodeIfPresent([ExtractedRelationship].self, forKey: .relationships)) ?? []
+        pastEvents = (try? container.decodeIfPresent([ExtractedLifeEvent].self, forKey: .pastEvents)) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -239,6 +332,8 @@ struct AIExtraction: Codable, Sendable {
         try container.encode(fieldConfidence, forKey: .fieldConfidence)
         try container.encode(attributedFacts, forKey: .attributedFacts)
         try container.encode(conversation, forKey: .conversation)
+        try container.encode(relationships, forKey: .relationships)
+        try container.encode(pastEvents, forKey: .pastEvents)
     }
 
     /// Confidence for one category, falling back to the overall score.
@@ -258,6 +353,7 @@ struct AIExtraction: Codable, Sendable {
             && dislikes.isEmpty && schoolOrWorkFacts.isEmpty
             && locationFacts.isEmpty && familyFacts.isEmpty
             && impliedFollowUps.isEmpty && attributedFacts.isEmpty
+            && relationships.isEmpty && pastEvents.isEmpty
     }
 }
 
@@ -723,6 +819,8 @@ final class BazaarLinkAIService: AIService {
     - Do not duplicate the same fact across multiple categories.
     - Attribution matters: when more than one contact is named, each individual fact ("attributedFacts" entries, and each reminder/importantDate) must list exactly the person or people that specific fact is actually about in "personNames", never all contacts mentioned anywhere in the memory. If a fact doesn't clearly belong to anyone in particular, leave "personNames" empty; do not guess by picking whichever person was mentioned first.
     - Include a 0.0–1.0 confidence per category in "fieldConfidence" plus an overall "confidenceScore".
+    - Relationship: infer how the NARRATOR knows each contact from what the conversation actually shows (how they address each other, shared context, what they talk about) — not from vibes. Report it in "relationships" with the closest category and a short human descriptor ("Classmate from the IB program"). Only include a contact you have real evidence for; omit them entirely rather than guessing, since an omission leaves the existing relationship untouched while a wrong guess overwrites it.
+    - Past events: "pastEvents" is ONLY for significant things that actually HAPPENED and are now settled facts — got into a school, started or lost a job, moved city, got together or broke up, a death, a serious illness or injury, a real falling-out, a genuine achievement. It is not for plans, hopes, hypotheticals, opinions, ongoing topics, or anything either person merely discussed. Something that has not happened yet is a reminder, not an event. If the conversation contains no such thing — which is the normal case — return an empty array. Prefer returning nothing over returning something weak. Set "aboutMe": true when it happened to the narrator, otherwise name the contact it happened to in "personNames".
     - Speaker attribution: when "Conversation participants" are given and the input reads as a spoken conversation, split it into ordered "conversation" lines and label each with who most likely said it, choosing only from those participants or "Me" (the narrator). Never invent a speaker outside that set; if a line's speaker is genuinely unclear, use "Unknown". If participants are absent or the input isn't a conversation, return an empty "conversation" array. This is only a readability aid: still derive all facts, interests, and attributions from the content itself, exactly as if the conversation array were absent.
     """
 
@@ -778,6 +876,8 @@ final class BazaarLinkAIService: AIService {
           "personalityNotes": ["at most one or two stable personality traits clearly demonstrated by the contact; never how they text or message"],
           "attributedFacts": [{"factType": "one of interest|dislike|schoolOrWork|location|family|personality|giftIdea", "value": "the fact, matching one of the arrays above", "personNames": ["exactly who this specific fact is about; empty if unclear"]}],
           "conversation": [{"speaker": "a listed participant's name, or Me, or Unknown", "text": "what that speaker said, in order"}],
+          "relationships": [{"personName": "the contact", "category": "one of family|closeFriend|friend|roommate|classmate|mentor|professional|acquaintance", "descriptor": "short phrase for how the narrator knows them", "confidence": 0.0}],
+          "pastEvents": [{"title": "short past-tense statement of what happened", "detail": "one sentence of context, or empty", "date": "ISO-8601 date it happened, or null if the text doesn't say", "kind": "one of education|career|move|health|relationship|loss|achievement|conflict|milestone|other", "significance": 1-5, "personNames": ["who it happened to; empty when it happened to the narrator"], "aboutMe": false, "confidence": 0.0}],
           "inferredInteractionType": "one of inPerson|call|message|videoCall|event|email, or null if unstated",
           "inferredDate": "ISO-8601 datetime the interaction happened, resolved against the capture date, or null if unstated",
           "explicitSentiment": "one of bad|neutral|good|great ONLY if the user explicitly said how it went, else null",
@@ -1273,6 +1373,19 @@ final class MockAIService: AIService {
             return seenAttributed.insert(key).inserted
         }
 
+        // How the user knows whoever this capture is about, and anything
+        // that actually happened. Both are deliberately conservative and
+        // usually return nothing; see their own types for the bar.
+        result.relationships = RelationshipInference.guesses(
+            in: text,
+            subjectNames: context.trustedPersonNames.isEmpty ? result.peopleMentioned : context.trustedPersonNames
+        )
+        result.pastEvents = LifeEventDetector.detect(
+            in: text,
+            knownPeople: knownPeople,
+            reference: reference
+        )
+
         // Follow-up questions generated from detected topics.
         result.followUpQuestions = result.topics.prefix(3).map { topic in
             switch topic {
@@ -1305,6 +1418,8 @@ final class MockAIService: AIService {
             "date": result.inferredDate == nil ? 0.2 : 0.8,
             "type": result.inferredInteractionType == nil ? 0.2 : 0.8,
             "sentiment": result.explicitSentiment == nil ? 0.2 : 0.85,
+            "relationships": result.relationships.map(\.confidence).max() ?? 0.2,
+            "pastEvents": result.pastEvents.isEmpty ? 0.2 : 0.6,
         ]
 
         return result

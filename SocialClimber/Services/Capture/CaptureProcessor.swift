@@ -230,6 +230,16 @@ final class CaptureProcessor {
             applyImportantDates(from: extraction, capture: capture, interaction: interaction, people: people, context: processingContext)
         }
 
+        // Relationship inference and past events run for *every* source,
+        // including Instagram digests processed by the keyword heuristics.
+        // Unlike the interest/personality markers above — which were written
+        // for the user's own dictated notes and fire on casual banter — both
+        // of these only trigger on wording that states a relationship or
+        // describes a completed change of state, so a chat transcript is
+        // exactly the input they're meant for.
+        applyRelationships(from: extraction, capture: capture, interaction: interaction, people: people, context: processingContext)
+        applyPastEvents(from: extraction, capture: capture, interaction: interaction, people: people, context: processingContext)
+
         // Done. Compose the feed presentation and finish.
         capture.title = feedTitle(for: capture, people: people, interaction: interaction)
         capture.detail = feedDetail(extraction: extraction, reminderDates: createdReminderDates)
@@ -561,6 +571,109 @@ final class CaptureProcessor {
         }
     }
 
+    // MARK: Relationship
+
+    /// Records how the conversation says the user knows each person, so a
+    /// contact created automatically (from an Instagram thread, a share, a
+    /// contacts import) stops sitting on the "Acquaintance" default when the
+    /// messages plainly say otherwise.
+    ///
+    /// The profile write itself is guarded by `RelationshipInference.apply`,
+    /// which never overrides a category a human picked. Whatever it does
+    /// change is also mirrored into a `MemoryFact`, so the read is visible
+    /// on the profile with its source attached and can be rejected there
+    /// like any other learned fact.
+    @MainActor
+    private func applyRelationships(
+        from extraction: AIExtraction,
+        capture: CapturedMemory,
+        interaction: Interaction,
+        people: [Person],
+        context: ModelContext
+    ) {
+        guard !extraction.relationships.isEmpty else { return }
+        var existing = Self.facts(for: capture, context: context)
+
+        for guess in extraction.relationships {
+            let attributed = matchAttributed([guess.personName], among: people)
+            // Exactly one person, or it isn't clear whose relationship this
+            // describes. Never fall back to `people.first`.
+            guard attributed.count == 1, let person = attributed.first else { continue }
+            guard case let .applied(category, descriptor) = RelationshipInference.apply(guess, to: person) else { continue }
+
+            let value = descriptor ?? category?.label
+            guard let value, !value.isEmpty else { continue }
+            insertFact(
+                type: .relationship,
+                value: value,
+                people: [person],
+                confidence: guess.confidence,
+                status: .suggested,
+                capture: capture,
+                interaction: interaction,
+                existing: &existing,
+                context: context
+            )
+        }
+    }
+
+    // MARK: Past events
+
+    /// Stores the significant things that actually happened, for the Past
+    /// Events feed. Everything is filtered through
+    /// `LifeEventDetector.isWorthKeeping` first — including AI-produced
+    /// candidates — and de-duplicated against what's already recorded, so
+    /// re-syncing a conversation, or two conversations covering the same
+    /// news, can't fill the feed with repeats.
+    @MainActor
+    private func applyPastEvents(
+        from extraction: AIExtraction,
+        capture: CapturedMemory,
+        interaction: Interaction,
+        people: [Person],
+        context: ModelContext
+    ) {
+        guard !extraction.pastEvents.isEmpty else { return }
+        let stored = (try? context.fetch(FetchDescriptor<LifeEvent>())) ?? []
+        var seen = Set(stored.map(\.dedupeKey))
+
+        for candidate in extraction.pastEvents {
+            guard LifeEventDetector.isWorthKeeping(candidate) else { continue }
+            let attributed = matchAttributed(candidate.personNames, among: people)
+            // Either it happened to the user, or to exactly one identified
+            // contact. An event nobody can be attached to is not worth
+            // showing on a page about you and your relationships.
+            let aboutMe = candidate.aboutMe && attributed.isEmpty
+            guard aboutMe || attributed.count == 1 else { continue }
+            let person = aboutMe ? nil : attributed.first
+
+            let title = candidate.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let kind = LifeEventKind(rawValue: candidate.kind) ?? .other
+            let key = LifeEvent.dedupeKey(
+                title: title,
+                kind: kind,
+                personUUID: person?.uuid,
+                aboutMe: aboutMe
+            )
+            guard seen.insert(key).inserted else { continue }
+
+            let event = LifeEvent(
+                title: title,
+                detail: candidate.detail.trimmingCharacters(in: .whitespacesAndNewlines),
+                date: candidate.date ?? capture.capturedAt,
+                isDateApproximate: candidate.date == nil,
+                kind: kind,
+                significance: candidate.significance,
+                aboutMe: aboutMe,
+                person: person,
+                confidence: max(candidate.confidence, extraction.confidence(for: "pastEvents")),
+                sourceCaptureUUID: capture.uuid,
+                sourceInteractionUUID: interaction.uuid
+            )
+            context.insert(event)
+        }
+    }
+
     // MARK: Gifts
 
     @MainActor
@@ -736,6 +849,13 @@ final class CaptureProcessor {
         }
         if let facts = try? context.fetch(FetchDescriptor<MemoryFact>(predicate: #Predicate { $0.sourceCaptureUUID == target })) {
             for fact in facts { context.delete(fact) }
+        }
+        // Past events this capture produced. The inferred relationship it
+        // may have written onto a profile isn't reversed here: unlike these
+        // records there's no prior value stored to restore, and the category
+        // is directly editable on the profile.
+        if let events = try? context.fetch(FetchDescriptor<LifeEvent>(predicate: #Predicate { $0.sourceCaptureUUID == target })) {
+            for event in events where !event.isUserTouched { context.delete(event) }
         }
         capture.status = .dismissed
         capture.detail = "All changes undone"

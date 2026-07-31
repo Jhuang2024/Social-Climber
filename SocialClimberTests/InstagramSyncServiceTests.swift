@@ -12,7 +12,7 @@ final class InstagramSyncServiceTests: XCTestCase {
             Person.self, Interaction.self, GiftIdea.self, Reminder.self,
             ImportantDate.self, VoiceNote.self, ConversationSummary.self,
             Event.self, CapturedMemory.self, MemoryFact.self,
-            FollowerSnapshot.self, FollowerEvent.self,
+            LifeEvent.self,
         ])
         container = try! ModelContainer(
             for: schema,
@@ -23,119 +23,6 @@ final class InstagramSyncServiceTests: XCTestCase {
     override func tearDown() {
         container = nil
         super.tearDown()
-    }
-
-    func testLargePartialExportJumpReplacesBaseline() {
-        XCTAssertTrue(InstagramSyncService.isLikelyBaselineReplacement(previous: 73, current: 1_500))
-        XCTAssertTrue(InstagramSyncService.isLikelyBaselineReplacement(previous: 1_500, current: 73))
-        XCTAssertFalse(InstagramSyncService.isLikelyBaselineReplacement(previous: 1_500, current: 1_510))
-        XCTAssertFalse(InstagramSyncService.isLikelyBaselineReplacement(previous: 73, current: 80))
-    }
-
-    func testMonthlyRelationshipTimestampsAreDetectedAsDateLimited() {
-        let now = Date(timeIntervalSince1970: 1_784_000_000)
-        let records = [
-            InstagramExportParser.RelationshipRecord(username: "a", date: now.addingTimeInterval(-28 * 86_400)),
-            InstagramExportParser.RelationshipRecord(username: "b", date: now.addingTimeInterval(-2 * 86_400)),
-        ]
-        XCTAssertTrue(InstagramSyncService.isDateLimited(records: records, now: now))
-
-        let fullHistory = [
-            InstagramExportParser.RelationshipRecord(username: "old", date: now.addingTimeInterval(-700 * 86_400)),
-            InstagramExportParser.RelationshipRecord(username: "new", date: now.addingTimeInterval(-2 * 86_400)),
-        ]
-        XCTAssertFalse(InstagramSyncService.isDateLimited(records: fullHistory, now: now))
-    }
-
-    /// Builds an export whose follower/following lists carry per-account
-    /// timestamps, the way a monthly (date-limited) Meta export does.
-    private func makeExport(
-        followers: [(String, Date?)] = [],
-        following: [(String, Date?)] = []
-    ) -> InstagramExportParser.Export {
-        var export = InstagramExportParser.Export()
-        var lists = InstagramExportParser.FollowerLists()
-        lists.followerRecords = followers.map { .init(username: $0.0, date: $0.1) }
-        lists.followers = followers.map { $0.0 }
-        lists.followerFiles = followers.isEmpty ? [] : ["followers_1.json"]
-        lists.followingRecords = following.map { .init(username: $0.0, date: $0.1) }
-        lists.following = following.map { $0.0 }
-        lists.followingFiles = following.isEmpty ? [] : ["following.json"]
-        export.followerLists = lists
-        return export
-    }
-
-    func testPartialExportSurfacesNewFollowersEvenAfterEventsExist() throws {
-        let context = container.mainContext
-        let now = Date(timeIntervalSince1970: 1_784_000_000)
-        // A prior monthly sync established a partial baseline of two accounts.
-        let month1 = makeExport(followers: [
-            ("ava", now.addingTimeInterval(-40 * 86_400)),
-            ("ben", now.addingTimeInterval(-30 * 86_400)),
-        ])
-        _ = InstagramSyncService.shared.applyFollowerDiffForTesting(export: month1, context: context)
-
-        // This month's export re-lists the same two (Meta windows overlap) plus
-        // five genuinely new followers.
-        let newcomers = ["cara", "dan", "eve", "finn", "gia"]
-        let month2 = makeExport(followers:
-            [("ava", now.addingTimeInterval(-40 * 86_400)), ("ben", now.addingTimeInterval(-30 * 86_400))]
-            + newcomers.map { ($0, now.addingTimeInterval(-2 * 86_400)) }
-        )
-        let result = InstagramSyncService.shared.applyFollowerDiffForTesting(export: month2, context: context)
-
-        XCTAssertTrue(result.followerDataIsDateLimited)
-        XCTAssertEqual(result.newFollowers.sorted(), newcomers.sorted())
-        // A partial export never infers unfollows.
-        XCTAssertTrue(result.lostFollowers.isEmpty)
-    }
-
-    func testResyncingTheSamePartialExportReportsNoNewFollowers() throws {
-        let context = container.mainContext
-        let now = Date(timeIntervalSince1970: 1_784_000_000)
-        let baseline = makeExport(followers: [
-            ("ava", now.addingTimeInterval(-40 * 86_400)),
-            ("ben", now.addingTimeInterval(-30 * 86_400)),
-        ])
-        _ = InstagramSyncService.shared.applyFollowerDiffForTesting(export: baseline, context: context)
-
-        let export = makeExport(followers:
-            [("ava", now.addingTimeInterval(-40 * 86_400)), ("ben", now.addingTimeInterval(-30 * 86_400))]
-            + [("newbie", now.addingTimeInterval(-1 * 86_400))]
-        )
-        let first = InstagramSyncService.shared.applyFollowerDiffForTesting(export: export, context: context)
-        XCTAssertEqual(first.newFollowers, ["newbie"])
-
-        // Re-running the identical export is idempotent: no phantom repeats.
-        let second = InstagramSyncService.shared.applyFollowerDiffForTesting(export: export, context: context)
-        XCTAssertTrue(second.newFollowers.isEmpty)
-        XCTAssertTrue(second.lostFollowers.isEmpty)
-    }
-
-    func testPartialExportNeverReportsUnfollowsWhenAccountsAreMissing() throws {
-        let context = container.mainContext
-        let now = Date(timeIntervalSince1970: 1_784_000_000)
-        // Baseline knows three accounts.
-        let baseline = makeExport(followers: [
-            ("ava", now.addingTimeInterval(-40 * 86_400)),
-            ("ben", now.addingTimeInterval(-38 * 86_400)),
-            ("cara", now.addingTimeInterval(-36 * 86_400)),
-        ])
-        _ = InstagramSyncService.shared.applyFollowerDiffForTesting(export: baseline, context: context)
-
-        // Next partial export only mentions one of them plus a newcomer; the two
-        // missing accounts must not be read as unfollows.
-        let next = makeExport(followers: [
-            ("ava", now.addingTimeInterval(-40 * 86_400)),
-            ("dee", now.addingTimeInterval(-1 * 86_400)),
-        ])
-        let result = InstagramSyncService.shared.applyFollowerDiffForTesting(export: next, context: context)
-        XCTAssertEqual(result.newFollowers, ["dee"])
-        XCTAssertTrue(result.lostFollowers.isEmpty)
-
-        let snapshots = try context.fetch(FetchDescriptor<FollowerSnapshot>(sortBy: [SortDescriptor(\.takenAt, order: .reverse)]))
-        // The known set accumulated rather than shrinking to the latest slice.
-        XCTAssertEqual(Set(snapshots.first?.followerUsernames ?? []), ["ava", "ben", "cara", "dee"])
     }
 
     func testExistingInstagramInteractionIsBackfilledAsOneRecentCapture() async throws {

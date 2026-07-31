@@ -20,7 +20,12 @@ enum SchemaVersionGuard {
     /// models, `sourceCaptureUUID` provenance on Interaction/Reminder/
     /// GiftIdea/ImportantDate, `memoryFacts` on Person, and event end/
     /// follow-up fields. All additive (lightweight migration).
-    static let currentSchemaVersion = 2
+    /// v3: Instagram follower/following tracking removed (`FollowerSnapshot`
+    /// and `FollowerEvent` dropped from the schema), `LifeEvent` added for
+    /// Past Events, plus the relationship-inference flags on Person. The
+    /// dropped entities make this the first non-additive change, so the
+    /// snapshot this takes is the rollback point for them.
+    static let currentSchemaVersion = 3
 
     private static let key = "lastKnownSchemaVersion"
 

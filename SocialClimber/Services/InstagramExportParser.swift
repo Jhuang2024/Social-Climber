@@ -1,9 +1,13 @@
 import Foundation
 
-/// Parses the JSON files inside an Instagram "Download Your Information"
-/// export: message threads, followers, and following lists. Pure and
-/// stateless: bytes in, DTOs out. Nothing here touches SwiftData or the
-/// network.
+/// Parses the message threads inside an Instagram "Download Your
+/// Information" export. Pure and stateless: bytes in, DTOs out. Nothing here
+/// touches SwiftData or the network.
+///
+/// Follower/following lists are deliberately *not* parsed. Meta's monthly
+/// exports are date-limited slices, not snapshots, so no honest
+/// gained/lost-follower signal can be derived from them; the app tracks
+/// relationships from conversations instead.
 enum InstagramExportParser {
 
     // MARK: DTOs
@@ -22,24 +26,8 @@ enum InstagramExportParser {
         let messages: [Message]
     }
 
-    struct FollowerLists {
-        var followers: [String] = []
-        var following: [String] = []
-        var followerRecords: [RelationshipRecord] = []
-        var followingRecords: [RelationshipRecord] = []
-        var recentlyUnfollowedRecords: [RelationshipRecord] = []
-        var followerFiles: Set<String> = []
-        var followingFiles: Set<String> = []
-    }
-
-    struct RelationshipRecord {
-        let username: String
-        let date: Date?
-    }
-
     struct Export {
         var threads: [Thread] = []
-        var followerLists = FollowerLists()
 
         /// The export owner's display name, inferred as the participant who
         /// appears in the most threads (the owner is in every DM thread by
@@ -66,39 +54,16 @@ enum InstagramExportParser {
     static func isRelevantEntry(_ path: String) -> Bool {
         let lower = path.lowercased()
         guard lower.hasSuffix(".json") else { return false }
-        if lower.contains("/inbox/") && lower.contains("message_") { return true }
-        if lower.contains("followers_and_following/") {
-            let file = (lower as NSString).lastPathComponent
-            return file.hasPrefix("followers")
-                || file.hasPrefix("following")
-                || file.contains("recently_unfollowed")
-                || file.contains("accounts_youve_unfollowed")
-        }
-        return false
+        return lower.contains("/inbox/") && lower.contains("message_")
     }
 
     /// Folds one relevant JSON file into the export being assembled.
     static func ingest(path: String, data: Data, into export: inout Export) {
         let lower = path.lowercased()
         let file = (lower as NSString).lastPathComponent
-        if lower.contains("/inbox/") && file.hasPrefix("message_") {
-            if let thread = parseThread(data) {
-                export.threads.append(thread)
-            }
-        } else if file.hasPrefix("followers") {
-            let records = parseRelationshipRecords(data, arrayKey: nil)
-            export.followerLists.followerRecords.append(contentsOf: records)
-            export.followerLists.followers.append(contentsOf: records.map(\.username))
-            export.followerLists.followerFiles.insert(lower)
-        } else if file.hasPrefix("following") {
-            let records = parseRelationshipRecords(data, arrayKey: "relationships_following")
-            export.followerLists.followingRecords.append(contentsOf: records)
-            export.followerLists.following.append(contentsOf: records.map(\.username))
-            export.followerLists.followingFiles.insert(lower)
-        } else if file.contains("recently_unfollowed") || file.contains("accounts_youve_unfollowed") {
-            export.followerLists.recentlyUnfollowedRecords.append(
-                contentsOf: parseRelationshipRecords(data, arrayKey: nil)
-            )
+        guard lower.contains("/inbox/"), file.hasPrefix("message_") else { return }
+        if let thread = parseThread(data) {
+            export.threads.append(thread)
         }
     }
 
@@ -140,53 +105,6 @@ enum InstagramExportParser {
             participants: participants,
             messages: messages.sorted { $0.date < $1.date }
         )
-    }
-
-    // MARK: Followers / following
-
-    private struct WireRelationship: Decodable {
-        struct StringListItem: Decodable {
-            let value: String?
-            let timestamp: Double?
-        }
-        let string_list_data: [StringListItem]?
-    }
-
-    /// `followers_N.json` is normally a bare array while `following.json`
-    /// normally wraps it under `relationships_following`. Meta has shipped
-    /// both shapes for both lists, so accept the requested wrapper, the two
-    /// known relationship wrappers, or a bare array. Also flatten every
-    /// `string_list_data` item: assuming one item per relationship silently
-    /// under-counts exports that group several usernames in one object.
-    static func parseUsernameList(_ data: Data, arrayKey: String?) -> [String] {
-        Array(Set(parseRelationshipRecords(data, arrayKey: arrayKey).map(\.username)))
-    }
-
-    static func parseRelationshipRecords(_ data: Data, arrayKey: String?) -> [RelationshipRecord] {
-        let relationships: [WireRelationship]
-        if let decoded = try? JSONDecoder().decode([WireRelationship].self, from: data) {
-            relationships = decoded
-        } else if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            let keys = [arrayKey, "relationships_followers", "relationships_following", "relationships_unfollowed_users"].compactMap { $0 }
-            guard let rawArray = keys.compactMap({ object[$0] }).first,
-                  let arrayData = try? JSONSerialization.data(withJSONObject: rawArray),
-                  let decoded = try? JSONDecoder().decode([WireRelationship].self, from: arrayData) else { return [] }
-            relationships = decoded
-        } else {
-            return []
-        }
-        var seen = Set<String>()
-        return relationships.flatMap { relationship in
-            (relationship.string_list_data ?? []).compactMap { item -> RelationshipRecord? in
-                guard let value = item.value else { return nil }
-                let username = fixMojibake(value).lowercased()
-                guard !username.isEmpty, seen.insert(username).inserted else { return nil }
-                return RelationshipRecord(
-                    username: username,
-                    date: item.timestamp.map { Date(timeIntervalSince1970: $0) }
-                )
-            }
-        }
     }
 
     // MARK: Encoding fix

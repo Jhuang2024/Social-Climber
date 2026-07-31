@@ -28,6 +28,7 @@ enum RecordCounts {
             RecordCountEntry(label: "Voice Notes", count: count(VoiceNote.self, in: context)),
             RecordCountEntry(label: "Captures", count: count(CapturedMemory.self, in: context)),
             RecordCountEntry(label: "Memory Facts", count: count(MemoryFact.self, in: context)),
+            RecordCountEntry(label: "Past Events", count: count(LifeEvent.self, in: context)),
         ]
     }
 

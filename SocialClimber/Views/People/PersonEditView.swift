@@ -256,7 +256,17 @@ struct PersonEditView: View {
         let target = person ?? Person(name: name)
         target.name = name.trimmingCharacters(in: .whitespaces)
         target.nickname = nickname.trimmingCharacters(in: .whitespaces)
-        target.relationshipToMe = relationshipToMe.trimmingCharacters(in: .whitespaces)
+        let trimmedRelationship = relationshipToMe.trimmingCharacters(in: .whitespaces)
+        // Anything a human touched here is final: automatic relationship
+        // inference only ever writes over its own guesses (see
+        // `RelationshipInference`).
+        if trimmedRelationship != target.relationshipToMe {
+            target.relationshipIsUserSet = !trimmedRelationship.isEmpty
+        }
+        if category != target.category || person == nil {
+            target.categoryIsUserSet = true
+        }
+        target.relationshipToMe = trimmedRelationship
         target.category = category
         target.closeness = closeness
         target.priority = priority

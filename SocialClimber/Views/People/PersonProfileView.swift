@@ -91,6 +91,7 @@ struct PersonProfileView: View {
                         Text(person.personalityNotes).font(.subheadline)
                     }
                 }
+                if !person.visibleLifeEvents.isEmpty { pastEventsCard }
                 giftsCard
                 datesCard
                 remindersCard
@@ -373,6 +374,28 @@ struct PersonProfileView: View {
             Button { showHowToRespond = true } label: {
                 Label("Analyze a Screenshot", systemImage: "sparkles")
                     .font(.subheadline.weight(.medium))
+            }
+        }
+    }
+
+    /// What has actually happened to this person, learned from the
+    /// conversations you've captured. Distinct from Timeline (which records
+    /// that you talked) and from Learned Automatically (durable traits).
+    private var pastEventsCard: some View {
+        let events = person.visibleLifeEvents
+        return FormSectionCard("Past Events", icon: "clock.badge.checkmark") {
+            VStack(spacing: 14) {
+                ForEach(events.prefix(5), id: \.persistentModelID) { event in
+                    PastEventRowView(event: event, showSubject: false)
+                }
+            }
+            if events.count > 5 {
+                NavigationLink {
+                    PastEventsView(person: person)
+                } label: {
+                    Label("See all \(events.count)", systemImage: "arrow.right")
+                        .font(.subheadline.weight(.medium))
+                }
             }
         }
     }

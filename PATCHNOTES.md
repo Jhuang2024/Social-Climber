@@ -1,5 +1,54 @@
 # Patch Notes
 
+## Unreleased — Scores that actually move, Instagram follower tracking removed, relationships read from conversation, and a Past Events feed
+
+### The Social Health score stopped changing
+
+The score could report the identical number for weeks. It wasn't a display
+bug: every term feeding it was a step function or a hard cap, and both are
+flat across a band far wider than a month of real life. "Contacted within
+half a cadence" paid a flat +18 whether it was yesterday or three weeks ago,
+"more active than last month" pinned at its +15 ceiling, breadth pinned at
++12, and the relationship average was integer-divided before being halved.
+Add those up and the total genuinely could not move.
+
+- Both scores are now built from continuous curves (`ScoreCurves`): recency is an interpolated ramp instead of five buckets, interaction volume and tone are exponentially time-decayed instead of counted inside hard 30/90-day windows, and the caps became diminishing-returns curves that never stop responding.
+- Scores are computed in fractions and rounded once at the end, using largest-remainder apportionment so the itemized "Why This Score" factors still add up to exactly the number on the ring.
+- The Social Health trend chart now replays history honestly. `RelationshipHealth` read "today" from the system clock internally, so every point on the chart was scored with today's cadence and today's contact dates; `expectedCadenceDays`, `naturalRhythmDays`, `daysSinceContact`, and `status` all take an explicit date now.
+- The per-person relationship score picked up the same treatment, and tone is now a decayed average across recent interactions rather than the single newest one holding a flat value for six weeks.
+- The "Steady/Strong/Cooling" band pill no longer crowds the score ring: the ring's halo and stroke draw outside its frame, so the card pays that overdraw back in padding.
+
+### Instagram follower/following tracking removed
+
+The review sheet kept reporting "No new follower or following activity" no
+matter what, and it was never going to be fixable: Meta's monthly exports are
+date-limited slices rather than snapshots, so nothing honest can be said
+about who followed or unfollowed you. Rather than keep a feature that can
+only be wrong, it's gone.
+
+- `FollowerSnapshot` and `FollowerEvent` are removed from the schema, along with the follower diff, the follower section of the sync review sheet, the follower factor in the Social Health score, and the follower line in the morning brief.
+- Follower and following JSON files are no longer downloaded from Drive or parsed at all. Everything else about Instagram sync is unchanged: new DMs still arrive as reviewable conversations with the same attribution, evidence-linked facts, and undo.
+- Setup instructions now say to export Messages only.
+
+### Relationships are read from the conversation
+
+An automatically-created contact used to sit on the generic "Acquaintance"
+default forever.
+
+- Captures now infer how you know someone from what the conversation actually shows, and write it to their category and the line under their name.
+- A category or relationship a human picked is never overwritten, and a weaker inference never supersedes a stronger earlier one.
+- Every inference is mirrored into a reviewable `MemoryFact` with its source attached, so it shows up in "Learned Automatically" and can be rejected there like anything else the app worked out on its own.
+
+### Past Events
+
+A new page recording what has actually happened — to you and to the people
+you track — pulled out of the conversations you capture and import.
+
+- Only completed changes of state are stored: a school decision, a job, a move, a breakup, a loss, a real falling-out. Plans, topics, and banter are not events, and the same bar is applied to what a real AI provider returns, not just the offline heuristic.
+- An event is only kept when it can be attributed to you or to exactly one contact; "my brother got in" is recognized as being about somebody the app doesn't track and is dropped rather than pinned on the wrong person.
+- Reachable from the Home dashboard, with a per-person section on each profile, filters by kind and by who it happened to, and per-event removal that reprocessing can't undo.
+- Past events replace the follower line in the morning brief, and are carried through JSON export/import and automatic backups.
+
 ## Unreleased — Instagram sync stops missing new followers in monthly exports
 
 New followers could vanish from a sync's summary — the review sheet showed

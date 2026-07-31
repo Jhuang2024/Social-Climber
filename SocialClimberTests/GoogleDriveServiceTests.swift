@@ -7,13 +7,18 @@ final class GoogleDriveServiceTests: XCTestCase {
         XCTAssertTrue(InstagramExportParser.isRelevantEntry(
             "your_instagram_activity/messages/inbox/jerry/message_1.json"
         ))
-        XCTAssertTrue(InstagramExportParser.isRelevantEntry(
+    }
+
+    /// Follower/following tracking was removed, so those files must no
+    /// longer be downloaded or parsed at all.
+    func testFollowerAndFollowingFilesAreIgnored() {
+        XCTAssertFalse(InstagramExportParser.isRelevantEntry(
             "connections/followers_and_following/followers_1.json"
         ))
-        XCTAssertTrue(InstagramExportParser.isRelevantEntry(
+        XCTAssertFalse(InstagramExportParser.isRelevantEntry(
             "connections/followers_and_following/following.json"
         ))
-        XCTAssertTrue(InstagramExportParser.isRelevantEntry(
+        XCTAssertFalse(InstagramExportParser.isRelevantEntry(
             "connections/followers_and_following/recently_unfollowed_accounts.json"
         ))
     }
@@ -25,43 +30,6 @@ final class GoogleDriveServiceTests: XCTestCase {
         XCTAssertFalse(InstagramExportParser.isRelevantEntry(
             "your_instagram_activity/messages/inbox/jerry/message_1.html"
         ))
-    }
-
-    func testFollowerParserAcceptsWrappedAndGroupedUsernames() {
-        let data = Data(#"{
-          "relationships_followers": [
-            {"string_list_data": [{"value": "Alice"}, {"value": "BOB"}]},
-            {"string_list_data": [{"value": "alice"}]}
-          ]
-        }"#.utf8)
-
-        let usernames = InstagramExportParser.parseUsernameList(data, arrayKey: nil)
-
-        XCTAssertEqual(Set(usernames), Set(["alice", "bob"]))
-    }
-
-    func testFollowerParserStillAcceptsBareMetaArray() {
-        let data = Data(#"[
-          {"string_list_data": [{"value": "Jerry"}]},
-          {"string_list_data": [{"value": "Tony"}]}
-        ]"#.utf8)
-
-        XCTAssertEqual(
-            Set(InstagramExportParser.parseUsernameList(data, arrayKey: nil)),
-            Set(["jerry", "tony"])
-        )
-    }
-
-    func testRelationshipParserPreservesUsernameTimestamp() throws {
-        let data = Data(#"[
-          {"string_list_data": [{"value": "Tony", "timestamp": 1783987200}]}
-        ]"#.utf8)
-
-        let record = try XCTUnwrap(
-            InstagramExportParser.parseRelationshipRecords(data, arrayKey: nil).first
-        )
-        XCTAssertEqual(record.username, "tony")
-        XCTAssertEqual(record.date?.timeIntervalSince1970, 1_783_987_200)
     }
 
     func testHTMLExportErrorExplainsHowToFixTheFormat() {

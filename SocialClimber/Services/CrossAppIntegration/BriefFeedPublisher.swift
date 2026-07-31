@@ -50,7 +50,7 @@ enum BriefFeedPublisher {
         let importantDates = fetchAll(ImportantDate.self, from: context)
         let captures = fetchAll(CapturedMemory.self, from: context)
         let voiceNotes = fetchAll(VoiceNote.self, from: context)
-        let followerEvents = fetchAll(FollowerEvent.self, from: context)
+        let lifeEvents = fetchAll(LifeEvent.self, from: context)
 
         return SocialClimberBriefFeed(
             generatedAt: now,
@@ -60,7 +60,7 @@ enum BriefFeedPublisher {
                 events: events,
                 captures: captures,
                 voiceNotes: voiceNotes,
-                followerEvents: followerEvents,
+                lifeEvents: lifeEvents,
                 now: now
             ),
             reminders: reminderEntries(
@@ -81,7 +81,7 @@ enum BriefFeedPublisher {
         events: [Event],
         captures: [CapturedMemory],
         voiceNotes: [VoiceNote],
-        followerEvents: [FollowerEvent],
+        lifeEvents: [LifeEvent],
         now: Date
     ) -> [SocialClimberBriefFeed.Day] {
         let calendar = Calendar.current
@@ -96,7 +96,7 @@ enum BriefFeedPublisher {
                 events: events,
                 captures: captures,
                 voiceNotes: voiceNotes,
-                followerEvents: followerEvents,
+                lifeEvents: lifeEvents,
                 now: now
             )
             // A day with nothing to say is omitted entirely, per the
@@ -120,7 +120,7 @@ enum BriefFeedPublisher {
         events: [Event],
         captures: [CapturedMemory],
         voiceNotes: [VoiceNote],
-        followerEvents: [FollowerEvent],
+        lifeEvents: [LifeEvent],
         now: Date
     ) -> [String] {
         let calendar = Calendar.current
@@ -203,17 +203,15 @@ enum BriefFeedPublisher {
             lines.append("Recorded \(dayNotes.count) voice notes")
         }
 
-        // 6. Instagram follower movement, if a sync landed events on this
-        // day. Only the two directions about *you* — who followed or
-        // unfollowed you — matter in a morning recap.
-        let dayFollowerEvents = followerEvents.filter { calendar.isDate($0.date, inSameDayAs: day) }
-        let gained = dayFollowerEvents.filter { $0.kind == .gainedFollower }.count
-        let lost = dayFollowerEvents.filter { $0.kind == .lostFollower }.count
-        if gained > 0 || lost > 0 {
-            var parts: [String] = []
-            if gained > 0 { parts.append("\(gained) new follower\(gained == 1 ? "" : "s")") }
-            if lost > 0 { parts.append("\(lost) unfollow\(lost == 1 ? "" : "s")") }
-            lines.append("Instagram: " + parts.joined(separator: ", "))
+        // 6. Anything significant that actually happened to the user or to
+        // someone they track, picked up from their conversations. Only real
+        // events land here (see `LifeEvent`), so this stays a recap, not a
+        // firehose.
+        let dayLifeEvents = lifeEvents
+            .filter { !$0.isDismissed && calendar.isDate($0.date, inSameDayAs: day) }
+            .sorted { $0.significance > $1.significance }
+        for event in dayLifeEvents.prefix(3) {
+            lines.append(event.briefLine)
         }
 
         return lines

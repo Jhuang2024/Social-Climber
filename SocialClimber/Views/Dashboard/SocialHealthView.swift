@@ -3,22 +3,18 @@ import SwiftData
 import Charts
 
 /// The big-picture page: an explainable aggregate score for your whole
-/// social life, follower gains/losses from Instagram syncs, activity
-/// momentum, and the relationships pulling the score down.
+/// social life, activity momentum, and the relationships pulling the score
+/// down.
 struct SocialHealthView: View {
     @Query(sort: \Person.name) private var people: [Person]
     @Query(sort: \Interaction.date, order: .reverse) private var interactions: [Interaction]
-    @Query(sort: \FollowerEvent.date, order: .reverse) private var followerEvents: [FollowerEvent]
-    @Query(sort: \FollowerSnapshot.takenAt, order: .reverse) private var followerSnapshots: [FollowerSnapshot]
 
     private var googleDrive: GoogleDriveService { GoogleDriveService.shared }
-    private var latestFollowerSnapshot: FollowerSnapshot? { followerSnapshots.first }
 
     private var report: SocialHealthReport {
         cachedReport ?? SocialHealthReport.compute(
             people: people,
-            interactions: interactions,
-            followerEvents: followerEvents
+            interactions: interactions
         )
     }
 
@@ -41,10 +37,10 @@ struct SocialHealthView: View {
                     scoreCard
                     trendCard
                     factorsCard
-                    if googleDrive.isConnected || latestFollowerSnapshot != nil { instagramCard }
+                    if googleDrive.isConnected { instagramCard }
                     momentumCard
                     if !coolingPeople.isEmpty { coolingCard }
-                    if !googleDrive.isConnected && latestFollowerSnapshot == nil { instagramHint }
+                    if !googleDrive.isConnected { instagramHint }
                 }
             }
             .padding(.horizontal)
@@ -78,17 +74,14 @@ struct SocialHealthView: View {
         HealthChartDataRevision(
             peopleCount: people.count,
             interactionCount: interactions.count,
-            latestInteraction: interactions.first?.date,
-            followerEventCount: followerEvents.count,
-            latestFollowerEvent: followerEvents.first?.date
+            latestInteraction: interactions.first?.date
         )
     }
 
     private func rebuildHealthData() {
         let current = SocialHealthReport.compute(
             people: people,
-            interactions: interactions,
-            followerEvents: followerEvents
+            interactions: interactions
         )
         cachedReport = current
         cachedTrendPoints = makeTrendPoints()
@@ -107,7 +100,7 @@ struct SocialHealthView: View {
     private func makeTrendPoints() -> [HealthChartPoint] {
         let calendar = Calendar.current
         let end = Date.now
-        let earliestFact = ([people.map(\.createdAt), interactions.map(\.date), followerEvents.map(\.date)]
+        let earliestFact = ([people.map(\.createdAt), interactions.map(\.date)]
             .flatMap { $0 }
             .min()) ?? end
         let requestedStart: Date
@@ -141,7 +134,6 @@ struct SocialHealthView: View {
                 score: SocialHealthReport.compute(
                     people: people,
                     interactions: interactions,
-                    followerEvents: followerEvents,
                     now: date
                 ).total
             )
@@ -168,7 +160,11 @@ struct SocialHealthView: View {
     // MARK: Score
 
     private var scoreCard: some View {
-        VStack(spacing: 14) {
+        // The ring's halo and 12pt stroke both draw *outside* the 150pt
+        // frame below, so a plain VStack spacing measured from the frame
+        // edge leaves the band pill visually crowding the ring. The extra
+        // bottom padding on the ring pays back that overdraw.
+        VStack(spacing: 18) {
             ZStack {
                 // A soft halo behind the ring, the same jewellery treatment
                 // the avatars and empty states wear.
@@ -196,7 +192,8 @@ struct SocialHealthView: View {
                 }
             }
             .frame(width: 150, height: 150)
-            .padding(.top, 10)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
 
             Label(report.band.label, systemImage: report.band.icon)
                 .font(.subheadline.weight(.bold))
@@ -205,7 +202,7 @@ struct SocialHealthView: View {
                 .padding(.vertical, 7)
                 .background(report.band.color.opacity(0.12), in: Capsule())
 
-            Text("Built from your relationship scores, this month's activity, and your Instagram follower trend. Every point is itemized below.")
+            Text("Built from your relationship scores, this month's activity, and how many people you're actually reaching. Every point is itemized below.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -240,34 +237,14 @@ struct SocialHealthView: View {
         }
     }
 
-    // MARK: Followers
+    // MARK: Instagram
 
     private var instagramCard: some View {
         FormSectionCard("Instagram", icon: "camera.fill") {
-            if googleDrive.isConnected {
-                InstagramSyncControl(style: .inline)
-            }
-            if let snapshot = latestFollowerSnapshot {
-                HStack {
-                    Label(googleDrive.isConnected ? "Drive connected" : "Last saved snapshot", systemImage: googleDrive.isConnected ? "checkmark.circle.fill" : "externaldrive")
-                        .foregroundStyle(googleDrive.isConnected ? SCTheme.Accents.growth : Color.secondary)
-                    Spacer()
-                    Text("Updated \(snapshot.takenAt.relativeLabel)")
-                        .foregroundStyle(.secondary)
-                }
-                .font(.caption2.weight(.medium))
-
-                Text("Monthly Meta exports are treated as dated activity, not as your total audience. Social Climber records the usernames Meta includes and never treats someone missing from the next partial export as an unfollow.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                Text("Meta does not include a “who unfollowed you” record in monthly partial exports. That one change type requires two complete snapshots; followed you, you followed, and Meta's recently-unfollowed list are still person-level.")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            } else {
-                Text("Sync once to save the first follower/following baseline. The first list is a baseline—not followers gained that day.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            InstagramSyncControl(style: .inline)
+            Text("Syncing pulls new DMs in as reviewable conversations. Follower and following counts aren't tracked: Meta's monthly exports are date-limited slices, so nothing honest can be said about who followed or unfollowed you.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -336,7 +313,7 @@ struct SocialHealthView: View {
 
     private var instagramHint: some View {
         FormSectionCard("Instagram", icon: "camera.fill") {
-            Text("Connect Google Drive in Settings, then sync from here or the Home screen. From the second snapshot onward, Social Health records exactly who followed or unfollowed you and who you followed or unfollowed.")
+            Text("Connect Google Drive in Settings, then sync from here or the Home screen. New DMs arrive as reviewable conversations, and what they say about each relationship feeds this score.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -366,8 +343,6 @@ private struct HealthChartDataRevision: Equatable {
     let peopleCount: Int
     let interactionCount: Int
     let latestInteraction: Date?
-    let followerEventCount: Int
-    let latestFollowerEvent: Date?
 }
 
 /// Owns the high-frequency drag selection state so moving a finger only
