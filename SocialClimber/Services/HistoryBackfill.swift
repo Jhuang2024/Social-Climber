@@ -5,8 +5,8 @@ import SwiftData
 ///
 /// Past Events and relationship inference both run inside `CaptureProcessor`,
 /// which means they only ever see captures processed after the feature
-/// shipped. Everything already on the timeline — months of imported Instagram
-/// threads, voice notes, typed captures — was processed by an earlier build
+/// shipped. Everything already on the timeline (months of imported Instagram
+/// threads, voice notes, typed captures) was processed by an earlier build
 /// that had nowhere to put a life event and no notion of reading a
 /// relationship off a conversation. Without this pass, Past Events starts
 /// empty on a database full of history, and every contact keeps whatever
