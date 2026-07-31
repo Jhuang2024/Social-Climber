@@ -94,9 +94,16 @@ struct UpcomingView: View {
                 case .past: PastEventsView(isEmbedded: true)
                 }
             }
-            .navigationTitle(direction == .upcoming ? "Upcoming" : "Past Events")
-            .navigationBarTitleDisplayMode(.large)
-            .safeAreaInset(edge: .top) { directionPicker }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                // In the bar itself, standing in for the title. A large
+                // title plus a `safeAreaInset` picker left a screen's worth
+                // of empty space above the content and swallowed the title
+                // outright; this is also one less stacked control row.
+                ToolbarItem(placement: .principal) {
+                    directionPicker
+                }
+            }
         }
     }
 
@@ -110,9 +117,7 @@ struct UpcomingView: View {
             }
         }
         .pickerStyle(.segmented)
-        .padding(.horizontal)
-        .padding(.vertical, 8)
-        .background(.bar)
+        .frame(width: 210)
     }
 
     private var upcomingList: some View {

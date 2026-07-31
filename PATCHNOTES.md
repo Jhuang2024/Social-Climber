@@ -1,5 +1,27 @@
 # Patch Notes
 
+## Unreleased: Past Events stops inventing things
+
+The first cut of the detector matched a marker phrase anywhere in a sentence
+and then stored **the sentence itself** as the event, with no check on who
+the subject was. On real conversations that produced, verbatim: "Broke my
+scale" filed under Health, `"yo rmb that like transfer u got into` recorded
+as something that happened to you (it is a question, about someone else), and
+"Bro got into ucb" pinned on a contact called Oliver, because "bro" was read
+as a subject. This is exactly the class of junk `MemoryFact.isLowQuality`
+already existed to prevent one layer down.
+
+- A marker phrase is now only a starting point. The words *before* it have to identify a subject (first person, or a contact named immediately before it) and the words *after* it have to make the phrase mean something: "broke my" needs a body part, "got into" needs a destination and not "a fight". Anything ambiguous is dropped rather than guessed at, including second person ("u got in"), which is nearly always a question rather than news.
+- Questions and callbacks ("rmb…", "did u…", anything with a question mark) are rejected outright, at the source line, not just on the finished title.
+- The stored title is now *built* from the marker and its object ("Got into ucb") instead of quoting the raw chat line, so stray quote marks and half-sentences can't reach the feed.
+- The marker list is much shorter. Phrases that only sometimes report an event ("started at", "won the", "the funeral") produced more noise than signal and are gone.
+- Anything the old detector wrote is discarded and re-derived on the next launch. Events you confirmed, edited, or removed are kept. Settings → Data → "Rescan Past Conversations" does the same rebuild on demand.
+
+### Layout
+
+- The Timeline tab's Upcoming | Past switch moved into the navigation bar. As a `safeAreaInset` under a large title it left a screen's worth of empty space above the content and swallowed the title outright, and it stacked a third control row on top of the two filters below it.
+- The "You / People" filter only appears when the feed actually holds both, and the category chips only when there's more than one category. A filter that can't change what's on screen isn't drawn.
+
 ## Unreleased: Scores that actually move, Instagram follower tracking removed, relationships read from conversation, and a Past Events feed
 
 ### The Social Health score stopped changing

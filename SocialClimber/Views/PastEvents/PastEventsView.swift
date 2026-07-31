@@ -53,6 +53,14 @@ struct PastEventsView: View {
         return scopedEvents.filter { $0.kind == kindFilter }
     }
 
+    /// True only when the feed holds events about the user *and* about
+    /// other people, which is the only case where the scope filter does
+    /// anything.
+    private var hasBothSubjects: Bool {
+        let live = allEvents.filter { !$0.isDismissed }
+        return live.contains(where: \.aboutMe) && live.contains(where: { !$0.aboutMe })
+    }
+
     /// The kinds actually present, so the filter row never offers a chip
     /// that would empty the list.
     private var availableKinds: [LifeEventKind] {
@@ -89,10 +97,11 @@ struct PastEventsView: View {
     private var content: some View {
         ScrollView {
             VStack(spacing: SCTheme.pageSpacing) {
-                if allEvents.contains(where: { !$0.isDismissed }) {
-                    if person == nil { scopePicker }
-                    if availableKinds.count > 1 { kindChips }
-                }
+                // Each filter earns its row or isn't drawn. A "You /
+                // People" split is meaningless when everything belongs to
+                // one side, and a single-category chip row filters nothing.
+                if person == nil && hasBothSubjects { scopePicker }
+                if availableKinds.count > 1 { kindChips }
 
                 if filteredEvents.isEmpty {
                     emptyState

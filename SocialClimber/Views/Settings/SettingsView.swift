@@ -397,7 +397,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Data")
                 } footer: {
-                    Text("\"Rescan Past Conversations\" re-reads everything already on your timeline for past events and relationship clues, on-device and without calling the AI provider. It runs automatically once; run it again after importing an old backup. Nothing is duplicated or overwritten.\n\nSocial Climber automatically snapshots your data whenever anything changes, and whenever you leave the app, keeping the latest 5 on this device and mirroring each one to the shared App Group container so a copy survives app updates and reinstalls. \"Backup Now\" takes one on demand; \"Restore From Backup\" merges one back in without ever deleting or replacing what's already here.")
+                    Text("\"Rescan Past Conversations\" re-reads everything already on your timeline for past events and relationship clues, on-device and without calling the AI provider. It rebuilds what the app worked out on its own and keeps anything you confirmed, edited, or removed. Runs automatically after an update; run it yourself after restoring an old backup, or if a past event looks wrong.\n\nSocial Climber automatically snapshots your data whenever anything changes, and whenever you leave the app, keeping the latest 5 on this device and mirroring each one to the shared App Group container so a copy survives app updates and reinstalls. \"Backup Now\" takes one on demand; \"Restore From Backup\" merges one back in without ever deleting or replacing what's already here.")
                 }
 
                 Section("Privacy") {
@@ -511,10 +511,13 @@ struct SettingsView: View {
         }
     }
 
-    /// Re-reads the existing timeline for past events and relationship
-    /// clues. Offline and idempotent, so running it twice costs nothing and
-    /// changes nothing the second time.
+    /// Re-derives past events from the existing timeline. Discards what
+    /// automatic extraction previously wrote (anything you confirmed,
+    /// edited, or removed is kept) and reads the conversations again, so an
+    /// improved detector can correct its own earlier mistakes instead of
+    /// piling new rows on top of them. Offline; never calls the AI provider.
     private func rescanHistory() {
+        HistoryBackfill.discardMachineWrittenEvents(context: context)
         let summary = HistoryBackfill.run(context: context)
         if summary.isEmpty {
             message = "Nothing new found in your existing conversations."

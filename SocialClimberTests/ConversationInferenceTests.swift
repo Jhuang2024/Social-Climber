@@ -162,6 +162,66 @@ final class ConversationInferenceTests: XCTestCase {
         XCTAssertTrue(events.isEmpty, "Got: \(events.map(\.title))")
     }
 
+    // MARK: Regressions from real captured conversations
+
+    /// Every one of these was on screen in the first build of Past Events.
+    /// They are the reason the detector now validates subject and object
+    /// instead of matching a marker anywhere in a line.
+    func testJunkFromRealConversationsIsRejected() {
+        // "broke my" fired on any object at all. A scale is not a body part.
+        assertNoEvents(in: "Sarah: broke my scale", knownPeople: ["Sarah"])
+
+        // A question about somebody else, stored as something that happened
+        // to the user, quote mark and all.
+        assertNoEvents(
+            in: "Sarah: yo rmb that like transfer u got into",
+            knownPeople: ["Sarah"]
+        )
+
+        // "bro" is a vocative, not a subject; this said nothing about who.
+        assertNoEvents(in: "Oliver: Bro got into ucb", knownPeople: ["Oliver"])
+
+        // Further shapes the same flaw would have accepted.
+        assertNoEvents(in: "Sarah: he got into ucla", knownPeople: ["Sarah"])
+        assertNoEvents(in: "Sarah: we got into a fight", knownPeople: ["Sarah"])
+        assertNoEvents(in: "Sarah: did u get the job", knownPeople: ["Sarah"])
+        assertNoEvents(in: "Sarah: my cousin graduated", knownPeople: ["Sarah"])
+    }
+
+    /// The real thing still has to come through, and the stored title has to
+    /// read as a statement rather than a quoted chat line.
+    func testGenuineEventsSurviveTheTighterRules() throws {
+        let events = LifeEventDetector.detect(
+            in: "Oliver: bro i got into ucb\njerry: LETS GOOO",
+            knownPeople: ["Oliver"],
+            reference: reference
+        )
+        let event = try XCTUnwrap(events.first)
+        XCTAssertEqual(event.personNames, ["Oliver"])
+        XCTAssertFalse(event.aboutMe)
+        XCTAssertEqual(event.kind, LifeEventKind.education.rawValue)
+        // Built from the marker and its object, not lifted from the line.
+        XCTAssertEqual(event.title, "Got into ucb")
+
+        let broken = LifeEventDetector.detect(
+            in: "Sarah: i broke my wrist at practice",
+            knownPeople: ["Sarah"],
+            reference: reference
+        )
+        XCTAssertEqual(broken.first?.kind, LifeEventKind.health.rawValue)
+        XCTAssertEqual(broken.first?.personNames, ["Sarah"])
+    }
+
+    private func assertNoEvents(
+        in text: String,
+        knownPeople: [String],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let events = LifeEventDetector.detect(in: text, knownPeople: knownPeople, reference: reference)
+        XCTAssertTrue(events.isEmpty, "Expected nothing from \(text), got \(events.map(\.title))", file: file, line: line)
+    }
+
     // MARK: Backfill of pre-existing history
 
     /// The whole point of `HistoryBackfill`: conversations logged before

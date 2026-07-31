@@ -26,7 +26,11 @@ enum HistoryBackfill {
 
     private static let versionKey = "historyBackfillVersion"
     /// Bump to re-run the sweep after the detectors get meaningfully better.
-    private static let currentVersion = 1
+    /// v2: the first detector matched a marker anywhere in a sentence and
+    /// stored the raw line as the event, which produced chat fragments
+    /// attributed to the wrong person entirely. Everything it wrote has to
+    /// go, not just be added to.
+    private static let currentVersion = 2
 
     /// Interactions with less text than this carry nothing worth scanning
     /// ("Marked as contacted", a bare "Logged contact with…").
@@ -41,14 +45,34 @@ enum HistoryBackfill {
     }
 
     /// Runs once per `currentVersion`. Called on app activation.
+    ///
+    /// A version bump means the detector itself changed, so anything the
+    /// previous one wrote and nobody has touched since is discarded before
+    /// re-deriving. Conversations are the source of truth here; a stored
+    /// event produced by a detector we no longer trust is not worth keeping
+    /// just because it exists. Events a person confirmed, edited, or
+    /// dismissed are left alone.
     @MainActor
     @discardableResult
     static func runIfNeeded(context: ModelContext) -> Summary {
         let defaults = UserDefaults.standard
-        guard defaults.integer(forKey: versionKey) < currentVersion else { return Summary() }
+        let previous = defaults.integer(forKey: versionKey)
+        guard previous < currentVersion else { return Summary() }
+        if previous > 0 { discardMachineWrittenEvents(context: context) }
         let summary = run(context: context)
         defaults.set(currentVersion, forKey: versionKey)
         return summary
+    }
+
+    /// Deletes every life event automatic extraction produced and no human
+    /// has since confirmed, edited, or dismissed.
+    @MainActor
+    static func discardMachineWrittenEvents(context: ModelContext) {
+        let events = (try? context.fetch(FetchDescriptor<LifeEvent>())) ?? []
+        for event in events where !event.isUserTouched {
+            context.delete(event)
+        }
+        try? context.save()
     }
 
     /// The sweep itself, exposed separately so Settings can offer an explicit
