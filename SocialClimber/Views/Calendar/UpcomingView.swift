@@ -1,9 +1,18 @@
 import SwiftUI
 import SwiftData
 
-/// Merged feed of everything coming up in the next 60 days: birthdays,
-/// important dates, reminders, and (optionally) calendar events that
-/// mention known people.
+/// The app's time tab, switchable in both directions.
+///
+/// **Upcoming** is a merged feed of everything coming up in the next 60
+/// days: birthdays, important dates, reminders, and (optionally) calendar
+/// events that mention known people. **Past** is `PastEventsView`, the
+/// record of what has actually happened to the user and the people they
+/// track.
+///
+/// The two live under one tab deliberately. Past Events has no content until
+/// captures start producing it, so hanging its only entry point off a
+/// content-gated dashboard card left the page unreachable; a switch that is
+/// always present is the fix.
 struct UpcomingView: View {
     @Query private var people: [Person]
     @Query private var importantDates: [ImportantDate]
@@ -11,8 +20,20 @@ struct UpcomingView: View {
     @Environment(\.modelContext) private var context
 
     @State private var calendarEvents: [GoogleCalendarService.MatchedEvent] = []
+    @State private var direction: Direction = .upcoming
 
     private let windowDays = 60
+
+    enum Direction: String, CaseIterable, Identifiable {
+        case upcoming, past
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .upcoming: "Upcoming"
+            case .past: "Past"
+            }
+        }
+    }
 
     struct Entry: Identifiable {
         let id = UUID()
@@ -67,35 +88,61 @@ struct UpcomingView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                if entries.isEmpty {
-                    EmptyStateView(icon: "calendar", title: "Nothing coming up", message: "Birthdays, important dates, plans, and reminders will show here.")
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                } else {
-                    ForEach(groupedByWeek, id: \.0) { title, items in
-                        Section(title) {
-                            ForEach(items) { entry in
-                                entryRow(entry)
-                                    .listRowSeparator(.hidden)
-                                    .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
-                                    .listRowBackground(
-                                        RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous)
-                                            .fill(SCTheme.cardBackground)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 3)
-                                    )
-                            }
+            Group {
+                switch direction {
+                case .upcoming: upcomingList
+                case .past: PastEventsView(isEmbedded: true)
+                }
+            }
+            .navigationTitle(direction == .upcoming ? "Upcoming" : "Past Events")
+            .navigationBarTitleDisplayMode(.large)
+            .safeAreaInset(edge: .top) { directionPicker }
+        }
+    }
+
+    /// Always visible, in both directions: this is the one guaranteed way
+    /// into Past Events, so it must never be conditional on there being
+    /// anything to show.
+    private var directionPicker: some View {
+        Picker("Direction", selection: $direction) {
+            ForEach(Direction.allCases) { item in
+                Text(item.label).tag(item)
+            }
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(.bar)
+    }
+
+    private var upcomingList: some View {
+        List {
+            if entries.isEmpty {
+                EmptyStateView(icon: "calendar", title: "Nothing coming up", message: "Birthdays, important dates, plans, and reminders will show here.")
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            } else {
+                ForEach(groupedByWeek, id: \.0) { title, items in
+                    Section(title) {
+                        ForEach(items) { entry in
+                            entryRow(entry)
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+                                .listRowBackground(
+                                    RoundedRectangle(cornerRadius: SCTheme.controlRadius, style: .continuous)
+                                        .fill(SCTheme.cardBackground)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 3)
+                                )
                         }
                     }
                 }
             }
-            .listStyle(.insetGrouped)
-            .socialClimberPageBackground()
-            .navigationTitle("Upcoming")
-            .refreshable { await loadCalendar() }
-            .task { await loadCalendar() }
         }
+        .listStyle(.insetGrouped)
+        .socialClimberPageBackground()
+        .refreshable { await loadCalendar() }
+        .task { await loadCalendar() }
     }
 
     @ViewBuilder

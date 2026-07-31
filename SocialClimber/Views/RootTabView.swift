@@ -68,9 +68,11 @@ struct RootTabView: View {
                 .id(resetIDs[.search])
                 .tabItem { Label("Search", systemImage: "magnifyingglass") }
                 .tag(Tab.search)
+            // One tab for time in both directions: what's coming up, and
+            // what has already happened (see `UpcomingView`).
             UpcomingView()
                 .id(resetIDs[.upcoming])
-                .tabItem { Label("Upcoming", systemImage: "calendar") }
+                .tabItem { Label("Timeline", systemImage: "calendar") }
                 .badge(dueCount)
                 .tag(Tab.upcoming)
             SettingsView()
@@ -158,6 +160,9 @@ struct RootTabView: View {
         guard let destination else { return }
         switch destination {
         case .reminders:
+            // Rebuild the tab so it lands on Upcoming even if the user last
+            // left the direction switch on Past.
+            resetIDs[.upcoming] = UUID()
             selection = .upcoming
         case .captureReview, .logInteraction:
             selection = .home

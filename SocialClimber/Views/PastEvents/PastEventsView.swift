@@ -15,6 +15,9 @@ struct PastEventsView: View {
 
     /// Limits the page to one person when pushed from their profile.
     var person: Person?
+    /// True when this is the "Past" half of the Timeline tab, which owns the
+    /// navigation title and the Upcoming/Past switch above it.
+    var isEmbedded: Bool = false
 
     @State private var scope: Scope = .everyone
     @State private var kindFilter: LifeEventKind?
@@ -74,6 +77,16 @@ struct PastEventsView: View {
     }
 
     var body: some View {
+        if isEmbedded {
+            content
+        } else {
+            content
+                .navigationTitle(person == nil ? "Past Events" : "\(person?.firstName ?? "")'s Events")
+                .navigationBarTitleDisplayMode(.large)
+        }
+    }
+
+    private var content: some View {
         ScrollView {
             VStack(spacing: SCTheme.pageSpacing) {
                 if allEvents.contains(where: { !$0.isDismissed }) {
@@ -100,8 +113,6 @@ struct PastEventsView: View {
             .padding(.bottom, 28)
         }
         .socialClimberPageBackground()
-        .navigationTitle(person == nil ? "Past Events" : "\(person?.firstName ?? "")'s Events")
-        .navigationBarTitleDisplayMode(.large)
     }
 
     private func row(_ event: LifeEvent) -> some View {

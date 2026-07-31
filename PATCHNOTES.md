@@ -46,7 +46,8 @@ you track, pulled out of the conversations you capture and import.
 
 - Only completed changes of state are stored: a school decision, a job, a move, a breakup, a loss, a real falling-out. Plans, topics, and banter are not events, and the same bar is applied to what a real AI provider returns, not just the offline heuristic.
 - An event is only kept when it can be attributed to you or to exactly one contact; "my brother got in" is recognized as being about somebody the app doesn't track and is dropped rather than pinned on the wrong person.
-- Reachable from the Home dashboard, with a per-person section on each profile, filters by kind and by who it happened to, and per-event removal that reprocessing can't undo.
+- Lives in the **Timeline** tab (the old Upcoming tab), behind an always-visible Upcoming | Past switch, with a per-person section on each profile, filters by kind and by who it happened to, and per-event removal that reprocessing can't undo. The switch is deliberately never conditional on there being content: the first cut hung the only entry point off a dashboard card that hides itself when empty, which left the page unreachable until events already existed.
+- A shortcut card also appears on the Home dashboard once there's something to show.
 - Past events replace the follower line in the morning brief, and are carried through JSON export/import and automatic backups.
 
 ## Unreleased: Instagram sync stops missing new followers in monthly exports
