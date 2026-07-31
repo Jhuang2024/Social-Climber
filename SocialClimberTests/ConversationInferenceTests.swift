@@ -162,6 +162,86 @@ final class ConversationInferenceTests: XCTestCase {
         XCTAssertTrue(events.isEmpty, "Got: \(events.map(\.title))")
     }
 
+    // MARK: Backfill of pre-existing history
+
+    /// The whole point of `HistoryBackfill`: conversations logged before
+    /// these features existed must still produce past events and a
+    /// relationship, not start the feed at zero.
+    func testBackfillReadsConversationsLoggedBeforeTheFeatureExisted() throws {
+        let schema = Schema([
+            Person.self, Interaction.self, GiftIdea.self, Reminder.self,
+            ImportantDate.self, VoiceNote.self, ConversationSummary.self,
+            Event.self, CapturedMemory.self, MemoryFact.self,
+            LifeEvent.self,
+        ])
+        let container = try ModelContainer(
+            for: schema,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let context = container.mainContext
+
+        let person = Person(name: "Maya Chen", category: .acquaintance)
+        context.insert(person)
+
+        // An Instagram import from months ago, of the shape the old build
+        // stored: the full transcript in `rawImportText`, and no life events
+        // anywhere, because there was nowhere to put one.
+        let old = Interaction(type: .socialMedia, date: Date(timeIntervalSince1970: 1_790_000_000))
+        old.isImported = true
+        old.rawImportText = "Maya Chen: i got into berkeley\n"
+            + "jerry: YOOO\n"
+            + "Maya Chen: also we're roommates next year right\n"
+            + "jerry: obviously"
+        old.people = [person]
+        context.insert(old)
+
+        XCTAssertTrue(try context.fetch(FetchDescriptor<LifeEvent>()).isEmpty)
+
+        let summary = HistoryBackfill.run(context: context)
+
+        let events = try context.fetch(FetchDescriptor<LifeEvent>())
+        XCTAssertEqual(summary.eventsCreated, events.count)
+        let acceptance = try XCTUnwrap(events.first { $0.kind == .education })
+        XCTAssertEqual(acceptance.person?.name, "Maya Chen")
+        XCTAssertFalse(acceptance.aboutMe)
+        // Dated to the conversation, and honest that the exact day is a guess.
+        XCTAssertEqual(acceptance.date, old.date)
+        XCTAssertTrue(acceptance.isDateApproximate)
+        XCTAssertEqual(acceptance.sourceInteractionUUID, old.uuid)
+        // And the relationship stops being the placeholder it was created with.
+        XCTAssertEqual(person.category, .roommate)
+    }
+
+    /// Running the sweep twice must not double the feed.
+    func testBackfillIsIdempotent() throws {
+        let schema = Schema([
+            Person.self, Interaction.self, GiftIdea.self, Reminder.self,
+            ImportantDate.self, VoiceNote.self, ConversationSummary.self,
+            Event.self, CapturedMemory.self, MemoryFact.self,
+            LifeEvent.self,
+        ])
+        let container = try ModelContainer(
+            for: schema,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let context = container.mainContext
+
+        let person = Person(name: "Maya Chen")
+        context.insert(person)
+        let interaction = Interaction(type: .socialMedia, date: Date(timeIntervalSince1970: 1_790_000_000))
+        interaction.rawImportText = "Maya Chen: i got into berkeley"
+        interaction.people = [person]
+        context.insert(interaction)
+
+        HistoryBackfill.run(context: context)
+        let firstPass = try context.fetch(FetchDescriptor<LifeEvent>()).count
+        XCTAssertGreaterThan(firstPass, 0)
+
+        let second = HistoryBackfill.run(context: context)
+        XCTAssertEqual(second.eventsCreated, 0)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<LifeEvent>()).count, firstPass)
+    }
+
     /// The bar applies to whatever a real AI provider returns too, not just
     /// the offline heuristic.
     func testQualityGateRejectsWeakAICandidates() {

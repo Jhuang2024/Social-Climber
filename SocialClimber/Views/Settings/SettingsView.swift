@@ -367,6 +367,11 @@ struct SettingsView: View {
                         Label("Import JSON…", systemImage: "square.and.arrow.down")
                     }
                     Button {
+                        rescanHistory()
+                    } label: {
+                        Label("Rescan Past Conversations", systemImage: "clock.badge.checkmark")
+                    }
+                    Button {
                         backUpNow()
                     } label: {
                         Label("Backup Now", systemImage: "externaldrive.badge.checkmark")
@@ -392,7 +397,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Data")
                 } footer: {
-                    Text("Social Climber automatically snapshots your data whenever anything changes, and whenever you leave the app, keeping the latest 5 on this device and mirroring each one to the shared App Group container so a copy survives app updates and reinstalls. \"Backup Now\" takes one on demand; \"Restore From Backup\" merges one back in without ever deleting or replacing what's already here.")
+                    Text("\"Rescan Past Conversations\" re-reads everything already on your timeline for past events and relationship clues, on-device and without calling the AI provider. It runs automatically once; run it again after importing an old backup. Nothing is duplicated or overwritten.\n\nSocial Climber automatically snapshots your data whenever anything changes, and whenever you leave the app, keeping the latest 5 on this device and mirroring each one to the shared App Group container so a copy survives app updates and reinstalls. \"Backup Now\" takes one on demand; \"Restore From Backup\" merges one back in without ever deleting or replacing what's already here.")
                 }
 
                 Section("Privacy") {
@@ -504,6 +509,26 @@ struct SettingsView: View {
             }
             isConnectingGoogleCalendar = false
         }
+    }
+
+    /// Re-reads the existing timeline for past events and relationship
+    /// clues. Offline and idempotent, so running it twice costs nothing and
+    /// changes nothing the second time.
+    private func rescanHistory() {
+        let summary = HistoryBackfill.run(context: context)
+        if summary.isEmpty {
+            message = "Nothing new found in your existing conversations."
+        } else {
+            var parts: [String] = []
+            if summary.eventsCreated > 0 {
+                parts.append("\(summary.eventsCreated) past event\(summary.eventsCreated == 1 ? "" : "s")")
+            }
+            if summary.relationshipsInferred > 0 {
+                parts.append("\(summary.relationshipsInferred) relationship\(summary.relationshipsInferred == 1 ? "" : "s")")
+            }
+            message = "Found \(parts.joined(separator: " and ")) across \(summary.scanned) conversations."
+        }
+        Haptics.success()
     }
 
     private func backUpNow() {

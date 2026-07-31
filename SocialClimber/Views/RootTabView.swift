@@ -97,6 +97,10 @@ struct RootTabView: View {
         }
         .task {
             DemoDataCleanupService.removeBundledDemoContactsIfNeeded(context: context)
+            // Reads Past Events and relationships out of conversations that
+            // were logged before either feature existed. Runs once, offline,
+            // and is a no-op on every later launch.
+            HistoryBackfill.runIfNeeded(context: context)
             await CaptureProcessor.shared.handleAppActivated()
             reconcileNotifications()
             await processPendingCaptures()
