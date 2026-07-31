@@ -1,6 +1,6 @@
 # Patch Notes
 
-## Unreleased — Scores that actually move, Instagram follower tracking removed, relationships read from conversation, and a Past Events feed
+## Unreleased: Scores that actually move, Instagram follower tracking removed, relationships read from conversation, and a Past Events feed
 
 ### The Social Health score stopped changing
 
@@ -41,29 +41,29 @@ default forever.
 
 ### Past Events
 
-A new page recording what has actually happened — to you and to the people
-you track — pulled out of the conversations you capture and import.
+A new page recording what has actually happened, to you and to the people
+you track, pulled out of the conversations you capture and import.
 
 - Only completed changes of state are stored: a school decision, a job, a move, a breakup, a loss, a real falling-out. Plans, topics, and banter are not events, and the same bar is applied to what a real AI provider returns, not just the offline heuristic.
 - An event is only kept when it can be attributed to you or to exactly one contact; "my brother got in" is recognized as being about somebody the app doesn't track and is dropped rather than pinned on the wrong person.
 - Reachable from the Home dashboard, with a per-person section on each profile, filters by kind and by who it happened to, and per-event removal that reprocessing can't undo.
 - Past events replace the follower line in the morning brief, and are carried through JSON export/import and automatic backups.
 
-## Unreleased — Instagram sync stops missing new followers in monthly exports
+## Unreleased: Instagram sync stops missing new followers in monthly exports
 
-New followers could vanish from a sync's summary — the review sheet showed
+New followers could vanish from a sync's summary: the review sheet showed
 "No new dated follower or following activity in this export" even when several
 people had just followed. The date-limited path had detected new followers only
 from history events it *wrote* on that run, so anyone already recorded by an
 earlier sync of the same monthly export (Meta's windows overlap, and the same
 export file is often synced more than once) was silently dropped.
 
-- New followers are now detected by comparing usernames against everyone seen before, the reliable signal for partial exports — Meta records follows by username, so an account present now that was never seen is a genuine gain regardless of whether that month's file carried a follow timestamp. Unfollows are still only inferred from two complete snapshots.
+- New followers are now detected by comparing usernames against everyone seen before, the reliable signal for partial exports, since Meta records follows by username, so an account present now that was never seen is a genuine gain regardless of whether that month's file carried a follow timestamp. Unfollows are still only inferred from two complete snapshots.
 - A partial (date-limited) export now *accumulates* the known-follower/following baseline instead of overwriting it with that month's slice, so the set no longer shrinks each month and someone missing from the next partial export is never mistaken for an unfollow.
 - Re-syncing the same monthly export is idempotent: it reports the same gains rather than either repeating them or collapsing to "nothing new".
 - Person-level follow events keep their precise date when the export provides one, and the review sheet now says "Baseline saved" on a first sync instead of the date-limited "nothing new" wording.
 
-## Unreleased — Instagram sync shows a real progress bar
+## Unreleased: Instagram sync shows a real progress bar
 
 The slow parts of a Drive import used to report progress only as text
 ("Downloading 5 of 42"). Each measurable phase now draws a determinate
@@ -74,12 +74,12 @@ sync is, and the bar fills all the way before advancing to the next phase.
 - Parsing the export now reports per-file progress: the archive's relevant entries and any loose JSON files are counted up front, so "Reading export" fills as each file is ingested instead of sitting on one static line.
 - The review sheet's Apply step shows the same bar and "X of Y" countdown as it works through each selected conversation.
 
-## Unreleased — Instagram sync no longer dies when the screen locks
+## Unreleased: Instagram sync no longer dies when the screen locks
 
-- The device is now held awake (idle timer disabled) for the whole Instagram sync — Drive download, unzip, and parsing — and again while the review sheet applies conversations through AI extraction, so the phone no longer auto-locks and suspends the job midway.
+- The device is now held awake (idle timer disabled) for the whole Instagram sync (Drive download, unzip, and parsing), and again while the review sheet applies conversations through AI extraction, so the phone no longer auto-locks and suspends the job midway.
 - Both phases also hold a background-task assertion: an explicit lock or quick app switch now gets iOS's ~30-second grace period to finish or reach a resumable point instead of stopping instantly. Syncs remain safe to re-run either way, since per-conversation cutoffs only advance on apply.
 
-## Unreleased — Instagram sync moved out of Settings
+## Unreleased: Instagram sync moved out of Settings
 
 Syncing is a daily action, not configuration, so the "Sync Now" button left
 Settings and now lives where the day starts.
@@ -88,13 +88,13 @@ Settings and now lives where the day starts.
 - Social Health's Instagram card gained the same Sync Now action, so the page that shows follower changes can also refresh them, instead of sending you to Settings.
 - Settings keeps only the one-time plumbing: connect/disconnect Google Drive, the export folder name, the daily reminder toggle, and the setup guide. Its copy (and the 10 AM reminder notification) now point at the Home screen.
 
-## Unreleased — People widget navigation and Learned Automatically junk
+## Unreleased: People widget navigation and Learned Automatically junk
 
 - Fixed the dashboard People card's list: tapping a person there landed back on the same list instead of opening their profile. Rows now push the profile directly (same for the Social Health "Pulling the Score Down" rows, which used the identical fragile pattern).
 - Learned Automatically no longer surfaces chat banter dressed up as facts: values containing emoji, first/second-person wording ("Selling my grades"), or message slang ("Ts game", "ong", "fr") are treated as quoted chat fragments and filtered. The filter is applied live, so existing junk rows disappear without touching user-confirmed facts.
-- The AI extraction prompt now demands durable, third-person facts, tells the model that one-off banter and jokes are not interests, caps personality notes, and forbids "how they text" observations — so real-AI extractions stop producing the junk the heuristic path was already blocked from producing.
+- The AI extraction prompt now demands durable, third-person facts, tells the model that one-off banter and jokes are not interests, caps personality notes, and forbids "how they text" observations, so real-AI extractions stop producing the junk the heuristic path was already blocked from producing.
 
-## Unreleased — Rolling voice segments, Mandarin, and speaker attribution
+## Unreleased: Rolling voice segments, Mandarin, and speaker attribution
 
 Live voice recording now works in 30-second slices so long conversations are
 processed as they happen instead of in one slow pass at the end. All additive
@@ -108,7 +108,7 @@ and backward compatible (SwiftData lightweight migration handles the new
 - Conversations now show "who said what": given the people you pick before recording (plus you, the narrator), the AI attributes each line to its likely speaker. Shown in review and on the saved note; it's a reading aid and never a source of facts.
 - Interruptions, backgrounding, and pauses still finalize and hand off the current slice safely, so a crash costs at most the open slice.
 
-## Unreleased — Notification delivery reliability
+## Unreleased: Notification delivery reliability
 
 - Fixed foreground alerts omitting the Notification Center `.list` presentation option, which let iOS report a test as delivered even though it vanished when its banner was suppressed.
 - Delivery tests now clear stale delivered tests first and record whether `willPresent` actually ran, rather than blaming Focus based on an old notification with the same identifier.
@@ -140,20 +140,20 @@ and backward compatible (SwiftData lightweight migration handles the new
 - Fixed the daily Instagram reminder appearing enabled while master notifications were off, moved it to 10 AM, and added live iOS permission, pending-request diagnostics, and a test notification.
 - Raw downloaded files are still temporary, parsed on-device, and deleted immediately after the sync.
 
-## Unreleased — Audio pipeline & notifications overhaul
+## Unreleased: Audio pipeline & notifications overhaul
 
 Two production-focused upgrades. No existing feature, data model, capture flow,
-or transcription behavior was removed — everything additive and backward
+or transcription behavior was removed; everything additive and backward
 compatible (SwiftData lightweight migration handles the new `VoiceNote` fields).
 
 ### 1. Shared, pocket-tuned audio pipeline
 
 All audio capture now runs through one shared pipeline instead of per-screen
-logic, so every entry point behaves identically and reliably — even with the
+logic, so every entry point behaves identically and reliably, even with the
 phone in a pocket.
 
 **Recording**
-- Speech-optimized AAC settings (mono, 32 kHz, ~48 kbps) — clear voice, small files.
+- Speech-optimized AAC settings (mono, 32 kHz, ~48 kbps): clear voice, small files.
 - Voice-tuned `AVAudioSession` configuration with interruption recovery.
 - Picks the clearest available input (wired → Bluetooth/AirPods → built-in) and
   **pins** it so the route can't silently switch mid-recording.
@@ -171,7 +171,7 @@ phone in a pocket.
 - Gentle noise reduction for constant background (traffic, AC, hum, fabric).
 - High-pass removal of low-frequency rumble from walking/handling.
 - Speech-presence EQ and light dynamic-range compression.
-- Deliberately conservative — tuned for intelligibility, not an artificially
+- Deliberately conservative, tuned for intelligibility, not an artificially
   clean sound (aggressive denoising that eats consonants is avoided).
 - Extremely long audio is split into overlapping chunks and recombined with
   preserved timestamps.
@@ -201,7 +201,7 @@ phone in a pocket.
   reminder/date/event), never cold on first launch.
 - New **Settings → Notifications** screen: master toggle, per-category toggles,
   quiet hours, lock-screen preview privacy, default snooze, and reminder
-  frequency — using the app's existing visual system.
+  frequency, using the app's existing visual system.
 - Privacy-safe text by default ("A saved reminder is due.") that never exposes
   relationship notes on the lock screen; opt in to detailed previews.
 - Notification actions (Mark Complete, Snooze, Open, Review, Log) update the

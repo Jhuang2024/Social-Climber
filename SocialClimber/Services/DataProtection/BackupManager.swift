@@ -121,7 +121,7 @@ enum BackupManager {
     /// Every backup this device can still see: the local rotation plus the
     /// App Group mirrors that outlive a reinstall, ranked most-complete first
     /// (then newest first). The single source of truth for "the best backup
-    /// we have" — after a reinstall wipes the sandbox the local list is empty
+    /// we have": after a reinstall wipes the sandbox the local list is empty
     /// and only the mirrors remain, and after an in-app wipe the newest local
     /// backup is of the nearly-empty post-wipe state, so completeness, not
     /// recency, is what should lead. Decodes the (at most five) local files to

@@ -72,7 +72,7 @@ enum LifeEventKind: String, Codable, CaseIterable, Identifiable {
 /// everything said. An interaction already records that a conversation
 /// happened and `MemoryFact` already records durable traits ("into
 /// climbing"). A `LifeEvent` is the narrower thing in between: a dated,
-/// consequential change of state — got into a school, started a job, moved
+/// consequential change of state: got into a school, started a job, moved
 /// city, broke up, someone died, a falling-out. Plans and hypotheticals are
 /// not events; they stay reminders. The extraction side is held to the same
 /// bar (see `AIExtraction.pastEvents` and `LifeEventFilter`), because a
@@ -82,7 +82,7 @@ final class LifeEvent {
     var uuid: UUID = UUID()
     var title: String = ""
     var detail: String = ""
-    /// When it happened, as best as the source could say — not when it was
+    /// When it happened, as best as the source could say, not when it was
     /// captured. Falls back to the capture date when the text gives nothing.
     var date: Date = Date()
     /// True when the date came from the capture rather than the text, so the

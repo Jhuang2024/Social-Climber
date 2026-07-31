@@ -6,11 +6,11 @@ import Foundation
 ///
 /// Two halves live here:
 ///
-/// * `guesses(in:subjectNames:)` — the offline heuristic, used by
+/// * `guesses(in:subjectNames:)`, the offline heuristic, used by
 ///   `MockAIService` and as the floor when a real provider returns nothing.
 ///   It only fires on wording that genuinely states a relationship, and it
 ///   would rather say nothing than guess.
-/// * `apply(_:to:)` — the write policy, shared by every caller. A category
+/// * `apply(_:to:)`, the write policy, shared by every caller. A category
 ///   a human picked is never overwritten, and a weaker read never
 ///   supersedes a stronger earlier one.
 enum RelationshipInference {

@@ -4,7 +4,7 @@ import SwiftData
 
 /// Exercises the scheduling/cancellation bookkeeping that guarantees dedup:
 /// stable `notificationID`s, reused across reschedules, cleared on cancel.
-/// (The OS delivery itself isn't asserted — the identifier bookkeeping is the
+/// (The OS delivery itself isn't asserted; the identifier bookkeeping is the
 /// dedup mechanism and the part worth pinning down.)
 @MainActor
 final class NotificationServiceTests: XCTestCase {

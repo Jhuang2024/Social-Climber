@@ -78,7 +78,7 @@ enum CaptureParser {
     // MARK: Explicit sentiment
 
     /// Sentiment cue phrases, as sequences of whole words. They are matched on
-    /// word boundaries, never as substrings (see `containsSignal`) — matching
+    /// word boundaries, never as substrings (see `containsSignal`); matching
     /// substrings is what used to make "talked it through" trip "rough",
     /// "intense but fun" trip "tense", and "badly" trip "bad", flipping plainly
     /// fine interactions to negative and dragging the relationship score down.
@@ -107,7 +107,7 @@ enum CaptureParser {
     /// A sentiment ONLY when the user explicitly described how it went; never
     /// inferred from topic or tone. Whole words are matched, negations are
     /// respected, and a note carrying BOTH a positive and a negative cue is
-    /// treated as ambiguous (returns nil) rather than forcing the negative — so
+    /// treated as ambiguous (returns nil) rather than forcing the negative, so
     /// automated captures default to neutral and closeness is never moved on a
     /// guess.
     static func explicitSentiment(in text: String) -> Sentiment? {

@@ -89,7 +89,7 @@ struct ExtractedFact: Codable, Hashable, Sendable {
 /// conversation itself rather than assumed. `category` matches a
 /// `PersonCategory` raw value; `descriptor` is the short human phrase shown
 /// under their name ("Classmate from the IB program"). Applied only when
-/// nobody has set the relationship by hand — see `RelationshipInference`.
+/// nobody has set the relationship by hand. See `RelationshipInference`.
 struct ExtractedRelationship: Codable, Hashable, Sendable {
     var personName: String
     var category: String
@@ -223,7 +223,7 @@ struct AIExtraction: Codable, Sendable {
     /// generic "Acquaintance" default.
     var relationships: [ExtractedRelationship] = []
     /// Significant things that actually happened, to the narrator or to a
-    /// contact — the Past Events feed's raw material. Held to a much higher
+    /// contact: the Past Events feed's raw material. Held to a much higher
     /// bar than facts: a plan, a topic, or a joke is not an event.
     var pastEvents: [ExtractedLifeEvent] = []
 
@@ -819,8 +819,8 @@ final class BazaarLinkAIService: AIService {
     - Do not duplicate the same fact across multiple categories.
     - Attribution matters: when more than one contact is named, each individual fact ("attributedFacts" entries, and each reminder/importantDate) must list exactly the person or people that specific fact is actually about in "personNames", never all contacts mentioned anywhere in the memory. If a fact doesn't clearly belong to anyone in particular, leave "personNames" empty; do not guess by picking whichever person was mentioned first.
     - Include a 0.0–1.0 confidence per category in "fieldConfidence" plus an overall "confidenceScore".
-    - Relationship: infer how the NARRATOR knows each contact from what the conversation actually shows (how they address each other, shared context, what they talk about) — not from vibes. Report it in "relationships" with the closest category and a short human descriptor ("Classmate from the IB program"). Only include a contact you have real evidence for; omit them entirely rather than guessing, since an omission leaves the existing relationship untouched while a wrong guess overwrites it.
-    - Past events: "pastEvents" is ONLY for significant things that actually HAPPENED and are now settled facts — got into a school, started or lost a job, moved city, got together or broke up, a death, a serious illness or injury, a real falling-out, a genuine achievement. It is not for plans, hopes, hypotheticals, opinions, ongoing topics, or anything either person merely discussed. Something that has not happened yet is a reminder, not an event. If the conversation contains no such thing — which is the normal case — return an empty array. Prefer returning nothing over returning something weak. Set "aboutMe": true when it happened to the narrator, otherwise name the contact it happened to in "personNames".
+    - Relationship: infer how the NARRATOR knows each contact from what the conversation actually shows (how they address each other, shared context, what they talk about), not from vibes. Report it in "relationships" with the closest category and a short human descriptor ("Classmate from the IB program"). Only include a contact you have real evidence for; omit them entirely rather than guessing, since an omission leaves the existing relationship untouched while a wrong guess overwrites it.
+    - Past events: "pastEvents" is ONLY for significant things that actually HAPPENED and are now settled facts: got into a school, started or lost a job, moved city, got together or broke up, a death, a serious illness or injury, a real falling-out, a genuine achievement. It is not for plans, hopes, hypotheticals, opinions, ongoing topics, or anything either person merely discussed. Something that has not happened yet is a reminder, not an event. If the conversation contains no such thing, which is the normal case, return an empty array. Prefer returning nothing over returning something weak. Set "aboutMe": true when it happened to the narrator, otherwise name the contact it happened to in "personNames".
     - Speaker attribution: when "Conversation participants" are given and the input reads as a spoken conversation, split it into ordered "conversation" lines and label each with who most likely said it, choosing only from those participants or "Me" (the narrator). Never invent a speaker outside that set; if a line's speaker is genuinely unclear, use "Unknown". If participants are absent or the input isn't a conversation, return an empty "conversation" array. This is only a readability aid: still derive all facts, interests, and attributions from the content itself, exactly as if the conversation array were absent.
     """
 

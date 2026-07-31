@@ -114,8 +114,8 @@ enum CrossAppIntegrationManager {
     }
 
     /// Publishes the morning-brief feed for Brief. Gated on the same
-    /// sharing flag as the LockedInFit snapshot — one toggle governs
-    /// everything that leaves the app through the App Group — and equally
+    /// sharing flag as the LockedInFit snapshot (one toggle governs
+    /// everything that leaves the app through the App Group), and equally
     /// safe to call often: each write atomically overwrites the same file.
     /// A no-op when sharing is off or the App Group container is
     /// unavailable, and the build itself is fail-silent, so this can never

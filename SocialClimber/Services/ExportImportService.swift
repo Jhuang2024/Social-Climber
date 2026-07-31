@@ -326,7 +326,7 @@ enum ExportImportService {
         /// AI-generated caches (the "Suggest with AI" gift list and the
         /// relationship summary). Carried through export/restore so a backup
         /// round-trip never silently discards paid API output and forces the
-        /// app to regenerate — and re-bill — on first view. All optional or
+        /// app to regenerate (and re-bill) on first view. All optional or
         /// defaulted, so archives written before these fields existed still
         /// decode in full.
         var cachedGiftSuggestions: [GiftSuggestion] = []

@@ -24,7 +24,7 @@ final class TranscriptCleanerTests: XCTestCase {
     }
 
     func testPreservesMeaningfulWords() {
-        // "like" and "so" are meaningful — not stripped.
+        // "like" and "so" are meaningful, not stripped.
         let cleaned = TranscriptCleaner.clean("I like it so much")
         XCTAssertTrue(cleaned.contains("like"))
         XCTAssertTrue(cleaned.contains("so"))
@@ -44,7 +44,7 @@ final class TranscriptCleanerTests: XCTestCase {
     }
 
     func testWeakMatchIsNotReplaced() {
-        // "Sam" vs "Sarah" is not a strong match — left exactly as spoken.
+        // "Sam" vs "Sarah" is not a strong match, so it is left exactly as spoken.
         let cleaned = TranscriptCleaner.normalizeNames(in: "talked to Sam", contactNames: ["Sarah"])
         XCTAssertTrue(cleaned.contains("Sam"))
         XCTAssertFalse(cleaned.contains("Sarah"))

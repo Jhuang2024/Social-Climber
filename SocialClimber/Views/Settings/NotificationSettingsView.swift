@@ -213,7 +213,7 @@ struct NotificationSettingsView: View {
                 }
                 try await NotificationService.shared.scheduleDeliveryTest()
                 await refreshDiagnostics()
-                deliveryMessage = "Scheduled — checking whether iOS actually delivers it…"
+                deliveryMessage = "Scheduled. Checking whether iOS actually delivers it…"
 
                 // The trigger fires at 3s; wait past that, then ask iOS
                 // directly what happened instead of assuming success from
@@ -223,7 +223,7 @@ struct NotificationSettingsView: View {
                 await refreshDiagnostics()
                 switch outcome {
                 case .stillPending:
-                    deliveryMessage = "Still pending after 4s — the trigger hasn't fired yet. Wait a moment and check again."
+                    deliveryMessage = "Still pending after 4s: the trigger hasn't fired yet. Wait a moment and check again."
                 case .presentedInForeground:
                     deliveryMessage = "The foreground notification delegate ran and requested a banner, Notification Center list entry, sound, and badge."
                 case .deliveredInBackground:

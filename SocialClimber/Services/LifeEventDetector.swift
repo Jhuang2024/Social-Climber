@@ -4,7 +4,7 @@ import Foundation
 /// as *events*, and throws out everything else.
 ///
 /// The whole risk with a "what's happened lately" feed is that it fills with
-/// noise — every topic discussed, every plan floated, every joke — until it's
+/// noise (every topic discussed, every plan floated, every joke) until it's
 /// unreadable and untrusted. So this is written to say nothing most of the
 /// time. Two gates do that work:
 ///
@@ -26,7 +26,7 @@ enum LifeEventDetector {
         "what if", "supposed to", "trying to",
     ]
 
-    /// Whether a candidate event — heuristic or AI-produced — is solid
+    /// Whether a candidate event, heuristic or AI-produced, is solid
     /// enough to store.
     static func isWorthKeeping(_ event: ExtractedLifeEvent) -> Bool {
         let title = event.title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -120,8 +120,8 @@ enum LifeEventDetector {
     /// Attribution uses the strongest signal available. In an imported chat
     /// digest the lines are `"Sender: text"`, so whoever said a line is
     /// simply who it's about: a sender that resolves to a known contact
-    /// attributes to them, and — once at least one sender in the same
-    /// transcript has resolved — an unresolved sender is the narrator, since
+    /// attributes to them, and, once at least one sender in the same
+    /// transcript has resolved, an unresolved sender is the narrator, since
     /// the user is never in their own contact list. For free-form notes it
     /// falls back to the names in the sentence, then to first-person
     /// wording. When none of that identifies anyone, the candidate is
@@ -152,7 +152,7 @@ enum LifeEventDetector {
 
                 let namedHere = CaptureParser.peopleNamed(in: statement, knownPeople: knownPeople)
                 // "my brother got in", "her mom passed away": a real event,
-                // but about somebody this app doesn't track — and pinning it
+                // but about somebody this app doesn't track, and pinning it
                 // on the speaker would be plainly wrong. Checked before any
                 // attribution so no branch can claim it.
                 guard !namedHere.isEmpty || !aboutSomeoneElse(lower) else { continue }
@@ -173,7 +173,7 @@ enum LifeEventDetector {
                     subjects = []
                     aboutMe = true
                 } else {
-                    // Nobody identifiable — better to drop it than to guess.
+                    // Nobody identifiable; better to drop it than to guess.
                     continue
                 }
 
@@ -218,8 +218,8 @@ enum LifeEventDetector {
         return (true, match, body)
     }
 
-    /// Wording that puts the event on somebody the app doesn't track — a
-    /// relative, a partner, a friend-of-a-friend — rather than on the
+    /// Wording that puts the event on somebody the app doesn't track (a
+    /// relative, a partner, a friend-of-a-friend) rather than on the
     /// speaker themselves.
     private static func aboutSomeoneElse(_ lower: String) -> Bool {
         let owners = ["mom", "mother", "dad", "father", "brother", "sister", "cousin",

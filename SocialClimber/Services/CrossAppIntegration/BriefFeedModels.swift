@@ -7,7 +7,7 @@ import Foundation
 /// Encode-only: Social Climber writes this file and never reads it back, so
 /// there is no decoding counterpart here. The wire contract lives in the
 /// Brief repo's `LINKED_APPS.md` (`socialclimber_brief_feed_v1.json`,
-/// schema v1) and changes must stay strictly additive — Brief decodes
+/// schema v1) and changes must stay strictly additive: Brief decodes
 /// defensively and treats unknown fields as noise, but renaming or removing
 /// a key would silently blank the section in the user's morning brief.
 ///
@@ -18,7 +18,7 @@ import Foundation
 struct SocialClimberBriefFeed: Codable, Equatable {
     /// One local calendar day's worth of activity, already rendered into
     /// short display lines so Brief never has to interpret Social Climber's
-    /// domain — it just prints them.
+    /// domain; it just prints them.
     struct Day: Codable, Equatable {
         /// Local calendar day as "yyyy-MM-dd" (see
         /// `BriefFeedPublisher.dayKeyFormatter`), *not* an instant: Brief
@@ -41,7 +41,7 @@ struct SocialClimberBriefFeed: Codable, Equatable {
         /// (JSONEncoder skips nil optionals), per the contract.
         var detail: String?
         var dueDate: Date
-        /// True when the due date is a day, not a moment — Brief then hides
+        /// True when the due date is a day, not a moment, so Brief then hides
         /// the time component.
         var isAllDay: Bool
         /// True when past due and still incomplete at write time.

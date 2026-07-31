@@ -232,8 +232,8 @@ final class CaptureProcessor {
 
         // Relationship inference and past events run for *every* source,
         // including Instagram digests processed by the keyword heuristics.
-        // Unlike the interest/personality markers above — which were written
-        // for the user's own dictated notes and fire on casual banter — both
+        // Unlike the interest/personality markers above (which were written
+        // for the user's own dictated notes and fire on casual banter), both
         // of these only trigger on wording that states a relationship or
         // describes a completed change of state, so a chat transcript is
         // exactly the input they're meant for.
@@ -621,8 +621,8 @@ final class CaptureProcessor {
 
     /// Stores the significant things that actually happened, for the Past
     /// Events feed. Everything is filtered through
-    /// `LifeEventDetector.isWorthKeeping` first — including AI-produced
-    /// candidates — and de-duplicated against what's already recorded, so
+    /// `LifeEventDetector.isWorthKeeping` first, including AI-produced
+    /// candidates, and de-duplicated against what's already recorded, so
     /// re-syncing a conversation, or two conversations covering the same
     /// news, can't fill the feed with repeats.
     @MainActor

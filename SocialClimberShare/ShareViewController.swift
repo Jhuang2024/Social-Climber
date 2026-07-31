@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 /// (selected Messages bubbles, a paragraph) or images (screenshots) to
 /// Social Climber. It stages everything into the App Group queue as a
 /// capture payload, confirms with "Saved to Social Climber", and closes
-/// immediately — the main app imports and organizes it automatically the
+/// immediately; the main app imports and organizes it automatically the
 /// next time it's active, without asking the user to finish anything.
 ///
 /// No `@objc(ShareViewController)` override here on purpose: the

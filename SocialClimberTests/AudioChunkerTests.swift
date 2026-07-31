@@ -1,7 +1,7 @@
 import XCTest
 @testable import SocialClimber
 
-/// Tests chunk-window computation and timestamp-preserving recombination —
+/// Tests chunk-window computation and timestamp-preserving recombination,
 /// including the overlap-dedup at seams.
 final class AudioChunkerTests: XCTestCase {
 

@@ -9,8 +9,8 @@ import SwiftData
 /// Like the per-person score, this is computed in fractions off
 /// `ScoreCurves` and rounded once, at the end. The previous version summed
 /// integer buckets that were each flat across a wide band and capped on top
-/// of that — "more active than last month" pinned at +15, breadth pinned at
-/// +12, the relationship average integer-divided by two — so the total
+/// of that: "more active than last month" pinned at +15, breadth pinned at
+/// +12, the relationship average integer-divided by two. So the total
 /// could report the identical number for weeks on end while the underlying
 /// relationships were visibly moving.
 struct SocialHealthReport {
@@ -75,7 +75,7 @@ struct SocialHealthReport {
             // saturates into a flat cap.
             let ratio = (fast + 0.5) / (Self.halfLifeRatio * slow + 0.5)
             let trend = ScoreCurves.clamp(12 * log2(ratio), -15, 15)
-            // A flat month is worth a small positive — consistency counts —
+            // A flat month is worth a small positive (consistency counts),
             // as a smooth bump around zero rather than a step, so holding
             // steady never jumps the score by 5 the moment the trend
             // crosses some threshold.

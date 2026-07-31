@@ -189,7 +189,7 @@ struct RelationshipScore {
         // 7. High-priority decay: priority people are held to a stricter
         //    bar. Derived from the cadence already computed above rather
         //    than calling `RelationshipHealth.status`, which would redo the
-        //    whole cadence/rhythm calculation — expensive here, since the
+        //    whole cadence/rhythm calculation, which is expensive here since the
         //    trend chart replays this for every person at ~60 past dates.
         if person.priority >= 4 {
             let overdueRatio = lastContact

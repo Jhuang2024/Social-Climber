@@ -127,7 +127,7 @@ final class InstagramSyncService {
         isSyncing = true
         // The download/unzip/parse run dies if the screen auto-locks
         // (iOS suspends the process), so hold the device awake until the
-        // defer below runs — success or failure.
+        // defer below runs, on success or failure alike.
         KeepAwake.begin("instagram-sync")
         defer {
             isSyncing = false
@@ -456,7 +456,7 @@ final class InstagramSyncService {
         // Purge the junk the keyword heuristics previously "learned" from
         // imported chat transcripts: machine-origin facts (never confirmed,
         // edited, or rejected by the user) whose source capture is an
-        // Instagram import that was processed without a real AI provider —
+        // Instagram import that was processed without a real AI provider:
         // either the AI call degraded to the local fallback, or the Mock
         // provider (the default) was selected, which runs the same
         // heuristics with `usedLocalFallback` still false. The capture and

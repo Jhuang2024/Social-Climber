@@ -205,7 +205,7 @@ struct BackupRestoreView: View {
     /// screen and tap through it themselves; merge-only restore makes this
     /// safe without confirmation. `backups.first` is the most complete copy
     /// known (`allKnownBackups()` sorts that way), which after a reinstall is
-    /// an App Group mirror — the only kind that survives the sandbox being
+    /// an App Group mirror, the only kind that survives the sandbox being
     /// replaced. Never runs in `.voluntary` mode, where picking a specific
     /// backup is the whole point of opening this screen. The list stays
     /// visible underneath as a fallback for the rare case nothing is

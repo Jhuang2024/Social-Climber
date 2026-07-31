@@ -3,7 +3,7 @@ import SwiftData
 
 /// Builds the `SocialClimberBriefFeed` snapshot from live SwiftData records.
 /// A pure, read-only projection: it fetches, summarizes, and returns a
-/// value. Writing the file — and the sharing gate — stays in
+/// value. Writing the file and the sharing gate both stay in
 /// `CrossAppIntegrationManager`, so this type never needs to know where the
 /// feed lands or whether sharing is even on.
 ///
@@ -149,7 +149,7 @@ enum BriefFeedPublisher {
         }
 
         // 2. Events that actually happened. An event later today isn't
-        // activity yet — it shows up in the reminders section instead, so
+        // activity yet; it shows up in the reminders section instead, so
         // the same event never appears in both places at once.
         let dayEvents = events
             .filter { calendar.isDate($0.date, inSameDayAs: day) && $0.date <= now }
@@ -171,7 +171,7 @@ enum BriefFeedPublisher {
 
         // 4. Memories saved that day, named by their headline. Keyed off
         // `capturedAt` (when the memory happened, which is what a recap is
-        // about) and only `.processed` — a still-queued or failed capture
+        // about) and only `.processed`; a still-queued or failed capture
         // isn't a remembered memory yet. A bare "Saved 3 memories" count is
         // deliberately not emitted: it reads like an internal stat rather
         // than something Jerry did, and because auto-imported conversations
@@ -225,7 +225,7 @@ enum BriefFeedPublisher {
     /// summary/note preview instead: a morning brief should not hand Jerry
     /// a verdict like "felt strained" on how a conversation went, since a
     /// low quality score is often an auto-derived guess rather than
-    /// something he actually recorded — and the preview is the more useful
+    /// something he actually recorded, and the preview is the more useful
     /// detail anyway.
     private static func line(for interaction: Interaction) -> String {
         let names = interaction.people.map(\.firstName)
@@ -284,7 +284,7 @@ enum BriefFeedPublisher {
         // 1. Explicit reminders: everything overdue plus anything due
         // inside the window. Archived people's reminders are skipped, same
         // rule as the peer-bridge snapshot. Due dates come from a date-only
-        // picker, so the time-of-day component is incidental — hence
+        // picker, so the time-of-day component is incidental, hence
         // `isAllDay: true`.
         for reminder in reminders {
             guard !reminder.completed, reminder.dueDate < windowEnd else { continue }
@@ -310,7 +310,7 @@ enum BriefFeedPublisher {
 
         // 2. Birthdays. These live on `Person.birthday` (the same source
         // the dashboard's Upcoming card uses), not only on `ImportantDate`,
-        // so both are checked — with dedup below so a person who has both
+        // so both are checked, with dedup below so a person who has both
         // doesn't appear twice.
         var birthdayPersonIDs = Set<UUID>()
         for person in people where !person.isArchived {
@@ -373,7 +373,7 @@ enum BriefFeedPublisher {
         // 5. Check-in nudges, reusing `RelationshipHealth`'s status verdict
         // (via `Person.status`) rather than re-deriving cadence math here.
         // `.checkInSoon` and `.goingQuiet` both warrant a morning nudge;
-        // `.dormant` is deliberately excluded — resurfacing a long-gone
+        // `.dormant` is deliberately excluded; resurfacing a long-gone
         // contact every single morning is noise, not help.
         let checkIns = people
             .filter {
@@ -435,7 +435,7 @@ enum BriefFeedPublisher {
 
     /// Names joined the way a person would say them: "Sarah", "Sarah and
     /// Mike", "Sarah, Mike and Priya", and past the limit "Sarah, Mike and
-    /// 3 others" — so a big group never turns a summary line into a
+    /// 3 others", so a big group never turns a summary line into a
     /// paragraph, and a small one never reads like a database row.
     private static func nameList(_ names: [String], limit: Int = 3) -> String {
         if names.count <= limit {
@@ -449,7 +449,7 @@ enum BriefFeedPublisher {
         return shown.joined(separator: ", ") + " and \(names.count - shown.count) others"
     }
 
-    /// "12 days quiet" / "3 weeks quiet" / "4 months quiet" — coarse on
+    /// "12 days quiet" / "3 weeks quiet" / "4 months quiet": coarse on
     /// purpose; the point is a felt duration, not bookkeeping.
     private static func quietLabel(days: Int) -> String {
         switch days {

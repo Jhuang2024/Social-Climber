@@ -13,8 +13,8 @@ final class NotificationService {
     func requestAuthorization() async -> Bool {
         // `.timeSensitive` is what lets `interruptionLevel = .timeSensitive`
         // (set below on reminders/birthdays/dates/events) actually break
-        // through Focus/Do Not Disturb the way Messages and Calendar do —
-        // without requesting this option, the OS won't grant that
+        // through Focus/Do Not Disturb the way Messages and Calendar do.
+        // Without requesting this option, the OS won't grant that
         // interruption level even if the content asks for it, and every
         // notification gets silently logged to Notification Center instead
         // of shown, indistinguishable from a scheduling failure.
@@ -116,7 +116,7 @@ final class NotificationService {
         /// the app was backgrounded/inactive when it fired.
         case deliveredInBackground
         /// Neither pending nor delivered after the trigger should have
-        /// fired — `center.add` likely threw, or iOS silently dropped it
+        /// fired: `center.add` likely threw, or iOS silently dropped it
         /// before delivery (rare, but seen with corrupted notification
         /// state that only a device restart clears).
         case missing
@@ -158,7 +158,7 @@ final class NotificationService {
             // the options set at the moment the user answered the system
             // prompt. An install that granted permission before this app
             // requested `.timeSensitive` will never pick it up just because
-            // the code changed — calling requestAuthorization again is safe
+            // the code changed; calling requestAuthorization again is safe
             // (no new UI for options already decided) and is what actually
             // extends the grant to include it.
             authorized = await requestAuthorization()
@@ -229,13 +229,13 @@ final class NotificationService {
     /// passed but `enabled` is false. Only 3 of the app's ~15 scheduling
     /// call sites (creating a Reminder or Important Date, and the
     /// follow-up-needed auto-reminder) used to call
-    /// `requestPermissionContextually()` themselves — every other path
+    /// `requestPermissionContextually()` themselves; every other path
     /// (birthdays, events, Quick Capture, relationship maintenance, …)
     /// skipped straight to a `schedule*` call and silently no-opped forever
     /// on a fresh install, since permission was never actually requested.
     /// Centralizing the contextual ask here means every entry point gets it
     /// for free. A no-op after the first ask (or if disabled for another
-    /// reason, e.g. a per-category toggle) — `retry` re-checks `enabled`
+    /// reason, e.g. a per-category toggle); `retry` re-checks `enabled`
     /// itself, so this can't loop or re-prompt.
     private func requestPermissionThenRetry(_ retry: @escaping () -> Void) {
         guard !UserDefaults.standard.bool(forKey: "hasRequestedNotificationPermission"), !isRequestingPermission else { return }

@@ -1,7 +1,7 @@
 import UIKit
 
 /// Keeps the device from auto-locking while a long, user-initiated,
-/// foreground job runs — the Instagram Drive sync (download + unzip +
+/// foreground job runs: the Instagram Drive sync (download + unzip +
 /// parse) and the review sheet's apply/extraction pass. iOS suspends the
 /// process the moment the screen sleeps, which killed those jobs midway;
 /// no background entitlement covers an on-demand Drive pull, so the

@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-/// "What's happened" — a chronological record of the real events Social
+/// "What's happened": a chronological record of the real events Social
 /// Climber picked up from the conversations you captured or imported: to
 /// you, and to the people you track.
 ///
@@ -161,7 +161,7 @@ struct PastEventsView: View {
             icon: "clock.badge.checkmark",
             title: kindFilter == nil ? "Nothing recorded yet" : "Nothing of that kind",
             message: kindFilter == nil
-                ? "When a conversation you capture or import says something actually happened — a school decision, a new job, a move, a breakup — it lands here. Everyday chat doesn't."
+                ? "When a conversation you capture or import says something actually happened (a school decision, a new job, a move, a breakup), it lands here. Everyday chat doesn't."
                 : "No events in this category yet."
         )
         .padding(.top, 40)
