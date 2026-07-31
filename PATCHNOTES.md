@@ -11,6 +11,8 @@ as something that happened to you (it is a question, about someone else), and
 as a subject. This is exactly the class of junk `MemoryFact.isLowQuality`
 already existed to prevent one layer down.
 
+- The object is cut at the end of its own noun phrase instead of taking a flat five words, which is what stored the middle of a sentence as "Got into a school only 2 other".
+- A generic noun is not an event. "Got into a school" records nothing "got into ucb" doesn't, so an object made only of generic words ("school", "place", "job") is rejected, the same way `MemoryFact` refuses to store "education" as an interest. A title that trails off in a function word is rejected too, as a second line of defence against truncation.
 - A marker phrase is now only a starting point. The words *before* it have to identify a subject (first person, or a contact named immediately before it) and the words *after* it have to make the phrase mean something: "broke my" needs a body part, "got into" needs a destination and not "a fight". Anything ambiguous is dropped rather than guessed at, including second person ("u got in"), which is nearly always a question rather than news.
 - Questions and callbacks ("rmb…", "did u…", anything with a question mark) are rejected outright, at the source line, not just on the finished title.
 - The stored title is now *built* from the marker and its object ("Got into ucb") instead of quoting the raw chat line, so stray quote marks and half-sentences can't reach the feed.

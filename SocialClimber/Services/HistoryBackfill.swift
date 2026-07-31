@@ -28,9 +28,12 @@ enum HistoryBackfill {
     /// Bump to re-run the sweep after the detectors get meaningfully better.
     /// v2: the first detector matched a marker anywhere in a sentence and
     /// stored the raw line as the event, which produced chat fragments
-    /// attributed to the wrong person entirely. Everything it wrote has to
-    /// go, not just be added to.
-    private static let currentVersion = 2
+    /// attributed to the wrong person entirely.
+    /// v3: the object was taken as a flat five words, so it ran past the end
+    /// of its own phrase and stored the truncation ("Got into a school only
+    /// 2 other"), and a generic noun was accepted as an event at all.
+    /// Everything either of them wrote has to go, not just be added to.
+    private static let currentVersion = 3
 
     /// Interactions with less text than this carry nothing worth scanning
     /// ("Marked as contacted", a bare "Logged contact with…").

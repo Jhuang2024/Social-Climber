@@ -181,6 +181,16 @@ final class ConversationInferenceTests: XCTestCase {
         // "bro" is a vocative, not a subject; this said nothing about who.
         assertNoEvents(in: "Oliver: Bro got into ucb", knownPeople: ["Oliver"])
 
+        // A generic noun is not an event, and the object ran past the end of
+        // its own phrase and stored the truncation: "Got into a school only
+        // 2 other".
+        assertNoEvents(
+            in: "jerry: i got into a school only 2 other people from our school got into",
+            knownPeople: ["Sarah"]
+        )
+        assertNoEvents(in: "Sarah: i got into a really good school", knownPeople: ["Sarah"])
+        assertNoEvents(in: "Sarah: i moved to a new place", knownPeople: ["Sarah"])
+
         // Further shapes the same flaw would have accepted.
         assertNoEvents(in: "Sarah: he got into ucla", knownPeople: ["Sarah"])
         assertNoEvents(in: "Sarah: we got into a fight", knownPeople: ["Sarah"])
@@ -210,6 +220,17 @@ final class ConversationInferenceTests: XCTestCase {
         )
         XCTAssertEqual(broken.first?.kind, LifeEventKind.health.rawValue)
         XCTAssertEqual(broken.first?.personNames, ["Sarah"])
+        // Cut at the end of the noun phrase, not five words in.
+        XCTAssertEqual(broken.first?.title, "Broke my wrist")
+
+        // A self-contained phrase keeps its title short rather than dragging
+        // the rest of the clause along.
+        let internship = LifeEventDetector.detect(
+            in: "Sarah: i got the internship at that startup downtown",
+            knownPeople: ["Sarah"],
+            reference: reference
+        )
+        XCTAssertEqual(internship.first?.title, "Got the internship")
     }
 
     private func assertNoEvents(

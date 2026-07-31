@@ -51,6 +51,14 @@ enum LifeEventDetector {
         "wait ", "how come", "what about",
     ]
 
+    /// Words a real statement never ends on. A title finishing here means a
+    /// sentence was cut mid-phrase.
+    private static let danglingTailWords: Set<String> = [
+        "a", "an", "the", "of", "and", "or", "only", "other", "to", "with",
+        "for", "in", "at", "on", "my", "his", "her", "their", "that", "this",
+        "is", "was", "were", "been", "just", "like", "so", "but", "because",
+    ]
+
     /// Chat noise that gives away a fragment lifted straight out of a
     /// message. Mirrors `MemoryFact.chatFragmentTokens`, which exists for the
     /// same reason one layer down.
@@ -67,8 +75,14 @@ enum LifeEventDetector {
         let title = event.title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard title.count >= 6, title.count <= 140 else { return false }
         guard event.significance >= 2 else { return false }
-        // A bare fragment rather than a statement of what happened.
-        guard title.contains(" ") else { return false }
+        // A bare fragment rather than a statement of what happened. One word
+        // is only ever enough when it carries the whole event on its own
+        // ("Graduated"), which in practice means a long one.
+        guard title.contains(" ") || title.count >= 9 else { return false }
+        // A title that trails off in a function word is a truncated
+        // sentence, not a statement ("Got into a school only 2 other").
+        let lastWord = title.lowercased().split(separator: " ").last.map(String.init) ?? ""
+        guard !danglingTailWords.contains(lastWord) else { return false }
 
         let lower = title.lowercased() + " " + event.detail.lowercased()
         if questionMarkers.contains(where: { lower.contains($0) }) { return false }
@@ -108,7 +122,28 @@ enum LifeEventDetector {
     /// Objects that turn an otherwise-promising phrase into a non-event.
     private static let bannedObjectTokens: Set<String> = [
         "fight", "argument", "trouble", "it", "that", "this", "there",
-        "bed", "character", "trouble", "beef",
+        "bed", "character", "beef",
+    ]
+
+    /// Words that end the object's noun phrase: whatever follows belongs to
+    /// a different clause and must not be swept into the title.
+    private static let phraseBoundaryWords: Set<String> = [
+        "and", "but", "because", "so", "then", "when", "while", "that",
+        "which", "who", "whom", "where", "only", "just", "like", "with",
+        "without", "for", "from", "as", "than", "after", "before", "since",
+        "at", "in", "on", "of", "to", "if", "though", "although", "also",
+        "plus", "last", "next", "this", "yesterday", "today", "recently",
+        "back", "over", "about",
+    ]
+
+    /// Nouns too generic to be an event on their own. "Got into a school"
+    /// records nothing you didn't already know; "got into ucb" does.
+    private static let genericObjectTokens: Set<String> = [
+        "school", "college", "university", "uni", "program", "place", "job",
+        "work", "class", "team", "one", "thing", "things", "stuff", "house",
+        "home", "town", "city", "country", "state", "guy", "girl", "person",
+        "people", "somewhere", "anywhere", "everywhere", "something",
+        "anything", "everything", "course", "spot", "position",
     ]
 
     /// Deliberately short. Every phrase here has to be one that essentially
@@ -284,9 +319,17 @@ enum LifeEventDetector {
         return nil
     }
 
-    /// The words following the marker, validated against its rule. Returns
-    /// `nil` when the object is missing, banned, or the wrong kind of thing,
-    /// which is what stops "broke my scale" and "got into a fight".
+    /// The words following the marker, cut at the end of its noun phrase and
+    /// validated against the marker's rule.
+    ///
+    /// Two separate failures live here. Taking a flat five words ran
+    /// straight past the end of the phrase and stored the truncated middle
+    /// of a sentence ("Got into a school only 2 other"), so the tail is now
+    /// cut at the first word that starts a new clause. And a generic noun is
+    /// not an event: "got into a school" says nothing that "got into ucb"
+    /// says, so an object made only of generic words is rejected outright.
+    /// Same principle as `MemoryFact.isLowQualityValue` refusing to store
+    /// "education" as an interest.
     private static func object(
         after range: Range<String.Index>,
         in sentence: String,
@@ -298,24 +341,33 @@ enum LifeEventDetector {
         var words = tail
             .split(whereSeparator: { $0 == " " || $0 == "," || $0 == ";" })
             .map(String.init)
-        // Stop at a conjunction: what follows belongs to a different clause.
-        if let stop = words.firstIndex(where: { ["and", "but", "because", "so", "then", "when", "while"].contains($0.lowercased()) }) {
+        // Everything from here on belongs to another clause, not to this
+        // object. Without this, "got into a school only 2 other people got
+        // into" kept running and stored the truncation.
+        if let stop = words.firstIndex(where: { phraseBoundaryWords.contains($0.lowercased()) }) {
             words = Array(words[..<stop])
         }
-        words = Array(words.prefix(5))
-        let object = words.joined(separator: " ").trimmingCharacters(in: CharacterSet(charactersIn: " .,;:!?"))
+        // Drop a leading article so "a school" is judged on "school".
+        if let first = words.first?.lowercased(), ["a", "an", "the"].contains(first) {
+            words.removeFirst()
+        }
+        words = Array(words.prefix(3))
+        let object = words.joined(separator: " ").trimmingCharacters(in: CharacterSet(charactersIn: " .,;:!?'\""))
         let objectTokens = Set(object.lowercased().split(whereSeparator: { !$0.isLetter }).map(String.init))
+
+        guard objectTokens.isDisjoint(with: bannedObjectTokens) else { return nil }
+        guard objectTokens.isDisjoint(with: chatNoiseTokens) else { return nil }
 
         switch rule {
         case .none:
-            // Self-contained phrase: an object is optional, but if one is
-            // present it still must not be junk.
-            guard objectTokens.isDisjoint(with: bannedObjectTokens) else { return nil }
-            return object
+            // The phrase already means something on its own, so an object is
+            // optional; a generic one is simply dropped rather than failing
+            // the whole match ("graduated finally" becomes "Graduated").
+            return objectTokens.isDisjoint(with: genericObjectTokens) ? object : ""
         case .any:
+            // This marker means nothing without a specific object.
             guard object.count >= 2 else { return nil }
-            guard objectTokens.isDisjoint(with: bannedObjectTokens) else { return nil }
-            guard objectTokens.isDisjoint(with: chatNoiseTokens) else { return nil }
+            guard objectTokens.isDisjoint(with: genericObjectTokens) else { return nil }
             return object
         case .oneOf(let allowed):
             guard !objectTokens.isDisjoint(with: allowed) else { return nil }
